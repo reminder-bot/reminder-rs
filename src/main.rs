@@ -12,12 +12,11 @@ use serenity::{
     },
     framework::standard::{
         Args, CommandResult,
-        macros::{
-            command,
-        }
     },
     prelude::TypeMapKey,
 };
+
+use regex_command_attr::command;
 
 use sqlx::{
     Pool,
@@ -33,7 +32,7 @@ use std::{
     env,
 };
 
-use crate::framework::{RegexFramework, Command, PermissionLevel};
+use crate::framework::RegexFramework;
 
 struct SQLPool;
 
@@ -56,13 +55,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let framework = RegexFramework::new()
         .ignore_bots(true)
         .default_prefix("$")
-        .add_command(Command::from("help", PermissionLevel::Unrestricted, help_command))
+        .add_command("help".to_string(), &HELP_COMMAND)
+        .add_command("h".to_string(), &HELP_COMMAND)
         .build();
 
     let mut client = Client::new(&env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment"))
         .intents(GatewayIntents::GUILD_MESSAGES | GatewayIntents::GUILDS | GatewayIntents::DIRECT_MESSAGES)
         .framework(framework)
-        .await.expect("Error occured creating client");
+        .await.expect("Error occurred creating client");
 
     client.start_autosharded().await?;
 
@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 
 #[command]
-async fn help_command(_ctx: &Context, _msg: &Message, _args: Args) -> CommandResult {
+async fn help(_ctx: &Context, _msg: &Message, _args: Args) -> CommandResult {
     println!("Help command called");
 
     Ok(())

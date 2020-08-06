@@ -1,10 +1,8 @@
 [package]
-name = "reminder-rs"
+name = "reminder_rs"
 version = "0.1.0"
-authors = ["jude <judewrs@gmail.com>"]
+authors = ["jellywx <judesouthworth@pm.me>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 serenity = {git = "https://github.com/acdenisSK/serenity", branch = "await_next"}
@@ -14,3 +12,6 @@ reqwest = "0.10.6"
 sqlx = {version = "0.3.5", default-features = false, features = ["runtime-tokio", "macros", "mysql", "bigdecimal"]}
 regex = "1.3.9"
 async-trait = "0.1.36"
+
+[dependencies.regex_command_attr]
+path = "./regex_command_attr"

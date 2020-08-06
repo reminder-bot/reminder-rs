@@ -6,13 +6,7 @@ use serenity::{
     model::channel::Message,
 };
 
-use std::{
-    collections::HashSet,
-    hash::{
-        Hash,
-        Hasher
-    },
-};
+use std::collections::HashMap;
 
 use serenity::framework::standard::CommandFn;
 
@@ -23,63 +17,25 @@ pub enum PermissionLevel {
 }
 
 pub struct Command {
-    name: String,
-    required_perms: PermissionLevel,
-    can_blacklist: bool,
-    supports_dm: bool,
-    func: CommandFn,
+    pub name: &'static str,
+    pub required_perms: PermissionLevel,
+    pub can_blacklist: bool,
+    pub supports_dm: bool,
+    pub func: CommandFn,
 }
-
-impl Hash for Command {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-    }
-}
-
-impl PartialEq for Command {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
-
-impl Eq for Command {}
 
 // create event handler for bot
 pub struct RegexFramework {
-    commands: HashSet<Command>,
+    commands: HashMap<String, &'static Command>,
     command_names: String,
     default_prefix: String,
     ignore_bots: bool,
 }
 
-impl Command {
-    pub fn from(name: &str, required_perms: PermissionLevel, func: CommandFn) -> Self {
-        Command {
-            name: name.to_string(),
-            required_perms,
-            can_blacklist: true,
-            supports_dm: false,
-            func,
-        }
-    }
-
-    pub fn can_blacklist(&mut self, can_blacklist: bool) -> &mut Self {
-        self.can_blacklist = can_blacklist;
-
-        self
-    }
-
-    pub fn supports_dm(&mut self, supports_dm: bool) -> &mut Self {
-        self.supports_dm = supports_dm;
-
-        self
-    }
-}
-
 impl RegexFramework {
     pub fn new() -> Self {
         Self {
-            commands: HashSet::new(),
+            commands: HashMap::new(),
             command_names: String::new(),
             default_prefix: String::from("$"),
             ignore_bots: true,
@@ -98,17 +54,17 @@ impl RegexFramework {
         self
     }
 
-    pub fn add_command(mut self, command: Command) -> Self {
-        self.commands.insert(command);
+    pub fn add_command(mut self, name: String, command: &'static Command) -> Self {
+        self.commands.insert(name, command);
 
         self
     }
 
     pub fn build(mut self) -> Self {
         self.command_names = self.commands
-            .iter()
-            .map(|c| c.name.clone())
-            .collect::<Vec<String>>()
+            .keys()
+            .map(|k| &k[..])
+            .collect::<Vec<&str>>()
             .join("|");
 
         self
