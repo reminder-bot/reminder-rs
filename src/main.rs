@@ -52,6 +52,8 @@ static THEME_COLOR: u32 = 0x00e0f3;
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     dotenv()?;
 
+    println!("{:?}", HELP_COMMAND);
+
     let framework = RegexFramework::new()
         .ignore_bots(true)
         .default_prefix("$")

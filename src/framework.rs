@@ -6,10 +6,14 @@ use serenity::{
     model::channel::Message,
 };
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    fmt,
+};
 
 use serenity::framework::standard::CommandFn;
 
+#[derive(Debug)]
 pub enum PermissionLevel {
     Unrestricted,
     Managed,
@@ -19,9 +23,20 @@ pub enum PermissionLevel {
 pub struct Command {
     pub name: &'static str,
     pub required_perms: PermissionLevel,
-    pub can_blacklist: bool,
     pub supports_dm: bool,
+    pub can_blacklist: bool,
     pub func: CommandFn,
+}
+
+impl fmt::Debug for Command {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Command")
+         .field("name", &self.name)
+         .field("required_perms", &self.required_perms)
+         .field("supports_dm", &self.supports_dm)
+         .field("can_blacklist", &self.can_blacklist)
+         .finish()
+    }
 }
 
 // create event handler for bot

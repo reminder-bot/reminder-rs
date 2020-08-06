@@ -209,9 +209,24 @@ impl PermissionLevel {
 impl ToTokens for PermissionLevel {
     fn to_tokens(&self, stream: &mut TokenStream2) {
         let path = quote!(crate::framework::PermissionLevel);
+        let variant;
+
+        match self {
+            Self::Unrestricted => {
+                variant = quote!(Unrestricted);
+            }
+
+            Self::Managed => {
+                variant = quote!(Managed);
+            }
+
+            Self::Restricted => {
+                variant = quote!(Restricted);
+            }
+        }
 
         stream.extend(quote! {
-            #path::Unrestricted
+            #path::#variant
         });
     }
 }
@@ -229,6 +244,7 @@ impl Options {
         let mut options = Self::default();
 
         options.can_blacklist = true;
+        options.supports_dm = true;
 
         options
     }
