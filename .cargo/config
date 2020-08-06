@@ -1,0 +1,2 @@
+[build]
+target-dir = "/home/jude/.rust_build/reminder-rs"
