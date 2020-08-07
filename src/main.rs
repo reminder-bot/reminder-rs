@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     println!("{:?}", HELP_COMMAND);
 
-    let framework = RegexFramework::new()
+    let framework = RegexFramework::new(env::var("CLIENT_ID").expect("Missing CLIENT_ID from environment").parse()?)
         .ignore_bots(true)
         .default_prefix("$")
         .add_command("help".to_string(), &HELP_COMMAND)

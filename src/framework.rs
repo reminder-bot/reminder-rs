@@ -3,8 +3,20 @@ use async_trait::async_trait;
 use serenity::{
     client::Context,
     framework::Framework,
-    model::channel::Message,
+    model::{
+        guild::Guild,
+        channel::{
+            Channel, GuildChannel, Message,
+        }
+    },
 };
+
+use log::{
+    warn,
+    error,
+};
+
+use regex::Regex;
 
 use std::{
     collections::HashMap,
@@ -42,17 +54,19 @@ impl fmt::Debug for Command {
 // create event handler for bot
 pub struct RegexFramework {
     commands: HashMap<String, &'static Command>,
-    command_names: String,
+    regex_matcher: Regex,
     default_prefix: String,
+    client_id: u64,
     ignore_bots: bool,
 }
 
 impl RegexFramework {
-    pub fn new() -> Self {
+    pub fn new(client_id: u64) -> Self {
         Self {
             commands: HashMap::new(),
-            command_names: String::new(),
+            regex_matcher: Regex::new(r#"^$"#).unwrap(),
             default_prefix: String::from("$"),
+            client_id,
             ignore_bots: true,
         }
     }
@@ -76,19 +90,90 @@ impl RegexFramework {
     }
 
     pub fn build(mut self) -> Self {
-        self.command_names = self.commands
+        let command_names = self.commands
             .keys()
             .map(|k| &k[..])
             .collect::<Vec<&str>>()
             .join("|");
 
+        let match_string = r#"^(?:(?:<@ID>\s+)|(?:<@!ID>\s+)|(?P<prefix>\S{1,5}?))(?P<cmd>COMMANDS)(?:$|\s+(?P<args>.*))$"#
+            .replace("COMMANDS", command_names.as_str())
+            .replace("ID", self.client_id.to_string().as_str());
+
+        self.regex_matcher = Regex::new(match_string.as_str()).unwrap();
+
         self
     }
+}
+
+enum PermissionCheck {
+    None,  // No permissions
+    Basic, // Send + Embed permissions (sufficient to reply)
+    All,   // Above + Manage Webhooks (sufficient to operate)
 }
 
 #[async_trait]
 impl Framework for RegexFramework {
     async fn dispatch(&self, ctx: Context, msg: Message) {
-        println!("Message received! command_names=={}", self.command_names);
+
+        async fn check_self_permissions(ctx: &Context, guild: &Guild, channel: &GuildChannel) -> Result<PermissionCheck, Box<dyn std::error::Error>> {
+            let user_id = ctx.cache.current_user_id().await;
+
+            let guild_perms = guild.member_permissions(user_id);
+            let perms = channel.permissions_for_user(ctx, user_id).await?;
+
+            let basic_perms = perms.send_messages() && perms.embed_links();
+
+            Ok(if basic_perms && guild_perms.manage_webhooks() {
+                PermissionCheck::All
+            }
+            else if basic_perms {
+                PermissionCheck::Basic
+            }
+            else {
+                PermissionCheck::None
+            })
+        }
+
+        // gate to prevent analysing messages unnecessarily
+        if (msg.author.bot && self.ignore_bots) ||
+            msg.tts                             ||
+            msg.content.len() == 0              ||
+            msg.attachments.len() > 0
+        {
+            return
+        }
+
+        // Guild Command
+        else if let (Some(guild), Some(Channel::Guild(channel))) = (msg.guild(&ctx).await, msg.channel(&ctx).await) {
+
+            if let Some(full_match) = self.regex_matcher.captures(msg.content.as_str()) {
+
+                match check_self_permissions(&ctx, &guild, &channel).await {
+                    Ok(perms) => match perms {
+                        PermissionCheck::All => {
+
+                        }
+
+                        PermissionCheck::Basic => {
+
+                        }
+
+                        PermissionCheck::None => {
+                            warn!("Missing enough permissions for guild {}", guild.id);
+                        }
+                    }
+
+                    Err(e) => {
+                        error!("Error occurred getting permissions in guild {}: {:?}", guild.id, e);
+                    }
+                }
+            }
+        }
+
+        // DM Command
+        else {
+
+        }
     }
 }
