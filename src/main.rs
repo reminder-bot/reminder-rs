@@ -21,6 +21,7 @@ use regex_command_attr::command;
 use sqlx::{
     Pool,
     mysql::{
+        MySqlPool,
         MySqlConnection,
     }
 };
@@ -46,13 +47,11 @@ impl TypeMapKey for ReqwestClient {
     type Value = Arc<reqwest::Client>;
 }
 
-static THEME_COLOR: u32 = 0x00e0f3;
+static THEME_COLOR: u32 = 0x8fb677;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     dotenv()?;
-
-    println!("{:?}", HELP_COMMAND);
 
     let framework = RegexFramework::new(env::var("CLIENT_ID").expect("Missing CLIENT_ID from environment").parse()?)
         .ignore_bots(true)
@@ -65,6 +64,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .intents(GatewayIntents::GUILD_MESSAGES | GatewayIntents::GUILDS | GatewayIntents::DIRECT_MESSAGES)
         .framework(framework)
         .await.expect("Error occurred creating client");
+
+    {
+        let pool = MySqlPool::new(&env::var("DATABASE_URL").expect("Missing DATABASE_URL from environment")).await.unwrap();
+
+        let mut data = client.data.write().await;
+
+        data.insert::<SQLPool>(pool);
+        data.insert::<ReqwestClient>(Arc::new(reqwest::Client::new()));
+    }
 
     client.start_autosharded().await?;
 
