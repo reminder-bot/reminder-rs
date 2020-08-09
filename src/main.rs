@@ -56,8 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let framework = RegexFramework::new(env::var("CLIENT_ID").expect("Missing CLIENT_ID from environment").parse()?)
         .ignore_bots(true)
         .default_prefix("$")
-        .add_command("help".to_string(), &HELP_COMMAND)
-        .add_command("h".to_string(), &HELP_COMMAND)
+        .add_command("look".to_string(), &LOOK_COMMAND)
         .build();
 
     let mut client = Client::new(&env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment"))
@@ -80,7 +79,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 
 #[command]
-async fn help(_ctx: &Context, _msg: &Message, _args: Args) -> CommandResult {
+#[permission_level(Managed)]
+#[supports_dm(false)]
+async fn look(_ctx: &Context, _msg: &Message, _args: Args) -> CommandResult {
     println!("Help command called");
 
     Ok(())
