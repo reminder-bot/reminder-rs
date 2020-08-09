@@ -1,4 +1,5 @@
 mod framework;
+mod commands;
 
 use serenity::{
     client::{
@@ -34,6 +35,11 @@ use std::{
 };
 
 use crate::framework::RegexFramework;
+use crate::commands::{
+    info_cmds,
+    reminder_cmds,
+    todo_cmds,
+};
 
 struct SQLPool;
 
@@ -56,7 +62,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let framework = RegexFramework::new(env::var("CLIENT_ID").expect("Missing CLIENT_ID from environment").parse()?)
         .ignore_bots(true)
         .default_prefix("$")
-        .add_command("look".to_string(), &LOOK_COMMAND)
+        .add_command("help", &info_cmds::HELP_COMMAND)
+        .add_command("info", &info_cmds::INFO_COMMAND)
+        .add_command("donate", &info_cmds::DONATE_COMMAND)
         .build();
 
     let mut client = Client::new(&env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment"))

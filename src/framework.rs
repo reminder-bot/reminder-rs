@@ -36,7 +36,6 @@ use std::{
 };
 
 use crate::SQLPool;
-use serenity::model::id::RoleId;
 
 #[derive(Debug)]
 pub enum PermissionLevel {
@@ -162,8 +161,8 @@ impl RegexFramework {
         self
     }
 
-    pub fn add_command(mut self, name: String, command: &'static Command) -> Self {
-        self.commands.insert(name, command);
+    pub fn add_command(mut self, name: &str, command: &'static Command) -> Self {
+        self.commands.insert(name.to_string(), command);
 
         self
     }
@@ -269,7 +268,7 @@ impl Framework for RegexFramework {
                     }
 
                     Err(sqlx::Error::RowNotFound) => {
-                        sqlx::query!("INSERT INTO guilds (guild, name) VALUES (?, ?)", guild.id.as_u64(), guild.name)
+                        let _ = sqlx::query!("INSERT INTO guilds (guild, name) VALUES (?, ?)", guild.id.as_u64(), guild.name)
                             .execute(&pool)
                             .await;
 
