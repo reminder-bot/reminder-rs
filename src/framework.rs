@@ -4,9 +4,7 @@ use serenity::{
     client::Context,
     framework::{
         Framework,
-        standard::{
-            Args, CommandFn,
-        },
+        standard::CommandResult,
     },
     model::{
         guild::{
@@ -17,6 +15,7 @@ use serenity::{
             Channel, GuildChannel, Message,
         }
     },
+    futures::prelude::future::BoxFuture,
 };
 
 use log::{
@@ -36,6 +35,8 @@ use std::{
 };
 
 use crate::SQLPool;
+
+type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, CommandResult>;
 
 #[derive(Debug)]
 pub enum PermissionLevel {
@@ -311,20 +312,18 @@ impl Framework for RegexFramework {
                         Ok(perms) => match perms {
                             PermissionCheck::All => {
                                 let command = self.commands.get(full_match.name("cmd").unwrap().as_str()).unwrap();
-                                let args = Args::new(
-                                    full_match.name("args")
-                                        .map(|m| m.as_str())
-                                        .unwrap_or(""),
-                                    &[]
-                                );
+                                let args = full_match.name("args")
+                                    .map(|m| m.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
 
                                 if command.check_permissions(&ctx, &guild, &member).await {
-                                    (command.func)(&ctx, &msg, args).await;
+                                    (command.func)(&ctx, &msg, args).await.unwrap();
                                 }
                             }
 
                             PermissionCheck::Basic => {
-                                msg.channel_id.say(&ctx, "Not enough perms").await;
+                                let _ = msg.channel_id.say(&ctx, "Not enough perms").await;
                             }
 
                             PermissionCheck::None => {
@@ -344,14 +343,12 @@ impl Framework for RegexFramework {
         else {
             if let Some(full_match) = self.dm_regex_matcher.captures(&msg.content[..]) {
                 let command = self.commands.get(full_match.name("cmd").unwrap().as_str()).unwrap();
-                let args = Args::new(
-                    full_match.name("args")
-                        .map(|m| m.as_str())
-                        .unwrap_or(""),
-                    &[]
-                );
+                let args = full_match.name("args")
+                    .map(|m| m.as_str())
+                    .unwrap_or("")
+                    .to_string();
 
-                (command.func)(&ctx, &msg, args).await;
+                (command.func)(&ctx, &msg, args).await.unwrap();
             }
         }
     }

@@ -7,15 +7,14 @@ use serenity::{
             Message,
         },
     },
-    framework::standard::{
-        Args, CommandResult,
-    },
+    framework::standard::CommandResult,
 };
+
 use crate::THEME_COLOR;
 
 
 #[command]
-async fn help(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+async fn help(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
     msg.channel_id.send_message(ctx, |m| m
         .embed(|e| e
             .title("Help")
@@ -28,7 +27,7 @@ async fn help(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
 }
 
 #[command]
-async fn info(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+async fn info(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
     msg.channel_id.send_message(ctx, |m| m
         .embed(|e| e
             .title("Info")
@@ -41,7 +40,7 @@ async fn info(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
 }
 
 #[command]
-async fn donate(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+async fn donate(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
     msg.channel_id.send_message(ctx, |m| m
         .embed(|e| e
             .title("Donate")

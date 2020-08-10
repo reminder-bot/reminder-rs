@@ -4,20 +4,10 @@ mod commands;
 use serenity::{
     client::{
         bridge::gateway::GatewayIntents,
-        Client, Context,
-    },
-    model::{
-        channel::{
-            Message,
-        },
-    },
-    framework::standard::{
-        Args, CommandResult,
+        Client,
     },
     prelude::TypeMapKey,
 };
-
-use regex_command_attr::command;
 
 use sqlx::{
     Pool,
@@ -82,15 +72,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     client.start_autosharded().await?;
-
-    Ok(())
-}
-
-#[command]
-#[permission_level(Managed)]
-#[supports_dm(false)]
-async fn look(_ctx: &Context, _msg: &Message, _args: Args) -> CommandResult {
-    println!("Help command called");
 
     Ok(())
 }

@@ -183,8 +183,7 @@ pub fn create_declaration_validations(fun: &mut CommandFun, dec_for: DeclarFor) 
 
     let context: Type = parse_quote!(&serenity::client::Context);
     let message: Type = parse_quote!(&serenity::model::channel::Message);
-    let args: Type = parse_quote!(serenity::framework::standard::Args);
-    let args2: Type = parse_quote!(&mut serenity::framework::standard::Args);
+    let args: Type = parse_quote!(String);
     let options: Type = parse_quote!(&serenity::framework::standard::CommandOptions);
     let hoptions: Type = parse_quote!(&'static serenity::framework::standard::HelpOptions);
     let groups: Type = parse_quote!(&[&'static serenity::framework::standard::CommandGroup]);
@@ -209,7 +208,6 @@ pub fn create_declaration_validations(fun: &mut CommandFun, dec_for: DeclarFor) 
     spoof_or_check(message, "_msg");
 
     if dec_for == DeclarFor::Check {
-        spoof_or_check(args2, "_args");
         spoof_or_check(options, "_options");
 
         return Ok(());
