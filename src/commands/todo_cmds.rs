@@ -17,7 +17,6 @@ use std::fmt;
 
 use crate::SQLPool;
 use sqlx::MySqlPool;
-use std::convert::TryFrom;
 
 #[derive(Debug)]
 struct TodoNotFound;
