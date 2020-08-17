@@ -138,7 +138,7 @@ DELETE FROM todos WHERE id = ?
             Ok(())
         }
         else {
-            Err(Box::try_from(TodoNotFound).unwrap())
+            Err(Box::new(TodoNotFound))
         }
     }
 
