@@ -1,3 +1,4 @@
+mod models;
 mod framework;
 mod commands;
 
@@ -29,6 +30,7 @@ use crate::commands::{
     info_cmds,
     reminder_cmds,
     todo_cmds,
+    moderation_cmds,
 };
 
 struct SQLPool;
@@ -56,6 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("info", &info_cmds::INFO_COMMAND)
         .add_command("donate", &info_cmds::DONATE_COMMAND)
         .add_command("todo", &todo_cmds::TODO_PARSE_COMMAND)
+        .add_command("blacklist", &moderation_cmds::BLACKLIST_COMMAND)
         .build();
 
     let mut client = Client::new(&env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment"))

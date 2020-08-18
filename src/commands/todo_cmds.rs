@@ -179,6 +179,7 @@ enum SubCommand {
 }
 
 #[command]
+#[permission_level(Managed)]
 async fn todo_parse(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     let mut split = args.split(" ");
