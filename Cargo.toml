@@ -9,7 +9,7 @@ serenity = {git = "https://github.com/acdenisSK/serenity", branch = "await_next"
 dotenv = "0.15"
 tokio = {version = "0.2.19", features = ["fs", "sync", "process", "io-util"]}
 reqwest = "0.10.6"
-sqlx = {version = "0.3.5", default-features = false, features = ["runtime-tokio", "macros", "mysql", "bigdecimal"]}
+sqlx = {version = "0.3.5", default-features = false, features = ["runtime-tokio", "macros", "mysql", "bigdecimal", "chrono"]}
 regex = "1.3.9"
 async-trait = "0.1.36"
 log = "0.4.11"

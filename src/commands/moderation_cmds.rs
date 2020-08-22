@@ -10,7 +10,10 @@ use serenity::{
     framework::standard::CommandResult,
 };
 
-use crate::SQLPool;
+use crate::{
+    models::ChannelData,
+    SQLPool,
+};
 
 #[command]
 #[supports_dm(false)]
@@ -19,7 +22,17 @@ async fn blacklist(ctx: &Context, msg: &Message, args: String) -> CommandResult 
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    if
+    let mut channel = ChannelData::from_id(msg.channel(&ctx), pool.clone()).await.unwrap();
+
+    channel.blacklisted = !channel.blacklisted;
+    channel.commit_changes(pool).await;
+
+    if channel.blacklisted {
+
+    }
+    else {
+
+    }
 
     Ok(())
 }
