@@ -22,7 +22,7 @@ async fn blacklist(ctx: &Context, msg: &Message, args: String) -> CommandResult 
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    let mut channel = ChannelData::from_id(msg.channel(&ctx), pool.clone()).await.unwrap();
+    let mut channel = ChannelData::from_id(msg.channel(&ctx).await.unwrap(), pool.clone()).await.unwrap();
 
     channel.blacklisted = !channel.blacklisted;
     channel.commit_changes(pool).await;

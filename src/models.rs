@@ -28,10 +28,12 @@ pub struct ChannelData {
 
 impl GuildData {
     pub async fn from_id(guild: Guild, pool: MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let guild_id = guild.id.as_u64().clone();
+
         if let Ok(g) = sqlx::query_as!(Self,
             "
 SELECT id, guild, name, prefix FROM guilds WHERE guild = ?
-            ", guild.id.as_u64())
+            ", guild_id)
             .fetch_one(&pool)
             .await {
 
@@ -41,48 +43,55 @@ SELECT id, guild, name, prefix FROM guilds WHERE guild = ?
             sqlx::query!(
                 "
 INSERT INTO guilds (guild, name) VALUES (?, ?)
-                ", guild.id.as_u64(), guild.name)
+                ", guild_id, guild.name)
                 .execute(&pool)
                 .await?;
 
-            sqlx::query_as!(Self,
+            Ok(sqlx::query_as!(Self,
             "
 SELECT id, guild, name, prefix FROM guilds WHERE guild = ?
-            ", guild.id.as_u64())
+            ", guild_id)
             .fetch_one(&pool)
-            .await
+            .await?)
         }
     }
 }
 
 impl ChannelData {
     pub async fn from_id(channel: Channel, pool: MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let channel_id = channel.id().as_u64().clone();
+
         if let Ok(c) = sqlx::query_as_unchecked!(Self,
             "
 SELECT * FROM channels WHERE channel = ?
-            ", channel.id().as_u64())
+            ", channel_id)
             .fetch_one(&pool)
             .await {
 
             Ok(c)
         }
         else {
-            let guild_id = channel.guild().map(|g| g.guild_id.as_u64());
-            let channel_name = channel.guild().map(|g| g.name);
+            let props = channel.guild().map(|g| (g.guild_id.as_u64().clone(), g.name));
+
+            let (guild_id, channel_name) = if let Some((a, b)) = props {
+                (Some(a), Some(b))
+            } else {
+                (None, None)
+            };
 
             sqlx::query!(
                 "
 INSERT INTO channels (channel, name, guild_id) VALUES (?, ?, (SELECT id FROM guilds WHERE guild = ?))
-                ", channel.id().as_u64(), channel_name, guild_id)
+                ", channel_id, channel_name, guild_id)
                 .execute(&pool)
                 .await?;
 
-            sqlx::query_as_unchecked!(Self,
-            "
+            Ok(sqlx::query_as_unchecked!(Self,
+                "
 SELECT * FROM channels WHERE channel = ?
-            ", channel.id().as_u64())
-            .fetch_one(&pool)
-            .await
+                ", channel_id)
+                .fetch_one(&pool)
+                .await?)
         }
     }
 
