@@ -34,7 +34,10 @@ use std::{
     fmt,
 };
 
-use crate::SQLPool;
+use crate::{
+    models::ChannelData,
+    SQLPool,
+};
 
 type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, CommandResult>;
 
@@ -311,14 +314,21 @@ impl Framework for RegexFramework {
                     match check_self_permissions(&ctx, &guild, &channel).await {
                         Ok(perms) => match perms {
                             PermissionCheck::All => {
-                                let command = self.commands.get(full_match.name("cmd").unwrap().as_str()).unwrap();
-                                let args = full_match.name("args")
-                                    .map(|m| m.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
+                                let pool = ctx.data.read().await
+                                    .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-                                if command.check_permissions(&ctx, &guild, &member).await {
-                                    (command.func)(&ctx, &msg, args).await.unwrap();
+                                let command = self.commands.get(full_match.name("cmd").unwrap().as_str()).unwrap();
+                                let channel_data = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), pool).await;
+
+                                if !command.can_blacklist || channel_data.map(|c| c.blacklisted).unwrap_or(false) {
+                                    let args = full_match.name("args")
+                                        .map(|m| m.as_str())
+                                        .unwrap_or("")
+                                        .to_string();
+
+                                    if command.check_permissions(&ctx, &guild, &member).await {
+                                        (command.func)(&ctx, &msg, args).await.unwrap();
+                                    }
                                 }
                             }
 

@@ -1,4 +1,5 @@
 use serenity::model::{
+    id::ChannelId,
     guild::Guild,
     channel::Channel
 };
@@ -58,7 +59,7 @@ SELECT id, guild, name, prefix FROM guilds WHERE guild = ?
 }
 
 impl ChannelData {
-    pub async fn from_id(channel: Channel, pool: MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    pub async fn from_channel(channel: Channel, pool: MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         let channel_id = channel.id().as_u64().clone();
 
         if let Ok(c) = sqlx::query_as_unchecked!(Self,
