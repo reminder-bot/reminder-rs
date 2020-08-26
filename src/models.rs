@@ -59,6 +59,15 @@ SELECT id, guild, name, prefix FROM guilds WHERE guild = ?
 }
 
 impl ChannelData {
+    pub async fn from_id(channel_id: u64, pool: MySqlPool) -> Option<Self> {
+        sqlx::query_as_unchecked!(Self,
+            "
+SELECT * FROM channels WHERE channel = ?
+            ", channel_id)
+            .fetch_one(&pool)
+            .await.ok()
+    }
+
     pub async fn from_channel(channel: Channel, pool: MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         let channel_id = channel.id().as_u64().clone();
 

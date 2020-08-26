@@ -1093,6 +1093,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "dotenv",
+ "lazy_static",
  "log",
  "regex",
  "regex_command_attr",

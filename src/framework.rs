@@ -320,7 +320,7 @@ impl Framework for RegexFramework {
                                 let command = self.commands.get(full_match.name("cmd").unwrap().as_str()).unwrap();
                                 let channel_data = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), pool).await;
 
-                                if !command.can_blacklist || channel_data.map(|c| c.blacklisted).unwrap_or(false) {
+                                if !command.can_blacklist || !channel_data.map(|c| c.blacklisted).unwrap_or(false) {
                                     let args = full_match.name("args")
                                         .map(|m| m.as_str())
                                         .unwrap_or("")

@@ -14,6 +14,7 @@ use crate::THEME_COLOR;
 
 
 #[command]
+#[can_blacklist(false)]
 async fn help(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
     msg.channel_id.send_message(ctx, |m| m
         .embed(|e| e
