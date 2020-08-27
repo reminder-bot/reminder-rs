@@ -10,7 +10,18 @@ use serenity::{
     framework::standard::CommandResult,
 };
 
-use crate::THEME_COLOR;
+use chrono_tz::Tz;
+
+use chrono::{
+    DateTime,
+    offset::Utc,
+};
+
+use crate::{
+    THEME_COLOR,
+    SQLPool,
+    models::UserData,
+};
 
 
 #[command]
@@ -49,6 +60,22 @@ async fn donate(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
             .color(THEME_COLOR)
         )
     ).await?;
+
+    Ok(())
+}
+
+#[command]
+async fn clock(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+    let user_data = UserData::from_id(&msg.author, &ctx, pool).await.unwrap();
+
+    let tz: Tz = user_data.timezone.parse().unwrap();
+
+    let now = Utc::now().with_timezone(&tz);
+
+    let _ = msg.channel_id.say(&ctx, format!("Current time: **{}**", now.format("%H:%M:%S"))).await;
 
     Ok(())
 }

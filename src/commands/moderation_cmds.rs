@@ -12,6 +12,8 @@ use serenity::{
 
 use regex::Regex;
 
+use chrono_tz::Tz;
+
 use crate::{
     models::{
         ChannelData,
@@ -60,7 +62,33 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    let user_data = UserData::from_id(&msg.author, &ctx, pool.clone()).await.unwrap();
+    match args.parse::<Tz>() {
+        Ok(_) => {
+            let mut user_data = UserData::from_id(&msg.author, &ctx, pool.clone()).await.unwrap();
+
+            user_data.timezone = args;
+
+            user_data.commit_changes(pool).await;
+
+            let _ = msg.channel_id.say(&ctx, "Timezone changed").await;
+        }
+
+        Err(_) => {
+            let _ = msg.channel_id.say(&ctx, "Unrecognised timezone").await;
+        }
+    }
+
+    Ok(())
+}
+
+#[command]
+async fn language(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+    let mut user_data = UserData::from_id(&msg.author, &ctx, pool.clone()).await.unwrap();
+
+    user_data.commit_changes(pool).await;
 
     Ok(())
 }
