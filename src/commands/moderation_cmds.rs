@@ -13,7 +13,10 @@ use serenity::{
 use regex::Regex;
 
 use crate::{
-    models::ChannelData,
+    models::{
+        ChannelData,
+        UserData,
+    },
     SQLPool,
 };
 
@@ -48,6 +51,16 @@ async fn blacklist(ctx: &Context, msg: &Message, args: String) -> CommandResult 
     else {
         let _ = msg.channel_id.say(&ctx, "Unblacklisted").await;
     }
+
+    Ok(())
+}
+
+#[command]
+async fn timezone(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+    let user_data = UserData::from_id(&msg.author, &ctx, pool.clone()).await.unwrap();
 
     Ok(())
 }
