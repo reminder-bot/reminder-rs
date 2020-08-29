@@ -143,3 +143,15 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     Ok(())
 }
+
+#[command]
+async fn pause(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+    let channel = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), pool.clone()).await.unwrap(),
+
+    channel.commit_changes(pool).await;
+
+    Ok(())
+}

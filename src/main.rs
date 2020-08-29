@@ -4,6 +4,7 @@ extern crate lazy_static;
 mod models;
 mod framework;
 mod commands;
+mod time_parser;
 
 use serenity::{
     client::{
