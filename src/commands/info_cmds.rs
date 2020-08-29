@@ -12,10 +12,7 @@ use serenity::{
 
 use chrono_tz::Tz;
 
-use chrono::{
-    DateTime,
-    offset::Utc,
-};
+use chrono::offset::Utc;
 
 use crate::{
     THEME_COLOR,

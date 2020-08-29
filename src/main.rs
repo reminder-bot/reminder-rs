@@ -64,6 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("todo", &todo_cmds::TODO_PARSE_COMMAND)
         .add_command("blacklist", &moderation_cmds::BLACKLIST_COMMAND)
         .add_command("timezone", &moderation_cmds::TIMEZONE_COMMAND)
+        .add_command("language", &moderation_cmds::LANGUAGE_COMMAND)
         .build();
 
     let mut client = Client::new(&env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment"))

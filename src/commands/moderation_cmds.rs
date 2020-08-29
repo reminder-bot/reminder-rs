@@ -20,6 +20,7 @@ use crate::{
         UserData,
     },
     SQLPool,
+    framework::SendFromDb,
 };
 
 lazy_static! {
@@ -62,20 +63,25 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    match args.parse::<Tz>() {
-        Ok(_) => {
-            let mut user_data = UserData::from_id(&msg.author, &ctx, pool.clone()).await.unwrap();
+    let mut user_data = UserData::from_id(&msg.author, &ctx, pool.clone()).await.unwrap();
 
-            user_data.timezone = args;
+    if args.len() > 0 {
+        match args.parse::<Tz>() {
+            Ok(_) => {
+                user_data.timezone = args;
 
-            user_data.commit_changes(pool).await;
+                user_data.commit_changes(pool).await;
 
-            let _ = msg.channel_id.say(&ctx, "Timezone changed").await;
+                let _ = msg.channel_id.say_named(&ctx, user_data.language, "timezone/set_p").await;
+            }
+
+            Err(_) => {
+                let _ = msg.channel_id.say_named(&ctx, user_data.language, "timezone/no_timezone").await;
+            }
         }
-
-        Err(_) => {
-            let _ = msg.channel_id.say(&ctx, "Unrecognised timezone").await;
-        }
+    }
+    else {
+        let _ = msg.channel_id.say_named(&ctx, user_data.language, "timezone/no_argument").await;
     }
 
     Ok(())
@@ -88,7 +94,25 @@ async fn language(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     let mut user_data = UserData::from_id(&msg.author, &ctx, pool.clone()).await.unwrap();
 
-    user_data.commit_changes(pool).await;
+    match sqlx::query!(
+        "
+SELECT code FROM languages WHERE code = ? OR name = ?
+        ", args, args)
+        .fetch_one(&pool)
+        .await {
+
+        Ok(row) => {
+            user_data.language = row.code;
+
+            user_data.commit_changes(pool).await;
+
+            let _ = msg.channel_id.say_named(&ctx, user_data.language, "lang/set_p").await;
+        },
+
+        Err(_) => {
+            let _ = msg.channel_id.say_named(&ctx, user_data.language, "lang/invalid").await;
+        },
+    }
 
     Ok(())
 }

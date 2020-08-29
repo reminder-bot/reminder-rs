@@ -1,12 +1,14 @@
 use async_trait::async_trait;
 
 use serenity::{
+    Result as SerenityResult,
     client::Context,
     framework::{
         Framework,
         standard::CommandResult,
     },
     model::{
+        id::ChannelId,
         guild::{
             Guild,
             Member,
@@ -40,6 +42,33 @@ use crate::{
 };
 
 type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, CommandResult>;
+
+#[async_trait]
+pub trait SendFromDb {
+    async fn say_named(&self, ctx: &&Context, language: String, name: &str) -> SerenityResult<Message>;
+}
+
+struct Value {
+    value: String,
+}
+
+#[async_trait]
+impl SendFromDb for ChannelId {
+    async fn say_named(&self, ctx: &&Context, language: String, name: &str) -> SerenityResult<Message> {
+        let pool = ctx.data.read().await
+            .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+        let row = sqlx::query_as!(Value,
+            "
+SELECT value FROM strings WHERE (language = ? OR language = 'EN') AND name = ? ORDER BY language = 'EN'
+            ", language, name)
+            .fetch_one(&pool)
+            .await
+            .expect("No string with that name");
+
+        self.say(ctx, row.value).await
+    }
+}
 
 #[derive(Debug)]
 pub enum PermissionLevel {
