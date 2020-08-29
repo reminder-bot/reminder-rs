@@ -18,6 +18,7 @@ use crate::{
     models::{
         ChannelData,
         UserData,
+        GuildData,
     },
     SQLPool,
     framework::SendFromDb,
@@ -112,6 +113,32 @@ SELECT code FROM languages WHERE code = ? OR name = ?
         Err(_) => {
             let _ = msg.channel_id.say_named(&ctx, user_data.language, "lang/invalid").await;
         },
+    }
+
+    Ok(())
+}
+
+#[command]
+async fn prefix(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+    let mut guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), pool.clone()).await.unwrap();
+    let user_data = UserData::from_id(&msg.author, &ctx, pool.clone()).await.unwrap();
+
+    if args.len() > 5 {
+        let _ = msg.channel_id.say_named(&ctx, user_data.language, "prefix/too_long").await;
+
+    }
+    else if args.len() == 0 {
+        let _ = msg.channel_id.say_named(&ctx, user_data.language, "prefix/no_argument").await;
+    }
+    else {
+        guild_data.prefix = args;
+
+        guild_data.commit_changes(pool).await;
+
+        let _ = msg.channel_id.say_named(&ctx, user_data.language, "prefix/success").await;
     }
 
     Ok(())

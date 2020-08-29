@@ -14,12 +14,12 @@ use chrono::NaiveDateTime;
 pub struct GuildData {
     id: u32,
     guild: u64,
-    name: String,
-    prefix: String,
+    pub name: String,
+    pub prefix: String,
 }
 
 impl GuildData {
-    pub async fn from_id(guild: Guild, pool: MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    pub async fn from_guild(guild: Guild, pool: MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         let guild_id = guild.id.as_u64().clone();
 
         if let Ok(g) = sqlx::query_as!(Self,
