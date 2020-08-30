@@ -47,6 +47,15 @@ SELECT id, guild, name, prefix FROM guilds WHERE guild = ?
             .await?)
         }
     }
+
+    pub async fn commit_changes(&self, pool: MySqlPool) {
+        sqlx::query!(
+            "
+UPDATE guilds SET name = ?, prefix = ? WHERE id = ?
+            ", self.name, self.prefix, self.id)
+            .execute(&pool)
+            .await.unwrap();
+    }
 }
 
 pub struct ChannelData {
