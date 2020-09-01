@@ -25,6 +25,8 @@ use crate::{
 
 lazy_static! {
     static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
+    static ref REGEX_ROLE: Regex = Regex::new(r#"<@&([0-9]+)>"#).unwrap();
+    static ref REGEX_COMMANDS: Regex = Regex::new(r#"([a-z]+)"#).unwrap();
 }
 
 #[command]
@@ -139,6 +141,14 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
         let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "prefix/success").await).await;
     }
+
+    Ok(())
+}
+
+#[command]
+#[supports_dm(false)]
+#[permission_level(Restricted)]
+async fn restrict(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     Ok(())
 }
