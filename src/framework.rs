@@ -1,14 +1,12 @@
 use async_trait::async_trait;
 
 use serenity::{
-    Result as SerenityResult,
     client::Context,
     framework::{
         Framework,
         standard::CommandResult,
     },
     model::{
-        id::ChannelId,
         guild::{
             Guild,
             Member,
@@ -42,33 +40,6 @@ use crate::{
 };
 
 type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, CommandResult>;
-
-#[async_trait]
-pub trait SendFromDb {
-    async fn say_named(&self, ctx: &&Context, language: String, name: &str) -> SerenityResult<Message>;
-}
-
-struct Value {
-    value: String,
-}
-
-#[async_trait]
-impl SendFromDb for ChannelId {
-    async fn say_named(&self, ctx: &&Context, language: String, name: &str) -> SerenityResult<Message> {
-        let pool = ctx.data.read().await
-            .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
-
-        let row = sqlx::query_as!(Value,
-            "
-SELECT value FROM strings WHERE (language = ? OR language = 'EN') AND name = ? ORDER BY language = 'EN'
-            ", language, name)
-            .fetch_one(&pool)
-            .await
-            .expect("No string with that name");
-
-        self.say(ctx, row.value).await
-    }
-}
 
 #[derive(Debug)]
 pub enum PermissionLevel {
@@ -293,7 +264,7 @@ impl Framework for RegexFramework {
                 let pool = ctx.data.read().await
                     .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-                match sqlx::query!("SELECT prefix FROM guilds WHERE id = ?", guild.id.as_u64())
+                match sqlx::query!("SELECT prefix FROM guilds WHERE guild = ?", guild.id.as_u64())
                     .fetch_one(&pool)
                     .await {
                     Ok(row) => {
@@ -347,7 +318,7 @@ impl Framework for RegexFramework {
                                     .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
                                 let command = self.commands.get(full_match.name("cmd").unwrap().as_str()).unwrap();
-                                let channel_data = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), pool).await;
+                                let channel_data = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool).await;
 
                                 if !command.can_blacklist || !channel_data.map(|c| c.blacklisted).unwrap_or(false) {
                                     let args = full_match.name("args")

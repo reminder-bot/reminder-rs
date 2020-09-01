@@ -61,10 +61,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("help", &info_cmds::HELP_COMMAND)
         .add_command("info", &info_cmds::INFO_COMMAND)
         .add_command("donate", &info_cmds::DONATE_COMMAND)
+        .add_command("dashboard", &info_cmds::DASHBOARD_COMMAND)
         .add_command("clock", &info_cmds::CLOCK_COMMAND)
         .add_command("todo", &todo_cmds::TODO_PARSE_COMMAND)
         .add_command("blacklist", &moderation_cmds::BLACKLIST_COMMAND)
         .add_command("timezone", &moderation_cmds::TIMEZONE_COMMAND)
+        .add_command("prefix", &moderation_cmds::PREFIX_COMMAND)
         .add_command("lang", &moderation_cmds::LANGUAGE_COMMAND)
         .add_command("pause", &reminder_cmds::PAUSE_COMMAND)
         .build();

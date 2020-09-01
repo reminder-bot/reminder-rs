@@ -21,8 +21,6 @@ use crate::{
         GuildData,
     },
     SQLPool,
-    framework::SendFromDb,
-    time_parser::TimeParser,
 };
 
 lazy_static! {
@@ -41,14 +39,14 @@ async fn blacklist(ctx: &Context, msg: &Message, args: String) -> CommandResult 
 
     let mut channel = match capture_opt {
         Some(capture) =>
-            ChannelData::from_id(capture.as_str().parse::<u64>().unwrap(), pool.clone()).await.unwrap(),
+            ChannelData::from_id(capture.as_str().parse::<u64>().unwrap(), &pool).await.unwrap(),
 
         None =>
-            ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), pool.clone()).await.unwrap(),
+            ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool).await.unwrap(),
     };
 
     channel.blacklisted = !channel.blacklisted;
-    channel.commit_changes(pool).await;
+    channel.commit_changes(&pool).await;
 
     if channel.blacklisted {
         let _ = msg.channel_id.say(&ctx, "Blacklisted").await;
@@ -65,25 +63,25 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    let mut user_data = UserData::from_id(&msg.author, &ctx, pool.clone()).await.unwrap();
+    let mut user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
 
     if args.len() > 0 {
         match args.parse::<Tz>() {
             Ok(_) => {
                 user_data.timezone = args;
 
-                user_data.commit_changes(pool).await;
+                user_data.commit_changes(&pool).await;
 
-                let _ = msg.channel_id.say_named(&ctx, user_data.language, "timezone/set_p").await;
+                let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "timezone/set_p").await).await;
             }
 
             Err(_) => {
-                let _ = msg.channel_id.say_named(&ctx, user_data.language, "timezone/no_timezone").await;
+                let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "timezone/no_timezone").await).await;
             }
         }
     }
     else {
-        let _ = msg.channel_id.say_named(&ctx, user_data.language, "timezone/no_argument").await;
+        let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "timezone/no_argument").await).await;
     }
 
     Ok(())
@@ -94,7 +92,7 @@ async fn language(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    let mut user_data = UserData::from_id(&msg.author, &ctx, pool.clone()).await.unwrap();
+    let mut user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
 
     match sqlx::query!(
         "
@@ -106,13 +104,13 @@ SELECT code FROM languages WHERE code = ? OR name = ?
         Ok(row) => {
             user_data.language = row.code;
 
-            user_data.commit_changes(pool).await;
+            user_data.commit_changes(&pool).await;
 
-            let _ = msg.channel_id.say_named(&ctx, user_data.language, "lang/set_p").await;
+            let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "lang/set_p").await).await;
         },
 
         Err(_) => {
-            let _ = msg.channel_id.say_named(&ctx, user_data.language, "lang/invalid").await;
+            let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "lang/invalid").await).await;
         },
     }
 
@@ -124,22 +122,20 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    let mut guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), pool.clone()).await.unwrap();
-    let user_data = UserData::from_id(&msg.author, &ctx, pool.clone()).await.unwrap();
+    let mut guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool).await.unwrap();
+    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
 
     if args.len() > 5 {
-        let _ = msg.channel_id.say_named(&ctx, user_data.language, "prefix/too_long").await;
-
+        let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "prefix/too_long").await).await;
     }
     else if args.len() == 0 {
-        let _ = msg.channel_id.say_named(&ctx, user_data.language, "prefix/no_argument").await;
+        let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "prefix/no_argument").await).await;
     }
     else {
         guild_data.prefix = args;
+        guild_data.commit_changes(&pool).await;
 
-        guild_data.commit_changes(pool).await;
-
-        let _ = msg.channel_id.say_named(&ctx, user_data.language, "prefix/success").await;
+        let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "prefix/success").await).await;
     }
 
     Ok(())

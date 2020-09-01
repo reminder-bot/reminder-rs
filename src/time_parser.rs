@@ -10,8 +10,7 @@ use std::fmt::{
 };
 
 use chrono_tz::Tz;
-use chrono::offset::Utc;
-use chrono::{Timelike, Datelike, TimeZone};
+use chrono::TimeZone;
 
 #[derive(Debug)]
 pub enum InvalidTime {
