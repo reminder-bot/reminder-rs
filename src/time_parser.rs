@@ -172,7 +172,7 @@ impl TimeParser {
             }
         }
 
-        let full = seconds + (minutes * 60) + (hours * 3600) + (days * 86400) + current_buffer.parse::<i64>().unwrap() *
+        let full = (seconds + (minutes * 60) + (hours * 3600) + (days * 86400) + current_buffer.parse::<i64>().unwrap()) *
             if self.inverted { -1 } else { 1 };
 
         Ok(full)

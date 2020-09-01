@@ -10,8 +10,10 @@ use serenity::{
 use sqlx::MySqlPool;
 use chrono::NaiveDateTime;
 
+use chrono_tz::Tz;
+
 pub struct GuildData {
-    id: u32,
+    pub id: u32,
     guild: u64,
     pub name: String,
     pub prefix: String,
@@ -197,5 +199,9 @@ SELECT value FROM strings WHERE (language = ? OR language = 'EN') AND name = ? O
             .expect("No string with that name");
 
         row.value.expect("No string with that name")
+    }
+
+    pub fn timezone(&self) -> Tz {
+        self.timezone.parse().unwrap()
     }
 }

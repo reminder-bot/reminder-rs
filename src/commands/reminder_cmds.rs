@@ -13,6 +13,7 @@ use serenity::{
 use crate::{
     models::{
         ChannelData,
+        GuildData,
         UserData,
     },
     SQLPool,
@@ -60,6 +61,56 @@ async fn pause(ctx: &Context, msg: &Message, args: String) -> CommandResult {
             Err(_) => {
                 let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "paused/invalid_time").await).await;
             },
+        }
+    }
+
+    Ok(())
+}
+
+#[command]
+async fn offset(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+
+    if args.len() == 0 {
+        let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "offset/help").await).await;
+    }
+    else {
+        let parser = TimeParser::new(args, user_data.timezone());
+
+        if let Ok(displacement) = parser.displacement() {
+            if let Some(guild) = msg.guild(&ctx).await {
+                let guild_data = GuildData::from_guild(guild, &pool).await.unwrap();
+
+                sqlx::query!(
+                    "
+UPDATE reminders
+    INNER JOIN `channels`
+        ON `channels`.id = reminders.channel_id
+    SET
+        reminders.`time` = reminders.`time` + ?
+    WHERE channels.guild_id = ?
+                    ", displacement, guild_data.id)
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+            } else {
+                sqlx::query!(
+                    "
+UPDATE reminders SET `time` = `time` + ? WHERE reminders.channel_id = ?
+                    ", displacement, user_data.dm_channel)
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+            }
+
+            let response = user_data.response(&pool, "offset/success").await.replacen("{}", &displacement.to_string(), 1);
+
+            let _ = msg.channel_id.say(&ctx, response).await;
+        } else {
+            let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "offset/invalid_time").await).await;
         }
     }
 
