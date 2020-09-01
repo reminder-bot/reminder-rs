@@ -22,6 +22,7 @@ use crate::{
     },
     SQLPool,
     framework::SendFromDb,
+    time_parser::TimeParser,
 };
 
 lazy_static! {
@@ -140,18 +141,6 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
         let _ = msg.channel_id.say_named(&ctx, user_data.language, "prefix/success").await;
     }
-
-    Ok(())
-}
-
-#[command]
-async fn pause(ctx: &Context, msg: &Message, args: String) -> CommandResult {
-    let pool = ctx.data.read().await
-        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
-
-    let channel = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), pool.clone()).await.unwrap();
-
-    channel.commit_changes(pool).await;
 
     Ok(())
 }

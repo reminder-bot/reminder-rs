@@ -72,7 +72,12 @@ async fn clock(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     let now = Utc::now().with_timezone(&tz);
 
-    let _ = msg.channel_id.say(&ctx, format!("Current time: **{}**", now.format("%H:%M:%S"))).await;
+    if args == "12".to_string() {
+        let _ = msg.channel_id.say(&ctx, format!("Current time: **{}**", now.format("%I:%M:%S %p"))).await;
+    }
+    else {
+        let _ = msg.channel_id.say(&ctx, format!("Current time: **{}**", now.format("%H:%M:%S"))).await;
+    }
 
     Ok(())
 }
