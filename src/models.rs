@@ -196,9 +196,9 @@ SELECT value FROM strings WHERE (language = ? OR language = 'EN') AND name = ? O
             ", self.language, name)
             .fetch_one(pool)
             .await
-            .expect("No string with that name");
+            .expect(&format!("No string with that name: {}", name));
 
-        row.value.expect("No string with that name")
+        row.value.expect(&format!("Null string with that name: {}", name))
     }
 
     pub fn timezone(&self) -> Tz {

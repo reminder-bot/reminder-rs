@@ -38,10 +38,10 @@ async fn pause(ctx: &Context, msg: &Message, args: String) -> CommandResult {
         channel.commit_changes(&pool).await;
 
         if channel.paused {
-            let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "paused/paused_indefinite").await).await;
+            let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "pause/paused_indefinite").await).await;
         }
         else {
-            let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "paused/unpaused").await).await;
+            let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "pause/unpaused").await).await;
         }
     }
     else {
@@ -55,11 +55,11 @@ async fn pause(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
                 channel.commit_changes(&pool).await;
 
-                let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "paused/paused_until").await).await;
+                let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "pause/paused_until").await).await;
             },
 
             Err(_) => {
-                let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "paused/invalid_time").await).await;
+                let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "pause/invalid_time").await).await;
             },
         }
     }
@@ -111,6 +111,46 @@ UPDATE reminders SET `time` = `time` + ? WHERE reminders.channel_id = ?
             let _ = msg.channel_id.say(&ctx, response).await;
         } else {
             let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "offset/invalid_time").await).await;
+        }
+    }
+
+    Ok(())
+}
+
+#[command]
+async fn nudge(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+    let mut channel = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool).await.unwrap();
+
+    if args.len() == 0 {
+        let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "nudge/invalid_time").await).await;
+    }
+    else {
+        let parser = TimeParser::new(args, user_data.timezone.parse().unwrap());
+        let nudge_time = parser.displacement();
+
+        match nudge_time {
+            Ok(displacement) => {
+                if displacement < i16::MIN as i64 || displacement > i16::MAX as i64 {
+                    let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "nudge/invalid_time").await).await;
+                }
+                else {
+                    channel.nudge = displacement as i16;
+
+                    channel.commit_changes(&pool).await;
+
+                    let response = user_data.response(&pool, "nudge/success").await.replacen("{}", &displacement.to_string(), 1);
+
+                    let _ = msg.channel_id.say(&ctx, response).await;
+                }
+            },
+
+            Err(_) => {
+                let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "nudge/invalid_time").await).await;
+            },
         }
     }
 

@@ -73,6 +73,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         .add_command("pause", &reminder_cmds::PAUSE_COMMAND)
         .add_command("offset", &reminder_cmds::OFFSET_COMMAND)
+        .add_command("nudge", &reminder_cmds::NUDGE_COMMAND)
+
         .build();
 
     let mut client = Client::new(&env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment"))
