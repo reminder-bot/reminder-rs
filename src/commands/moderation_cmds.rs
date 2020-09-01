@@ -118,6 +118,8 @@ SELECT code FROM languages WHERE code = ? OR name = ?
 }
 
 #[command]
+#[supports_dm(false)]
+#[permission_level(Restricted)]
 async fn prefix(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");

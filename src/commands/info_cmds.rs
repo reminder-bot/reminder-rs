@@ -10,9 +10,8 @@ use serenity::{
     framework::standard::CommandResult,
 };
 
-use chrono_tz::Tz;
-
 use chrono::offset::Utc;
+use chrono_tz::Tz;
 
 use crate::{
     THEME_COLOR,
@@ -20,6 +19,25 @@ use crate::{
     models::UserData,
 };
 
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH
+};
+
+#[command]
+#[can_blacklist(false)]
+async fn ping(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
+    let now = SystemTime::now();
+    let since_epoch = now
+        .duration_since(UNIX_EPOCH)
+        .expect("Time calculated as going backwards. Very bad");
+
+    let delta = since_epoch.as_millis() as i64 - msg.timestamp.timestamp_millis();
+
+    let _ = msg.channel_id.say(&ctx, format!("Time taken to receive message: {}ms", delta)).await;
+
+    Ok(())
+}
 
 #[command]
 #[can_blacklist(false)]

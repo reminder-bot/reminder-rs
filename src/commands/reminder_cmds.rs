@@ -24,6 +24,8 @@ use chrono::NaiveDateTime;
 
 
 #[command]
+#[supports_dm(false)]
+#[permission_level(Restricted)]
 async fn pause(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
@@ -68,6 +70,7 @@ async fn pause(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 }
 
 #[command]
+#[permission_level(Restricted)]
 async fn offset(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
@@ -118,6 +121,7 @@ UPDATE reminders SET `time` = `time` + ? WHERE reminders.channel_id = ?
 }
 
 #[command]
+#[permission_level(Restricted)]
 async fn nudge(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");

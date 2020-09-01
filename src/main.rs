@@ -58,6 +58,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let framework = RegexFramework::new(env::var("CLIENT_ID").expect("Missing CLIENT_ID from environment").parse()?)
         .ignore_bots(true)
         .default_prefix("$")
+
+        .add_command("ping", &info_cmds::PING_COMMAND)
+
         .add_command("help", &info_cmds::HELP_COMMAND)
         .add_command("info", &info_cmds::INFO_COMMAND)
         .add_command("donate", &info_cmds::DONATE_COMMAND)
