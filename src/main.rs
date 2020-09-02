@@ -70,6 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("todo", &todo_cmds::TODO_PARSE_COMMAND)
 
         .add_command("blacklist", &moderation_cmds::BLACKLIST_COMMAND)
+        .add_command("restrict", &moderation_cmds::RESTRICT_COMMAND)
         .add_command("timezone", &moderation_cmds::TIMEZONE_COMMAND)
         .add_command("prefix", &moderation_cmds::PREFIX_COMMAND)
         .add_command("lang", &moderation_cmds::LANGUAGE_COMMAND)

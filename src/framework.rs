@@ -75,7 +75,7 @@ INNER JOIN
     command_restrictions ON roles.id = command_restrictions.role_id
 WHERE
     command_restrictions.command = ? AND
-    command_restrictions.guild_id = (
+    roles.guild_id = (
         SELECT
             id
         FROM

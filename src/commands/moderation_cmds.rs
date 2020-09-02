@@ -3,6 +3,7 @@ use regex_command_attr::command;
 use serenity::{
     client::Context,
     model::{
+        id::RoleId,
         channel::{
             Message,
         },
@@ -149,6 +150,84 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 #[supports_dm(false)]
 #[permission_level(Restricted)]
 async fn restrict(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+    let guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool).await.unwrap();
+
+    let role_tag_match = REGEX_ROLE.find(&args);
+
+    if let Some(role_tag) = role_tag_match {
+        let commands = REGEX_COMMANDS.find_iter(&args.to_lowercase()).map(|c| c.as_str().to_string()).collect::<Vec<String>>();
+        let role_id = RoleId(role_tag.as_str()[3..role_tag.as_str().len()-1].parse::<u64>().unwrap());
+
+        let role_opt = role_id.to_role_cached(&ctx).await;
+
+        if let Some(role) = role_opt {
+            if commands.len() == 0 {
+                let _ = sqlx::query!(
+                    "
+DELETE FROM command_restrictions WHERE role_id = (SELECT id FROM roles WHERE role = ?)
+                    ", role.id.as_u64())
+                    .execute(&pool)
+                    .await;
+
+                let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "restrict/disabled").await).await;
+            }
+            else {
+                let _ = sqlx::query!(
+                    "
+INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, ?, ?)
+                    ", role.id.as_u64(), role.name, guild_data.id)
+                    .execute(&pool)
+                    .await;
+
+                for command in commands {
+                    let res = sqlx::query!(
+                        "
+INSERT INTO command_restrictions (role_id, command) VALUES ((SELECT id FROM roles WHERE role = ?), ?)
+                        ", role.id.as_u64(), command)
+                        .execute(&pool)
+                        .await;
+
+                    if res.is_err() {
+                        let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "restrict/failure").await).await;
+                    }
+                }
+
+                let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "restrict/enabled").await).await;
+            }
+        }
+    }
+    else if args.len() == 0 {
+        let guild_id = msg.guild_id.unwrap().as_u64().clone();
+
+        let rows = sqlx::query!(
+            "
+SELECT
+    roles.role, command_restrictions.command
+FROM
+    command_restrictions
+INNER JOIN
+    roles
+ON
+    roles.id = command_restrictions.role_id
+WHERE
+    roles.guild_id = (SELECT id FROM guilds WHERE guild = ?)
+            ", guild_id)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+        let display_inner = rows.iter().map(|row| format!("<@&{}> can use {}", row.role, row.command)).collect::<Vec<String>>().join("\n");
+        let display = user_data.response(&pool, "restrict/allowed").await.replacen("{}", &display_inner, 1);
+
+        let _ = msg.channel_id.say(&ctx, display).await;
+    }
+    else {
+        let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "restrict/help").await).await;
+    }
 
     Ok(())
 }

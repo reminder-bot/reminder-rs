@@ -8,8 +8,8 @@ use serenity::{
 };
 
 use sqlx::MySqlPool;
-use chrono::NaiveDateTime;
 
+use chrono::NaiveDateTime;
 use chrono_tz::Tz;
 
 pub struct GuildData {
