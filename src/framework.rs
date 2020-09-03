@@ -134,7 +134,7 @@ impl fmt::Debug for Command {
 // create event handler for bot
 pub struct RegexFramework {
     commands: HashMap<String, &'static Command>,
-    regex_matcher: Regex,
+    command_matcher: Regex,
     dm_regex_matcher: Regex,
     default_prefix: String,
     client_id: u64,
@@ -145,7 +145,7 @@ impl RegexFramework {
     pub fn new(client_id: u64) -> Self {
         Self {
             commands: HashMap::new(),
-            regex_matcher: Regex::new(r#"^$"#).unwrap(),
+            command_matcher: Regex::new(r#"^$"#).unwrap(),
             dm_regex_matcher: Regex::new(r#"^$"#).unwrap(),
             default_prefix: String::from("$"),
             client_id,
@@ -193,7 +193,7 @@ impl RegexFramework {
                     .replace("COMMANDS", command_names.as_str())
                     .replace("ID", self.client_id.to_string().as_str());
 
-                self.regex_matcher = Regex::new(match_string.as_str()).unwrap();
+                self.command_matcher = Regex::new(match_string.as_str()).unwrap();
             }
         }
 
@@ -305,7 +305,7 @@ impl Framework for RegexFramework {
 
             let member = guild.member(&ctx, &msg.author).await.unwrap();
 
-            if let Some(full_match) = self.regex_matcher.captures(&msg.content[..]) {
+            if let Some(full_match) = self.command_matcher.captures(&msg.content[..]) {
 
                 if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
 

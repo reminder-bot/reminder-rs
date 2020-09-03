@@ -11,6 +11,7 @@ use serenity::{
         bridge::gateway::GatewayIntents,
         Client,
     },
+    framework::Framework,
     prelude::TypeMapKey,
 };
 
@@ -49,6 +50,12 @@ impl TypeMapKey for ReqwestClient {
     type Value = Arc<reqwest::Client>;
 }
 
+struct FrameworkCtx;
+
+impl TypeMapKey for FrameworkCtx {
+    type Value = Arc<Box<dyn Framework + Send + Sync>>;
+}
+
 static THEME_COLOR: u32 = 0x8fb677;
 
 #[tokio::main]
@@ -81,9 +88,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         .build();
 
+    let framework_arc = Arc::new(Box::new(framework) as Box<dyn Framework + Send + Sync>);
+
     let mut client = Client::new(&env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment"))
         .intents(GatewayIntents::GUILD_MESSAGES | GatewayIntents::GUILDS | GatewayIntents::DIRECT_MESSAGES)
-        .framework(framework)
+        .framework_arc(framework_arc.clone())
         .await.expect("Error occurred creating client");
 
     {
@@ -93,6 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         data.insert::<SQLPool>(pool);
         data.insert::<ReqwestClient>(Arc::new(reqwest::Client::new()));
+        data.insert::<FrameworkCtx>(framework_arc);
     }
 
     client.start_autosharded().await?;

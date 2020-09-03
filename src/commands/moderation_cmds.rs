@@ -26,8 +26,12 @@ use crate::{
 
 lazy_static! {
     static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
+
     static ref REGEX_ROLE: Regex = Regex::new(r#"<@&([0-9]+)>"#).unwrap();
+
     static ref REGEX_COMMANDS: Regex = Regex::new(r#"([a-z]+)"#).unwrap();
+
+    static ref REGEX_ALIAS: Regex = Regex::new(r#"(?P<name>[\S]{1,12})(?:(?: (?P<cmd>.*)$)|$)"#).unwrap();
 }
 
 #[command]
@@ -227,6 +231,103 @@ WHERE
     }
     else {
         let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "restrict/help").await).await;
+    }
+
+    Ok(())
+}
+
+#[command]
+#[supports_dm(false)]
+#[permission_level(Managed)]
+async fn alias(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+
+    let guild_id = msg.guild_id.unwrap().as_u64().to_owned();
+
+    let matches_opt = REGEX_ALIAS.captures(&args);
+
+    if let Some(matches) = matches_opt {
+        let name = matches.name("name").unwrap().as_str();
+        let command_opt = matches.name("cmd").map(|m| m.as_str());
+
+        match name {
+            "list" => {
+                let aliases = sqlx::query!(
+                    "
+SELECT name, command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?)
+                    ", guild_id)
+                    .fetch_all(&pool)
+                    .await
+                    .unwrap();
+
+                let content = aliases.iter().map(|row| format!("**{}**: {}", row.name, row.command)).collect::<Vec<String>>().join("\n");
+
+                let _ = msg.channel_id.say(&ctx, format!("Aliases: \n{}", content)).await;
+            },
+
+            "remove" => {
+                if let Some(command) = command_opt {
+                    sqlx::query!(
+                        "
+DELETE FROM command_aliases WHERE name = ? AND guild_id = (SELECT id FROM guilds WHERE guild = ?)
+                        ", command, guild_id)
+                        .execute(&pool)
+                        .await
+                        .unwrap();
+
+                    let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "alias/removed").await).await;
+                }
+                else {
+                    let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "alias/help").await).await;
+                }
+            },
+
+            name => {
+                if let Some(command) = command_opt {
+                    let res = sqlx::query!(
+                        "
+INSERT INTO command_aliases (guild_id, name, command) VALUES ((SELECT id FROM guilds WHERE guild = ?), ?, ?)
+                        ", guild_id, name, command)
+                        .execute(&pool)
+                        .await;
+
+                    if res.is_err() {
+                        sqlx::query!(
+                            "
+UPDATE command_aliases SET command = ? WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?
+                            ", command, guild_id, name)
+                            .execute(&pool)
+                            .await
+                            .unwrap();
+                    }
+
+                    let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "alias/created").await).await;
+                }
+                else {
+                    match sqlx::query!(
+                        "
+SELECT command FROM command_aliases WHERE guild_id = ? AND name = ?
+                        ", guild_id, name)
+                        .fetch_one(&pool)
+                        .await {
+
+                        Ok(row) => {
+                            // run aliased command content
+                        },
+
+                        Err(_) => {
+                            let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "alias/not_found").await).await;
+                        },
+                    }
+                }
+            }
+        }
+    }
+    else {
+        let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "alias/help").await).await;
     }
 
     Ok(())

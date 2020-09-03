@@ -217,8 +217,9 @@ dependencies = [
 
 [[package]]
 name = "command_attr"
-version = "0.2.0"
-source = "git+https://github.com/acdenisSK/serenity?branch=await_next#91c30f43274481c7dfa57850cbe9c3ab18cd708f"
+version = "0.3.0-rc.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "093ee06b40fcba41b22ddf85de7ed33728fe2e246fcdbc1b1d3ab26f87fabf3b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1182,19 +1183,6 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0d4a31f5d68413404705d6982529b0e11a9aacd4839d1d6222ee3b8cb4015e1"
-dependencies = [
- "base64 0.11.0",
- "log",
- "ring",
- "sct",
- "webpki",
-]
-
-[[package]]
-name = "rustls"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cac94b333ee2aac3284c5b8a1b7fb4dd11cba88c244e3fe33cdbd047af0eb693"
@@ -1300,8 +1288,9 @@ dependencies = [
 
 [[package]]
 name = "serenity"
-version = "0.8.6"
-source = "git+https://github.com/acdenisSK/serenity?branch=await_next#91c30f43274481c7dfa57850cbe9c3ab18cd708f"
+version = "0.9.0-rc.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f2b6557e836289a35b45ecc9da78b464de79cec3aa9b7cfd07f654cbc478c00"
 dependencies = [
  "async-tls",
  "async-trait",
@@ -1315,7 +1304,7 @@ dependencies = [
  "futures",
  "log",
  "reqwest",
- "rustls 0.17.0",
+ "rustls 0.18.0",
  "serde",
  "serde_json",
  "static_assertions",
