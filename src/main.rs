@@ -86,6 +86,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("offset", &reminder_cmds::OFFSET_COMMAND)
         .add_command("nudge", &reminder_cmds::NUDGE_COMMAND)
 
+        .add_command("alias", &moderation_cmds::ALIAS_COMMAND)
+
         .build();
 
     let framework_arc = Arc::new(Box::new(framework) as Box<dyn Framework + Send + Sync>);

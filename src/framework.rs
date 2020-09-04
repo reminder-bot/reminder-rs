@@ -295,8 +295,7 @@ impl Framework for RegexFramework {
         if (msg.author.bot && self.ignore_bots) ||
             msg.tts                             ||
             msg.content.len() == 0              ||
-            msg.attachments.len() > 0
-        {
+            msg.attachments.len() > 0           {
             return
         }
 

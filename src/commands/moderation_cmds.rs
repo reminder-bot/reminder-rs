@@ -22,7 +22,9 @@ use crate::{
         GuildData,
     },
     SQLPool,
+    FrameworkCtx,
 };
+use serenity::framework::Framework;
 
 lazy_static! {
     static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
@@ -309,13 +311,19 @@ UPDATE command_aliases SET command = ? WHERE guild_id = (SELECT id FROM guilds W
                 else {
                     match sqlx::query!(
                         "
-SELECT command FROM command_aliases WHERE guild_id = ? AND name = ?
+SELECT command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?
                         ", guild_id, name)
                         .fetch_one(&pool)
                         .await {
 
                         Ok(row) => {
-                            // run aliased command content
+                            let framework = ctx.data.read().await
+                                .get::<FrameworkCtx>().cloned().expect("Could not get FrameworkCtx from data");
+
+                            let mut new_msg = msg.clone();
+                            new_msg.content = format!("<@{}> {}", &ctx.cache.current_user_id().await, row.command);
+
+                            framework.dispatch(ctx.clone(), new_msg).await;
                         },
 
                         Err(_) => {
