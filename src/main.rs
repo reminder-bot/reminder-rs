@@ -74,6 +74,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("dashboard", &info_cmds::DASHBOARD_COMMAND)
         .add_command("clock", &info_cmds::CLOCK_COMMAND)
 
+        .add_command("look", &reminder_cmds::LOOK_COMMAND)
+
         .add_command("todo", &todo_cmds::TODO_PARSE_COMMAND)
 
         .add_command("blacklist", &moderation_cmds::BLACKLIST_COMMAND)
@@ -87,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("nudge", &reminder_cmds::NUDGE_COMMAND)
 
         .add_command("alias", &moderation_cmds::ALIAS_COMMAND)
+        .add_command("a", &moderation_cmds::ALIAS_COMMAND)
 
         .build();
 

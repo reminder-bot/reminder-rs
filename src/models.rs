@@ -205,3 +205,9 @@ SELECT value FROM strings WHERE (language = ? OR language = 'EN') AND name = ? O
         self.timezone.parse().unwrap()
     }
 }
+
+pub struct Reminder {
+    pub id: u32,
+    pub name: String,
+    pub time: u32,
+}
