@@ -5,11 +5,11 @@ authors = ["jellywx <judesouthworth@pm.me>"]
 edition = "2018"
 
 [dependencies]
-serenity = "0.9.0-rc.0"
+serenity = { version = "0.9.0-rc.1", features = ["collector"] }
 dotenv = "0.15"
-tokio = {version = "0.2.19", features = ["fs", "sync", "process", "io-util"]}
+tokio = { version = "0.2.19", features = ["fs", "sync", "process", "io-util"] }
 reqwest = "0.10.6"
-sqlx = {version = "0.3.5", default-features = false, features = ["runtime-tokio", "macros", "mysql", "bigdecimal", "chrono"]}
+sqlx = { version = "0.3.5", default-features = false, features = ["runtime-tokio", "macros", "mysql", "bigdecimal", "chrono"] }
 regex = "1.3.9"
 async-trait = "0.1.36"
 log = "0.4.11"

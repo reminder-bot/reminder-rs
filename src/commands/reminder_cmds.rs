@@ -231,6 +231,7 @@ impl LookFlags {
 }
 
 #[command]
+#[permission_level(Managed)]
 async fn look(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
@@ -247,7 +248,7 @@ async fn look(ctx: &Context, msg: &Message, args: String) -> CommandResult {
         sqlx::query_as!(Reminder,
             "
 SELECT
-    reminders.id, reminders.time, reminders.name
+    reminders.id, reminders.time, reminders.name, reminders.channel_id
 FROM
     reminders
 INNER JOIN
@@ -263,29 +264,23 @@ LIMIT
             ", guild_id, channel_id, enabled, flags.limit)
             .fetch_all(&pool)
             .await
-            .unwrap()
     }
     else {
         sqlx::query_as!(Reminder,
             "
 SELECT
-    reminders.id, reminders.time, reminders.name
+    id, time, name, channel_id
 FROM
     reminders
-INNER JOIN
-    channels
-ON
-    reminders.channel_id = channels.id
 WHERE
-    channels.channel = ? AND
+    reminders.channel_id = (SELECT id FROM channels WHERE channel = ?) AND
     reminders.enabled != ?
 LIMIT
     ?
             ", msg.channel_id.as_u64(), enabled, flags.limit)
             .fetch_all(&pool)
             .await
-            .unwrap()
-    };
+    }.unwrap();
 
     if reminders.len() == 0 {
         let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "look/no_reminders").await).await;
@@ -299,6 +294,102 @@ LIMIT
             .collect::<Vec<String>>().join("\n");
 
         let _ = msg.channel_id.say(&ctx, display).await;
+    }
+
+    Ok(())
+}
+
+#[command]
+#[permission_level(Managed)]
+async fn delete(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+
+    let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "del/listing").await).await;
+
+    let reminders = if let Some(guild_id) = msg.guild_id.map(|f| f.as_u64().to_owned()) {
+        sqlx::query_as!(Reminder,
+            "
+SELECT
+    reminders.id, reminders.time, reminders.name, reminders.channel_id
+FROM
+    reminders
+INNER JOIN
+    channels
+ON
+    reminders.channel_id = channels.id
+WHERE
+    channels.guild_id = (SELECT id FROM guilds WHERE guild = ?)
+            ", guild_id)
+            .fetch_all(&pool)
+            .await
+    }
+    else {
+        sqlx::query_as!(Reminder,
+            "
+SELECT
+    id, time, name, channel_id
+FROM
+    reminders
+WHERE
+    channel_id = (SELECT id FROM channels WHERE channel = ?)
+            ", msg.channel_id.as_u64())
+            .fetch_all(&pool)
+            .await
+    }.unwrap();
+
+    let mut reminder_ids: Vec<u32> = vec![];
+
+    let enumerated_reminders = reminders
+        .iter()
+        .enumerate()
+        .map(|(count, reminder)| {
+            reminder_ids.push(reminder.id);
+            format!("**{}**: '{}' *{}* at {}", count + 1, reminder.name, reminder.channel_id, reminder.time)
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+
+    let _ = msg.channel_id.say(&ctx, enumerated_reminders).await;
+    let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "del/listed").await).await;
+
+    let reply = msg.channel_id.await_reply(&ctx)
+        .filter_limit(1)
+        .author_id(msg.author.id)
+        .channel_id(msg.channel_id).await;
+
+    if let Some(content) = reply.map(|m| m.content.replace(",", " ")) {
+        let parts = content.split(" ").filter(|i| i.len() > 0).collect::<Vec<&str>>();
+
+        let valid_parts = parts
+            .iter()
+            .filter_map(
+                |i|
+                    i.parse::<usize>()
+                        .ok()
+                        .map(
+                            |val|
+                                reminder_ids.get(val)
+                        )
+                        .flatten()
+            )
+            .map(|item| item.to_string())
+            .collect::<Vec<String>>();
+
+        if parts.len() == valid_parts.len() {
+            sqlx::query!(
+                "
+DELETE FROM reminders WHERE id IN (?)
+                ", valid_parts.join(","))
+                .execute(&pool)
+                .await;
+
+            // TODO add deletion events to event list
+
+            let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "del/count").await).await;
+        }
     }
 
     Ok(())

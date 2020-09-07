@@ -210,4 +210,5 @@ pub struct Reminder {
     pub id: u32,
     pub name: String,
     pub time: u32,
+    pub channel_id: u32,
 }
