@@ -16,6 +16,7 @@ use crate::{
         GuildData,
         UserData,
         Reminder,
+        Timer,
     },
     SQLPool,
     time_parser::TimeParser,
@@ -23,9 +24,17 @@ use crate::{
 
 use chrono::NaiveDateTime;
 
-use regex::Regex;
+use num_integer::Integer;
 
-use std::default::Default;
+use std::{
+    default::Default,
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    }
+};
+
+use regex::Regex;
 
 lazy_static! {
     static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
@@ -240,7 +249,7 @@ async fn look(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     let flags = LookFlags::from_string(&args);
 
-    let enabled = if flags.show_disabled { None } else { Some(false) };
+    let enabled = if flags.show_disabled { "0,1" } else { "1" };
 
     let reminders = if let Some(guild_id) = msg.guild_id.map(|f| f.as_u64().to_owned()) {
         let channel_id = flags.channel_id.unwrap_or(msg.channel_id.as_u64().to_owned());
@@ -258,7 +267,7 @@ ON
 WHERE
     channels.guild_id = (SELECT id FROM guilds WHERE guild = ?) AND
     channels.channel = ? AND
-    reminders.enabled != ?
+    FIND_IN_SET(reminders.enabled, ?)
 LIMIT
     ?
             ", guild_id, channel_id, enabled, flags.limit)
@@ -274,7 +283,7 @@ FROM
     reminders
 WHERE
     reminders.channel_id = (SELECT id FROM channels WHERE channel = ?) AND
-    reminders.enabled != ?
+    FIND_IN_SET(reminders.enabled, ?)
 LIMIT
     ?
             ", msg.channel_id.as_u64(), enabled, flags.limit)
@@ -301,7 +310,7 @@ LIMIT
 
 #[command]
 #[permission_level(Managed)]
-async fn delete(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn delete(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
@@ -371,7 +380,7 @@ WHERE
                         .ok()
                         .map(
                             |val|
-                                reminder_ids.get(val)
+                                reminder_ids.get(val - 1)
                         )
                         .flatten()
             )
@@ -381,14 +390,102 @@ WHERE
         if parts.len() == valid_parts.len() {
             sqlx::query!(
                 "
-DELETE FROM reminders WHERE id IN (?)
+DELETE FROM reminders WHERE FIND_IN_SET(id, ?)
                 ", valid_parts.join(","))
                 .execute(&pool)
-                .await;
+                .await
+                .unwrap();
 
             // TODO add deletion events to event list
 
             let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "del/count").await).await;
+        }
+    }
+
+    Ok(())
+}
+
+#[command]
+#[permission_level(Managed)]
+async fn timer(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+        fn time_difference(start_time: NaiveDateTime) -> String {
+        let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+        let now = NaiveDateTime::from_timestamp(unix_time, 0);
+
+        let delta = (now - start_time).num_seconds();
+
+        let (minutes, seconds) = delta.div_rem(&60);
+        let (hours, minutes) = minutes.div_rem(&60);
+
+        format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+    }
+
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+
+    let mut args_iter = args.splitn(2, " ");
+
+    let owner = msg.guild_id.map(|g| g.as_u64().to_owned()).unwrap_or(msg.author.id.as_u64().to_owned());
+
+    match args_iter.next() {
+        Some("list") => {
+            let timers = Timer::from_owner(owner, &pool).await;
+
+            let _ = msg.channel_id.send_message(&ctx, |m| m
+                .embed(|e| {
+                    e.fields(timers.iter().map(|timer| (&timer.name, time_difference(timer.start_time), false)))
+                })
+            ).await;
+        },
+
+        Some("start") => {
+            let count = Timer::count_from_owner(owner, &pool).await;
+
+            if count >= 25 {
+                let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "timer/limit").await).await;
+            }
+            else {
+                let name = args_iter.next().map(|s| s.to_string()).unwrap_or(format!("New timer #{}", count + 1));
+
+                Timer::create(&name, owner, &pool).await;
+
+                let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "timer/success").await).await;
+            }
+        },
+
+        Some("delete") => {
+            if let Some(name) = args_iter.next() {
+                let exists = sqlx::query!(
+                    "
+SELECT 1 as _r FROM timers WHERE owner = ? AND name = ?
+                    ", owner, name)
+                    .fetch_one(&pool)
+                    .await;
+
+                if exists.is_ok() {
+                    sqlx::query!(
+                        "
+DELETE FROM timers WHERE owner = ? AND name = ?
+                        ", owner, name)
+                        .execute(&pool)
+                        .await
+                        .unwrap();
+
+                    let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "timer/deleted").await).await;
+                }
+                else {
+                    let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "timer/not_found").await).await;
+                }
+            }
+            else {
+                let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "timer/help").await).await;
+            }
+        },
+
+        _ => {
+            let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "timer/help").await).await;
         }
     }
 

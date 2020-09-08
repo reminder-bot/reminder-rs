@@ -16,6 +16,7 @@ log = "0.4.11"
 chrono = "0.4"
 chrono-tz = "0.5"
 lazy_static = "1.4.0"
+num-integer = "0.1.43"
 
 [dependencies.regex_command_attr]
 path = "./regex_command_attr"

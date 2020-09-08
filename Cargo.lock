@@ -1121,6 +1121,7 @@ dependencies = [
  "dotenv",
  "lazy_static",
  "log",
+ "num-integer",
  "regex",
  "regex_command_attr",
  "reqwest",

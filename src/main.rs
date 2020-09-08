@@ -74,7 +74,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("dashboard", &info_cmds::DASHBOARD_COMMAND)
         .add_command("clock", &info_cmds::CLOCK_COMMAND)
 
+        .add_command("timer", &reminder_cmds::TIMER_COMMAND)
+
         .add_command("look", &reminder_cmds::LOOK_COMMAND)
+        .add_command("del", &reminder_cmds::DELETE_COMMAND)
 
         .add_command("todo", &todo_cmds::TODO_PARSE_COMMAND)
 
