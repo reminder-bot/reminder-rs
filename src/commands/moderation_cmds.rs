@@ -72,7 +72,7 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    let mut user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+    let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
     if args.len() > 0 {
         match args.parse::<Tz>() {
@@ -101,7 +101,7 @@ async fn language(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    let mut user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+    let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
     match sqlx::query!(
         "
@@ -134,7 +134,7 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) -> CommandResult {
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
     let mut guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool).await.unwrap();
-    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
     if args.len() > 5 {
         let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "prefix/too_long").await).await;
@@ -159,7 +159,7 @@ async fn restrict(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool).await.unwrap();
 
     let role_tag_match = REGEX_ROLE.find(&args);
@@ -245,7 +245,7 @@ async fn alias(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
     let guild_id = msg.guild_id.unwrap().as_u64().to_owned();
 

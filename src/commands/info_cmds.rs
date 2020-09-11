@@ -45,7 +45,7 @@ async fn help(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let desc = user_data.response(&pool, "help").await;
 
     msg.channel_id.send_message(ctx, |m| m
@@ -64,7 +64,7 @@ async fn info(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let desc = user_data.response(&pool, "info").await;
 
     msg.channel_id.send_message(ctx, |m| m
@@ -83,7 +83,7 @@ async fn donate(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let desc = user_data.response(&pool, "donate").await;
 
     msg.channel_id.send_message(ctx, |m| m
@@ -115,7 +115,7 @@ async fn clock(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-    let user_data = UserData::from_id(&msg.author, &ctx, &pool).await.unwrap();
+    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
     let tz: Tz = user_data.timezone.parse().unwrap();
 

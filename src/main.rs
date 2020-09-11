@@ -76,6 +76,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         .add_command("timer", &reminder_cmds::TIMER_COMMAND)
 
+        .add_command("remind", &reminder_cmds::REMIND_COMMAND)
+        .add_command("r", &reminder_cmds::REMIND_COMMAND)
+        .add_command("interval", &reminder_cmds::INTERVAL_COMMAND)
+        .add_command("i", &reminder_cmds::INTERVAL_COMMAND)
+
         .add_command("look", &reminder_cmds::LOOK_COMMAND)
         .add_command("del", &reminder_cmds::DELETE_COMMAND)
 

@@ -60,7 +60,7 @@ UPDATE guilds SET name = ?, prefix = ? WHERE id = ?
 }
 
 pub struct ChannelData {
-    id: u32,
+    pub id: u32,
     channel: u64,
     pub name: String,
     pub nudge: i16,
@@ -82,7 +82,9 @@ SELECT * FROM channels WHERE channel = ?
             .await.ok()
     }
 
-    pub async fn from_channel(channel: Channel, pool: &MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    pub async fn from_channel(channel: Channel, pool: &MySqlPool)
+        -> Result<Self, Box<dyn std::error::Error + Sync + Send>>
+    {
         let channel_id = channel.id().as_u64().clone();
 
         if let Ok(c) = sqlx::query_as_unchecked!(Self,
@@ -139,7 +141,7 @@ pub struct UserData {
 }
 
 impl UserData {
-    pub async fn from_id(user: &User, ctx: &&Context, pool: &MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    pub async fn from_user(user: &User, ctx: &&Context, pool: &MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         let user_id = user.id.as_u64().clone();
 
         if let Ok(c) = sqlx::query_as_unchecked!(Self,
@@ -153,7 +155,7 @@ SELECT id, user, name, dm_channel, language, timezone FROM users WHERE user = ?
         }
         else {
             let dm_channel = user.create_dm_channel(ctx).await?;
-            let dm_id = dm_channel.id.as_u64().clone();
+            let dm_id = dm_channel.id.as_u64().to_owned();
 
             let pool_c = pool.clone();
 
