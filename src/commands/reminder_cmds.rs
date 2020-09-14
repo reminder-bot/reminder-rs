@@ -5,6 +5,7 @@ use regex_command_attr::command;
 use serenity::{
     client::Context,
     model::{
+        misc::Mentionable,
         id::{
             UserId,
             ChannelId,
@@ -31,9 +32,15 @@ use crate::{
 
 use chrono::NaiveDateTime;
 
+use rand::{
+    rngs::OsRng,
+    RngCore,
+};
+
 use num_integer::Integer;
 
 use std::{
+    string::ToString,
     default::Default,
     time::{
         SystemTime,
@@ -50,6 +57,8 @@ lazy_static! {
 
     static ref REGEX_CHANNEL_USER: Regex = Regex::new(r#"^\s*<(#|@)(?:!)?(\d+)>\s*$"#).unwrap();
 }
+
+static CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
 
 
 #[command]
@@ -244,9 +253,16 @@ impl LookFlags {
         new_flags
     }
 
-    fn display_time(&self, timestamp: u64) -> String {
+    pub fn display_time(&self, timestamp: u64) -> String {
+        match self.time_display {
+            TimeDisplayType::Absolute => {
+                timestamp.to_string()
+            },
 
-        String::from("")
+            TimeDisplayType::Relative => {
+                timestamp.to_string()
+            },
+        }
     }
 }
 
@@ -310,7 +326,7 @@ LIMIT
 
         let display = reminders
             .iter()
-            .map(|reminder| format!("'{}' *{}* **{}**", reminder.name, &inter, reminder.time))
+            .map(|reminder| format!("'{}' *{}* **{}**", reminder.name, &inter, flags.display_time(reminder.time as u64)))
             .collect::<Vec<String>>().join("\n");
 
         let _ = msg.channel_id.say(&ctx, display).await;
@@ -513,6 +529,15 @@ enum ReminderScope {
     Channel(u64),
 }
 
+impl Mentionable for ReminderScope {
+    fn mention(&self) -> String {
+        match self {
+            Self::User(id) => format!("<@{}>", id),
+            Self::Channel(id) => format!("<#{}>", id),
+        }
+    }
+}
+
 custom_error!{ReminderError
     LongTime = "Time too long",
     LongInterval = "Interval too long",
@@ -522,6 +547,21 @@ custom_error!{ReminderError
     NotEnoughArgs = "Not enough args",
     InvalidTime = "Invalid time provided",
     DiscordError = "Bad response received from Discord"
+}
+
+impl ReminderError {
+    fn to_response(&self) -> String {
+        match self {
+            Self::LongTime => "remind/long_time",
+            Self::LongInterval => "interval/long_interval",
+            Self::PastTime => "remind/past_time",
+            Self::ShortInterval => "interval/short_interval",
+            Self::InvalidTag => "remind/invalid_tag",
+            Self::NotEnoughArgs => "remind/no_argument",
+            Self::InvalidTime => "remind/invalid_time",
+            Self::DiscordError => "remind/no_webhook",
+        }.to_string()
+    }
 }
 
 #[command]
@@ -543,24 +583,22 @@ async fn interval(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 async fn remind_command(ctx: &Context, msg: &Message, args: String, command: RemindCommand) {
     let user_data;
 
-    {
-        let pool = ctx.data.read().await
-            .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-        user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
-    }
+    user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
     let mut args_iter = args.split(' ').filter(|s| s.len() > 0);
 
     if let Some(first_arg) = args_iter.next().map(|s| s.to_string()) {
 
         let scope_id;
-        let time_parser;
+        let mut time_parser = None;
         let content;
 
         let guild_id = msg.guild_id;
 
-        if let Some((Some(scope_match), Some(id_match))) = REGEX_CHANNEL_USER
+        let response = if let Some((Some(scope_match), Some(id_match))) = REGEX_CHANNEL_USER
             .captures(&first_arg)
             .map(|cap| (cap.get(1), cap.get(2))) {
 
@@ -572,34 +610,44 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
             }
 
             if let Some(next) = args_iter.next().map(|inner| inner.to_string()) {
-                time_parser = TimeParser::new(next, user_data.timezone.parse().unwrap());
+                time_parser = Some(TimeParser::new(next, user_data.timezone.parse().unwrap()));
 
                 content = args_iter.collect::<Vec<&str>>().join(" ");
 
-                // TODO replace unwrap with converting response into discord response
-                create_reminder(ctx, guild_id, scope_id, time_parser, content).await.unwrap();
+                create_reminder(ctx, msg.author.id.as_u64().to_owned(), guild_id, &scope_id, &time_parser.as_ref().unwrap(), content).await
             }
             else {
-
+                Err(ReminderError::NotEnoughArgs)
             }
         }
         else {
             scope_id = ReminderScope::Channel(msg.channel_id.as_u64().to_owned());
 
-            time_parser = TimeParser::new(first_arg, user_data.timezone.parse().unwrap());
+            time_parser = Some(TimeParser::new(first_arg, user_data.timezone.parse().unwrap()));
 
             content = args_iter.collect::<Vec<&str>>().join(" ");
 
-            // TODO replace unwrap with converting response into discord response
-            create_reminder(ctx, guild_id, scope_id, time_parser, content).await.unwrap();
+            create_reminder(ctx, msg.author.id.as_u64().to_owned(), guild_id, &scope_id, &time_parser.as_ref().unwrap(), content).await
+        };
+
+        let str_response = match response {
+            Ok(_) => user_data.response(&pool, "remind/success").await,
+
+            Err(reminder_error) => user_data.response(&pool, &reminder_error.to_response()).await,
         }
+            .replacen("{location}", &scope_id.mention(), 1)
+            .replacen("{offset}", &time_parser.map(|tp| tp.displacement().ok()).flatten().unwrap_or(-1).to_string(), 1)
+            .replacen("{min_interval}", "min_interval", 1)
+            .replacen("{max_time}", "max_time", 1);
+
+        let _ = msg.channel_id.say(&ctx, &str_response).await;
     }
     else {
 
     }
 }
 
-async fn create_reminder(ctx: &Context, guild_id: Option<GuildId>, scope_id: ReminderScope, time_parser: TimeParser, content: String)
+async fn create_reminder(ctx: &Context, user_id: u64, guild_id: Option<GuildId>, scope_id: &ReminderScope, time_parser: &TimeParser, content: String)
     -> Result<(), ReminderError> {
 
     let pool = ctx.data.read().await
@@ -607,7 +655,7 @@ async fn create_reminder(ctx: &Context, guild_id: Option<GuildId>, scope_id: Rem
 
     let db_channel_id = match scope_id {
         ReminderScope::User(user_id) => {
-            let user = UserId(user_id).to_user(&ctx).await.unwrap();
+            let user = UserId(*user_id).to_user(&ctx).await.unwrap();
 
             let user_data = UserData::from_user(&user, &ctx, &pool).await.unwrap();
 
@@ -615,7 +663,7 @@ async fn create_reminder(ctx: &Context, guild_id: Option<GuildId>, scope_id: Rem
         },
 
         ReminderScope::Channel(channel_id) => {
-            let channel = ChannelId(channel_id).to_channel(&ctx).await.unwrap();
+            let channel = ChannelId(*channel_id).to_channel(&ctx).await.unwrap();
 
             if channel.clone().guild().map(|gc| gc.guild_id) != guild_id {
                 return Err(ReminderError::InvalidTag)
@@ -655,6 +703,25 @@ async fn create_reminder(ctx: &Context, guild_id: Option<GuildId>, scope_id: Rem
                         Err(ReminderError::LongTime)
                     }
                     else {
+                        sqlx::query!(
+                            "
+INSERT INTO messages (content) VALUES (?)
+                            ", content)
+                            .execute(&pool)
+                            .await
+                            .unwrap();
+
+                        sqlx::query!(
+                            "
+INSERT INTO reminders (uid, message_id, channel_id, time, method, set_by) VALUES
+    (?,
+    (SELECT id FROM messages WHERE content = ? ORDER BY id DESC LIMIT 1),
+    ?, ?, 'remind',
+    (SELECT id FROM users WHERE user = ? LIMIT 1))
+                            ", generate_uid(), content, db_channel_id, time as u32, user_id)
+                            .execute(&pool)
+                            .await
+                            .unwrap();
 
                         Ok(())
                     }
@@ -669,4 +736,14 @@ async fn create_reminder(ctx: &Context, guild_id: Option<GuildId>, scope_id: Rem
             },
         }
     }
+}
+
+fn generate_uid() -> String {
+    let mut generator: OsRng = Default::default();
+
+    let mut bytes = vec![0u8, 64];
+
+    generator.fill_bytes(&mut bytes);
+
+    bytes.iter().map(|i| (CHARACTERS.as_bytes()[(i.to_owned() as usize) % CHARACTERS.len()] as char).to_string()).collect::<Vec<String>>().join("")
 }

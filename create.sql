@@ -115,8 +115,8 @@ CREATE TABLE reminders.reminders (
 
     enabled BOOLEAN DEFAULT 1 NOT NULL,
 
-    avatar VARCHAR(512) DEFAULT 'https://raw.githubusercontent.com/reminder-bot/logos/master/Remind_Me_Bot_Logo_PPic.jpg' NOT NULL,
-    username VARCHAR(32) DEFAULT 'Reminder' NOT NULL,
+    avatar VARCHAR(512),
+    username VARCHAR(32),
 
     method ENUM('remind', 'natural', 'dashboard', 'todo'),
     set_at TIMESTAMP DEFAULT NOW(),
