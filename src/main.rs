@@ -7,9 +7,13 @@ mod commands;
 mod time_parser;
 
 use serenity::{
+    http::CacheHttp,
     client::{
         bridge::gateway::GatewayIntents,
         Client,
+    },
+    model::id::{
+        GuildId, UserId,
     },
     framework::Framework,
     prelude::TypeMapKey,
@@ -121,4 +125,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     client.start_autosharded().await?;
 
     Ok(())
+}
+
+
+pub async fn check_subscription(cache_http: impl CacheHttp, user_id: impl Into<UserId>) -> bool {
+    let role_ids = env::var("SUBSCRIPTION_ROLES")
+        .map(
+            |var| var
+                .split(",")
+                .filter_map(|item| {
+                    item.parse::<u64>().ok()
+                })
+                .collect::<Vec<u64>>()
+        );
+
+    if let Some(subscription_guild) = env::var("CNC_GUILD").map(|var| var.parse::<u64>().ok()).ok().flatten() {
+        if let Ok(role_ids) = role_ids {
+            // todo remove unwrap and propagate error
+            let guild_member = GuildId(subscription_guild).member(cache_http, user_id).await.unwrap();
+
+            for role in guild_member.roles {
+                if role_ids.contains(role.as_u64()) {
+                    return true
+                }
+            }
+        }
+
+        false
+    }
+    else {
+        true
+    }
 }

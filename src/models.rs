@@ -1,5 +1,5 @@
 use serenity::{
-    prelude::Context,
+    http::CacheHttp,
     model::{
         guild::Guild,
         channel::Channel,
@@ -141,7 +141,7 @@ pub struct UserData {
 }
 
 impl UserData {
-    pub async fn from_user(user: &User, ctx: &&Context, pool: &MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    pub async fn from_user(user: &User, ctx: impl CacheHttp, pool: &MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         let user_id = user.id.as_u64().clone();
 
         if let Ok(c) = sqlx::query_as_unchecked!(Self,
