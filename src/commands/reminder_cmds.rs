@@ -754,6 +754,13 @@ async fn create_reminder(
     if content.len() == 0 {
         Err(ReminderError::NotEnoughArgs)
     }
+    // todo replace numbers with configurable values
+    else if interval.map_or(false, |inner| inner < 800) {
+        Err(ReminderError::ShortInterval)
+    }
+    else if interval.map_or(false, |inner| inner > 60*60*24*365*50) {
+        Err(ReminderError::LongInterval)
+    }
     else {
         match time_parser.timestamp() {
             Ok(time) => {
@@ -774,12 +781,12 @@ INSERT INTO messages (content) VALUES (?)
 
                         sqlx::query!(
                             "
-INSERT INTO reminders (uid, message_id, channel_id, time, method, set_by) VALUES
+INSERT INTO reminders (uid, message_id, channel_id, time, `interval`, method, set_by) VALUES
     (?,
     (SELECT id FROM messages WHERE content = ? ORDER BY id DESC LIMIT 1),
-    ?, ?, 'remind',
+    ?, ?, ?, 'remind',
     (SELECT id FROM users WHERE user = ? LIMIT 1))
-                            ", generate_uid(), content, db_channel_id, time as u32, user_id)
+                            ", generate_uid(), content, db_channel_id, time as u32, interval, user_id)
                             .execute(pool)
                             .await
                             .unwrap();
