@@ -1129,6 +1129,7 @@ dependencies = [
  "lazy_static",
  "log",
  "num-integer",
+ "num-traits",
  "rand",
  "regex",
  "regex_command_attr",

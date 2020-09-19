@@ -19,6 +19,8 @@ use serenity::{
     framework::standard::CommandResult,
 };
 
+use tokio::process::Command;
+
 use crate::{
     models::{
         ChannelData,
@@ -41,7 +43,10 @@ use rand::{
     RngCore,
 };
 
+use std::str::from_utf8;
+
 use num_integer::Integer;
+use num_traits::cast::ToPrimitive;
 
 use std::{
     string::ToString,
@@ -49,18 +54,24 @@ use std::{
     time::{
         SystemTime,
         UNIX_EPOCH,
-    }
+    },
+    env,
 };
 
 use regex::Regex;
 
 use serde_json::json;
 use sqlx::MySqlPool;
+use std::convert::TryInto;
 
 lazy_static! {
     static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
 
     static ref REGEX_CHANNEL_USER: Regex = Regex::new(r#"^\s*<(#|@)(?:!)?(\d+)>\s*$"#).unwrap();
+
+    static ref MIN_INTERVAL: i64 = env::var("MIN_INTERVAL").ok().map(|inner| inner.parse::<i64>().ok()).flatten().unwrap_or(600);
+
+    static ref MAX_TIME: i64 = env::var("MAX_TIME").ok().map(|inner| inner.parse::<i64>().ok()).flatten().unwrap_or(60*60*24*365*50);
 }
 
 static CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
@@ -622,7 +633,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                         msg.guild_id,
                         scope_id,
                         time_parser,
-                        Some(interval_seconds as u32),
+                        Some(interval_seconds),
                         content).await
                 }
                 else {
@@ -697,20 +708,65 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
     }
         .replacen("{location}", &scope_id.mention(), 1)
         .replacen("{offset}", &time_parser.map(|tp| tp.displacement().ok()).flatten().unwrap_or(-1).to_string(), 1)
-        .replacen("{min_interval}", "min_interval", 1)
-        .replacen("{max_time}", "max_time", 1);
+        .replacen("{min_interval}", &MIN_INTERVAL.to_string(), 1)
+        .replacen("{max_time}", &MAX_TIME.to_string(), 1);
 
     let _ = msg.channel_id.say(&ctx, &str_response).await;
 }
 
-async fn create_reminder(
+#[command]
+async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+
+    let send_str = user_data.response(&pool, "natural/send").await;
+    let to_str = user_data.response(&pool, "natural/to").await;
+    let every_str = user_data.response(&pool, "natural/every").await;
+
+    let location_ids = vec![msg.channel_id.as_u64().to_owned()];
+
+    let mut args_iter = args.splitn(1, &send_str);
+
+    let (time_crop_opt, msg_crop_opt) = (args_iter.next(), args_iter.next());
+
+    if let (Some(time_crop), Some(msg_crop)) = (time_crop_opt, msg_crop_opt) {
+        let python_call = Command::new("venv/bin/python3")
+            .arg("dp.py")
+            .arg(time_crop)
+            .arg(user_data.timezone)
+            .arg(&env::var("LOCAL_TIMEZONE").unwrap_or("UTC".to_string()))
+            .output()
+            .await;
+
+        if let Some(timestamp) = python_call.ok().map(|inner|
+            if inner.status.success() {
+                from_utf8(&*inner.stdout).unwrap().parse::<f64>().unwrap().round().to_i64()
+            }
+            else {
+                None
+            }).flatten() {
+
+            // check other options and then create reminder :)
+        }
+        // something not right with the time parse
+        else {
+
+        }
+    }
+
+    Ok(())
+}
+
+async fn create_reminder<T: TryInto<i64>>(
     ctx: impl CacheHttp,
     pool: &MySqlPool,
     user_id: u64,
     guild_id: Option<GuildId>,
     scope_id: &ReminderScope,
-    time_parser: &TimeParser,
-    interval: Option<u32>,
+    time_parser: T,
+    interval: Option<i64>,
     content: String)
     -> Result<(), ReminderError> {
 
@@ -755,19 +811,19 @@ async fn create_reminder(
         Err(ReminderError::NotEnoughArgs)
     }
     // todo replace numbers with configurable values
-    else if interval.map_or(false, |inner| inner < 800) {
+    else if interval.map_or(false, |inner| inner < *MIN_INTERVAL) {
         Err(ReminderError::ShortInterval)
     }
-    else if interval.map_or(false, |inner| inner > 60*60*24*365*50) {
+    else if interval.map_or(false, |inner| inner > *MAX_TIME) {
         Err(ReminderError::LongInterval)
     }
     else {
-        match time_parser.timestamp() {
+        match time_parser.try_into() {
             Ok(time) => {
                 let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
 
                 if time > unix_time {
-                    if time > unix_time + 60*60*24*365*50 {
+                    if time > unix_time + *MAX_TIME {
                         Err(ReminderError::LongTime)
                     }
                     else {

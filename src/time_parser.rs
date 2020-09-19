@@ -11,6 +11,7 @@ use std::fmt::{
 
 use chrono_tz::Tz;
 use chrono::TimeZone;
+use std::convert::TryFrom;
 
 #[derive(Debug)]
 pub enum InvalidTime {
@@ -38,6 +39,14 @@ pub struct TimeParser {
     inverted: bool,
     time_string: String,
     parse_type: ParseType,
+}
+
+impl TryFrom<&TimeParser> for i64 {
+    type Error = InvalidTime;
+
+    fn try_from(value: &TimeParser) -> Result<Self, Self::Error> {
+        value.timestamp()
+    }
 }
 
 impl TimeParser {
