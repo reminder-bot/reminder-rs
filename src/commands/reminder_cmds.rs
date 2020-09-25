@@ -93,7 +93,7 @@ async fn pause(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let mut channel = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool).await.unwrap();
 
-    if args.len() == 0 {
+    if args.is_empty() {
         channel.paused = !channel.paused;
         channel.paused_until = None;
 
@@ -137,7 +137,7 @@ async fn offset(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
-    if args.len() == 0 {
+    if args.is_empty() {
         let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "offset/help").await).await;
     }
     else {
@@ -189,7 +189,7 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let mut channel = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool).await.unwrap();
 
-    if args.len() == 0 {
+    if args.is_empty() {
         let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "nudge/invalid_time").await).await;
     }
     else {
@@ -248,7 +248,7 @@ impl LookFlags {
     fn from_string(args: &str) -> Self {
         let mut new_flags: Self = Default::default();
 
-        for arg in args.split(" ") {
+        for arg in args.split(' ') {
             match arg {
                 "enabled" => {
                     new_flags.show_disabled = false;
@@ -301,7 +301,7 @@ async fn look(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let enabled = if flags.show_disabled { "0,1" } else { "1" };
 
     let reminders = if let Some(guild_id) = msg.guild_id.map(|f| f.as_u64().to_owned()) {
-        let channel_id = flags.channel_id.unwrap_or(msg.channel_id.as_u64().to_owned());
+        let channel_id = flags.channel_id.unwrap_or_else(|| msg.channel_id.as_u64().to_owned());
 
         sqlx::query_as!(Reminder,
             "
@@ -340,7 +340,7 @@ LIMIT
             .await
     }.unwrap();
 
-    if reminders.len() == 0 {
+    if reminders.is_empty() {
         let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "look/no_reminders").await).await;
     }
     else {
@@ -419,7 +419,7 @@ WHERE
         .channel_id(msg.channel_id).await;
 
     if let Some(content) = reply.map(|m| m.content.replace(",", " ")) {
-        let parts = content.split(" ").filter(|i| i.len() > 0).collect::<Vec<&str>>();
+        let parts = content.split(' ').filter(|i| !i.is_empty()).collect::<Vec<&str>>();
 
         let valid_parts = parts
             .iter()
@@ -474,9 +474,9 @@ async fn timer(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
-    let mut args_iter = args.splitn(2, " ");
+    let mut args_iter = args.splitn(2, ' ');
 
-    let owner = msg.guild_id.map(|g| g.as_u64().to_owned()).unwrap_or(msg.author.id.as_u64().to_owned());
+    let owner = msg.guild_id.map(|g| g.as_u64().to_owned()).unwrap_or_else(|| msg.author.id.as_u64().to_owned());
 
     match args_iter.next() {
         Some("list") => {
@@ -670,7 +670,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
-    let mut args_iter = args.split(' ').filter(|s| s.len() > 0);
+    let mut args_iter = args.split(' ').filter(|s| !s.is_empty());
 
     let mut time_parser = None;
     let mut scope_id = ReminderScope::Channel(msg.channel_id.as_u64().to_owned());
@@ -740,7 +740,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
             .arg("dp.py")
             .arg(time_crop)
             .arg(user_data.timezone)
-            .arg(&env::var("LOCAL_TIMEZONE").unwrap_or("UTC".to_string()))
+            .arg(&env::var("LOCAL_TIMEZONE").unwrap_or_else(|_| "UTC".to_string()))
             .output()
             .await;
 

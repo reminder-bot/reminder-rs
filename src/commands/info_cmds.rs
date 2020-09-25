@@ -121,7 +121,7 @@ async fn clock(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     let now = Utc::now().with_timezone(&tz);
 
-    if args == "12".to_string() {
+    if args == "12" {
         let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "clock/time").await.replacen("{}", &now.format("%I:%M:%S %p").to_string(), 1)).await;
     }
     else {

@@ -135,7 +135,7 @@ pub async fn check_subscription(cache_http: impl CacheHttp, user_id: impl Into<U
     let role_ids = env::var("SUBSCRIPTION_ROLES")
         .map(
             |var| var
-                .split(",")
+                .split(',')
                 .filter_map(|item| {
                     item.parse::<u64>().ok()
                 })

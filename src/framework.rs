@@ -294,10 +294,8 @@ impl Framework for RegexFramework {
         // gate to prevent analysing messages unnecessarily
         if (msg.author.bot && self.ignore_bots) ||
             msg.tts                             ||
-            msg.content.len() == 0              ||
-            msg.attachments.len() > 0           {
-            return
-        }
+            msg.content.is_empty()              ||
+            !msg.attachments.is_empty()         {}
 
         // Guild Command
         else if let (Some(guild), Some(Channel::Guild(channel))) = (msg.guild(&ctx).await, msg.channel(&ctx).await) {
@@ -349,16 +347,14 @@ impl Framework for RegexFramework {
         }
 
         // DM Command
-        else {
-            if let Some(full_match) = self.dm_regex_matcher.captures(&msg.content[..]) {
-                let command = self.commands.get(full_match.name("cmd").unwrap().as_str()).unwrap();
-                let args = full_match.name("args")
-                    .map(|m| m.as_str())
-                    .unwrap_or("")
-                    .to_string();
+        else if let Some(full_match) = self.dm_regex_matcher.captures(&msg.content[..]) {
+            let command = self.commands.get(full_match.name("cmd").unwrap().as_str()).unwrap();
+            let args = full_match.name("args")
+                .map(|m| m.as_str())
+                .unwrap_or("")
+                .to_string();
 
-                (command.func)(&ctx, &msg, args).await.unwrap();
-            }
+            (command.func)(&ctx, &msg, args).await.unwrap();
         }
     }
 }

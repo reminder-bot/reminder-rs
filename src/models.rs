@@ -21,7 +21,7 @@ pub struct GuildData {
 
 impl GuildData {
     pub async fn from_guild(guild: Guild, pool: &MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
-        let guild_id = guild.id.as_u64().clone();
+        let guild_id = guild.id.as_u64().to_owned();
 
         if let Ok(g) = sqlx::query_as!(Self,
             "
@@ -85,7 +85,7 @@ SELECT * FROM channels WHERE channel = ?
     pub async fn from_channel(channel: Channel, pool: &MySqlPool)
         -> Result<Self, Box<dyn std::error::Error + Sync + Send>>
     {
-        let channel_id = channel.id().as_u64().clone();
+        let channel_id = channel.id().as_u64().to_owned();
 
         if let Ok(c) = sqlx::query_as_unchecked!(Self,
             "
@@ -97,7 +97,7 @@ SELECT * FROM channels WHERE channel = ?
             Ok(c)
         }
         else {
-            let props = channel.guild().map(|g| (g.guild_id.as_u64().clone(), g.name));
+            let props = channel.guild().map(|g| (g.guild_id.as_u64().to_owned(), g.name));
 
             let (guild_id, channel_name) = if let Some((a, b)) = props {
                 (Some(a), Some(b))
@@ -142,7 +142,7 @@ pub struct UserData {
 
 impl UserData {
     pub async fn from_user(user: &User, ctx: impl CacheHttp, pool: &MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
-        let user_id = user.id.as_u64().clone();
+        let user_id = user.id.as_u64().to_owned();
 
         if let Ok(c) = sqlx::query_as_unchecked!(Self,
             "
@@ -198,9 +198,9 @@ SELECT value FROM strings WHERE (language = ? OR language = 'EN') AND name = ? O
             ", self.language, name)
             .fetch_one(pool)
             .await
-            .expect(&format!("No string with that name: {}", name));
+            .unwrap_or_else(|_| panic!("No string with that name: {}", name));
 
-        row.value.expect(&format!("Null string with that name: {}", name))
+        row.value.unwrap_or_else(|| panic!("Null string with that name: {}", name))
     }
 
     pub fn timezone(&self) -> Tz {
