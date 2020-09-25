@@ -43,26 +43,32 @@ use rand::{
     RngCore,
 };
 
+use sqlx::{
+    Type,
+    MySql,
+    MySqlPool,
+    encode::Encode,
+};
+
 use std::str::from_utf8;
 
 use num_integer::Integer;
 use num_traits::cast::ToPrimitive;
 
 use std::{
-    string::ToString,
+    convert::TryInto,
     default::Default,
+    env,
+    string::ToString,
     time::{
         SystemTime,
         UNIX_EPOCH,
     },
-    env,
 };
 
 use regex::Regex;
 
 use serde_json::json;
-use sqlx::MySqlPool;
-use std::convert::TryInto;
 
 lazy_static! {
     static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
@@ -725,8 +731,6 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let to_str = user_data.response(&pool, "natural/to").await;
     let every_str = user_data.response(&pool, "natural/every").await;
 
-    let location_ids = vec![msg.channel_id.as_u64().to_owned()];
-
     let mut args_iter = args.splitn(1, &send_str);
 
     let (time_crop_opt, msg_crop_opt) = (args_iter.next(), args_iter.next());
@@ -748,7 +752,53 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
                 None
             }).flatten() {
 
+            let mut location_ids = vec![ReminderScope::Channel(msg.channel_id.as_u64().to_owned())];
+            let mut content = msg_crop;
+
             // check other options and then create reminder :)
+            if msg.guild_id.is_some() {
+                let re_match = Regex::new(&format!(r#"(?P<msg>.*) {} (?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+)$"#, to_str))
+                    .unwrap()
+                    .captures(msg_crop);
+
+                if let Some(captures) = re_match {
+                    content = captures.name("msg").unwrap().as_str();
+
+                    let mentions = captures.name("mentions").unwrap().as_str();
+                    location_ids = REGEX_CHANNEL_USER
+                        .captures_iter(mentions)
+                        .map(|i| {
+                            let pref = i.get(1).unwrap().as_str();
+                            let id = i.get(2).unwrap().as_str().parse::<u64>().unwrap();
+
+                            if pref == "#" {
+                                ReminderScope::Channel(id)
+                            } else {
+                                ReminderScope::User(id)
+                            }
+                        }).collect::<Vec<ReminderScope>>();
+                }
+            }
+
+            let mut issue_count = 0;
+
+            for location in location_ids {
+                let res = create_reminder(
+                    &ctx,
+                    &pool,
+                    msg.author.id.as_u64().to_owned(),
+                    msg.guild_id,
+                    &location,
+                    timestamp,
+                    None,
+                    &content).await;
+
+                if res.is_ok() {
+                    issue_count += 1;
+                }
+            }
+
+            let _ = msg.channel_id.say(&ctx, format!("successfully set {} reminders", issue_count)).await;
         }
         // something not right with the time parse
         else {
@@ -759,7 +809,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     Ok(())
 }
 
-async fn create_reminder<T: TryInto<i64>>(
+async fn create_reminder<T: TryInto<i64>, S: ToString + Type<MySql> + Encode<MySql>>(
     ctx: impl CacheHttp,
     pool: &MySqlPool,
     user_id: u64,
@@ -767,8 +817,10 @@ async fn create_reminder<T: TryInto<i64>>(
     scope_id: &ReminderScope,
     time_parser: T,
     interval: Option<i64>,
-    content: String)
+    content: S)
     -> Result<(), ReminderError> {
+
+    let content_string = content.to_string();
 
     let db_channel_id = match scope_id {
         ReminderScope::User(user_id) => {
@@ -807,7 +859,7 @@ async fn create_reminder<T: TryInto<i64>>(
     };
 
     // validate time, channel, content
-    if content.len() == 0 {
+    if content_string.is_empty() {
         Err(ReminderError::NotEnoughArgs)
     }
     // todo replace numbers with configurable values

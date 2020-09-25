@@ -51,14 +51,9 @@ impl TryFrom<&TimeParser> for i64 {
 
 impl TimeParser {
     pub fn new(input: String, timezone: Tz) -> Self {
-        let inverted = if input.starts_with("-") {
-            true
-        }
-        else {
-            false
-        };
+        let inverted = input.starts_with('-');
 
-        let parse_type = if input.contains("/") || input.contains(":") {
+        let parse_type = if input.contains('/') || input.contains(':') {
             ParseType::Explicit
         }
         else {
@@ -68,7 +63,7 @@ impl TimeParser {
         Self {
             timezone,
             inverted,
-            time_string: input.trim_start_matches("-").to_string(),
+            time_string: input.trim_start_matches('-').to_string(),
             parse_type,
         }
     }
@@ -109,10 +104,10 @@ impl TimeParser {
 
 
     fn process_explicit(&self) -> Result<i64, InvalidTime> {
-        let segments = self.time_string.matches("-").count();
+        let segments = self.time_string.matches('-').count();
 
         let parse_string = if segments == 1 {
-            let slashes = self.time_string.matches("/").count();
+            let slashes = self.time_string.matches('/').count();
 
             match slashes {
                 0 => Ok("%d-".to_string()),
@@ -123,7 +118,7 @@ impl TimeParser {
         } else {
             Ok("".to_string())
         }? + if segments == 1 {
-            let colons = self.time_string.matches(":").count();
+            let colons = self.time_string.matches(':').count();
 
             match colons {
                 1 => Ok("%H:%M"),

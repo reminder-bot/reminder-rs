@@ -74,7 +74,7 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
-    if args.len() > 0 {
+    if !args.is_empty() {
         match args.parse::<Tz>() {
             Ok(_) => {
                 user_data.timezone = args;
@@ -139,7 +139,7 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     if args.len() > 5 {
         let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "prefix/too_long").await).await;
     }
-    else if args.len() == 0 {
+    else if args.is_empty() {
         let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "prefix/no_argument").await).await;
     }
     else {
@@ -171,7 +171,7 @@ async fn restrict(ctx: &Context, msg: &Message, args: String) -> CommandResult {
         let role_opt = role_id.to_role_cached(&ctx).await;
 
         if let Some(role) = role_opt {
-            if commands.len() == 0 {
+            if commands.is_empty() {
                 let _ = sqlx::query!(
                     "
 DELETE FROM command_restrictions WHERE role_id = (SELECT id FROM roles WHERE role = ?)
@@ -206,8 +206,8 @@ INSERT INTO command_restrictions (role_id, command) VALUES ((SELECT id FROM role
             }
         }
     }
-    else if args.len() == 0 {
-        let guild_id = msg.guild_id.unwrap().as_u64().clone();
+    else if args.is_empty() {
+        let guild_id = msg.guild_id.unwrap().as_u64().to_owned();
 
         let rows = sqlx::query!(
             "
