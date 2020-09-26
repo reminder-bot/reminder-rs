@@ -729,9 +729,9 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     let send_str = user_data.response(&pool, "natural/send").await;
     let to_str = user_data.response(&pool, "natural/to").await;
-    let every_str = user_data.response(&pool, "natural/every").await;
+    // let every_str = user_data.response(&pool, "natural/every").await;
 
-    let mut args_iter = args.splitn(1, &send_str);
+    let mut args_iter = args.splitn(2, &send_str);
 
     let (time_crop_opt, msg_crop_opt) = (args_iter.next(), args_iter.next());
 
@@ -744,13 +744,15 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
             .output()
             .await;
 
-        if let Some(timestamp) = python_call.ok().map(|inner|
+        if let Some(timestamp) = python_call.ok().map(|inner| {
+            println!("{}", from_utf8(&*inner.stdout).unwrap());
+
             if inner.status.success() {
-                from_utf8(&*inner.stdout).unwrap().parse::<f64>().unwrap().round().to_i64()
+                Some(from_utf8(&*inner.stdout).unwrap().parse::<i64>().unwrap())
             }
             else {
                 None
-            }).flatten() {
+            }}).flatten() {
 
             let mut location_ids = vec![ReminderScope::Channel(msg.channel_id.as_u64().to_owned())];
             let mut content = msg_crop;
@@ -796,14 +798,20 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
                 if res.is_ok() {
                     issue_count += 1;
                 }
+                else {
+                    println!("{:?}", res);
+                }
             }
 
             let _ = msg.channel_id.say(&ctx, format!("successfully set {} reminders", issue_count)).await;
         }
         // something not right with the time parse
         else {
-
+            println!("ewifjewiof");
         }
+    }
+    else {
+        println!("aaaaaaaaaaaaaaaaaaa");
     }
 
     Ok(())
