@@ -1,6 +1,7 @@
 use serenity::{
     http::CacheHttp,
     model::{
+        id::GuildId,
         guild::Guild,
         channel::Channel,
         user::User,
@@ -20,6 +21,25 @@ pub struct GuildData {
 }
 
 impl GuildData {
+    pub async fn prefix_from_id<T: Into<GuildId>>(guild_id_opt: Option<T>, pool: &MySqlPool) -> String {
+        if let Some(guild_id) = guild_id_opt {
+            let guild_id = guild_id.into().as_u64().to_owned();
+
+            let row = sqlx::query!(
+                "
+SELECT prefix FROM guilds WHERE guild = ?
+                ", guild_id
+            )
+                .fetch_one(pool)
+                .await;
+
+            row.map_or("$".to_string(), |r| r.prefix)
+        }
+        else {
+            "$".to_string()
+        }
+    }
+
     pub async fn from_guild(guild: Guild, pool: &MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         let guild_id = guild.id.as_u64().to_owned();
 

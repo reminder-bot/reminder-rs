@@ -53,7 +53,6 @@ use sqlx::{
 use std::str::from_utf8;
 
 use num_integer::Integer;
-use num_traits::cast::ToPrimitive;
 
 use std::{
     convert::TryInto,
@@ -744,15 +743,13 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
             .output()
             .await;
 
-        if let Some(timestamp) = python_call.ok().map(|inner| {
-            println!("{}", from_utf8(&*inner.stdout).unwrap());
-
+        if let Some(timestamp) = python_call.ok().map(|inner|
             if inner.status.success() {
                 Some(from_utf8(&*inner.stdout).unwrap().parse::<i64>().unwrap())
             }
             else {
                 None
-            }}).flatten() {
+            }).flatten() {
 
             let mut location_ids = vec![ReminderScope::Channel(msg.channel_id.as_u64().to_owned())];
             let mut content = msg_crop;
@@ -798,20 +795,24 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
                 if res.is_ok() {
                     issue_count += 1;
                 }
-                else {
-                    println!("{:?}", res);
-                }
             }
 
             let _ = msg.channel_id.say(&ctx, format!("successfully set {} reminders", issue_count)).await;
         }
         // something not right with the time parse
         else {
-            println!("ewifjewiof");
+            let _ = msg.channel_id.say(&ctx, "DEV ERROR: Failed to invoke Python").await;
         }
     }
     else {
-        println!("aaaaaaaaaaaaaaaaaaa");
+        let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+
+        let resp = user_data.response(&pool, "natural/no_argument").await.replace("{prefix}", &prefix);
+
+        let _ = msg.channel_id.send_message(&ctx, |m| m
+            .embed(|e| e
+                .description(resp)
+            )).await;
     }
 
     Ok(())
