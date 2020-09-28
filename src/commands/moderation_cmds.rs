@@ -8,7 +8,10 @@ use serenity::{
             Message,
         },
     },
-    framework::standard::CommandResult,
+    framework::{
+        Framework,
+        standard::CommandResult,
+    },
 };
 
 use regex::Regex;
@@ -16,6 +19,7 @@ use regex::Regex;
 use chrono_tz::Tz;
 
 use crate::{
+    consts::MAX_MESSAGE_LENGTH,
     models::{
         ChannelData,
         UserData,
@@ -24,7 +28,8 @@ use crate::{
     SQLPool,
     FrameworkCtx,
 };
-use serenity::framework::Framework;
+
+use std::iter;
 
 lazy_static! {
     static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
@@ -265,13 +270,35 @@ SELECT name, command FROM command_aliases WHERE guild_id = (SELECT id FROM guild
                     .await
                     .unwrap();
 
-                let content = aliases.iter().map(|row| format!("**{}**: {}", row.name, row.command)).collect::<Vec<String>>().join("\n");
+                let content = iter::once("Aliases:".to_string()).chain(aliases.iter().map(|row| format!("**{}**: `{}`", row.name, row.command)));
 
-                let _ = msg.channel_id.say(&ctx, format!("Aliases: \n{}", content)).await;
+                let mut current_content = String::new();
+
+                for line in content {
+                    if current_content.len() + line.len() > MAX_MESSAGE_LENGTH {
+                        let _ = msg.channel_id.say(&ctx, &current_content).await;
+
+                        current_content = line;
+                    }
+                    else {
+                        current_content = format!("{}\n{}", current_content, line);
+                    }
+                }
+                if !current_content.is_empty() {
+                    let _ = msg.channel_id.say(&ctx, &current_content).await;
+                }
             },
 
             "remove" => {
                 if let Some(command) = command_opt {
+                    let deleted_count = sqlx::query!(
+                        "
+SELECT COUNT(1) AS count FROM command_aliases WHERE name = ? AND guild_id = (SELECT id FROM guilds WHERE guild = ?)
+                        ", command, guild_id)
+                        .fetch_one(&pool)
+                        .await
+                        .unwrap();
+
                     sqlx::query!(
                         "
 DELETE FROM command_aliases WHERE name = ? AND guild_id = (SELECT id FROM guilds WHERE guild = ?)
@@ -280,7 +307,9 @@ DELETE FROM command_aliases WHERE name = ? AND guild_id = (SELECT id FROM guilds
                         .await
                         .unwrap();
 
-                    let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "alias/removed").await).await;
+                    let content = user_data.response(&pool, "alias/removed").await.replace("{count}", &deleted_count.count.to_string());
+
+                    let _ = msg.channel_id.say(&ctx, content).await;
                 }
                 else {
                     let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "alias/help").await).await;
@@ -306,7 +335,9 @@ UPDATE command_aliases SET command = ? WHERE guild_id = (SELECT id FROM guilds W
                             .unwrap();
                     }
 
-                    let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "alias/created").await).await;
+                    let content = user_data.response(&pool, "alias/created").await.replace("{name}", name);
+
+                    let _ = msg.channel_id.say(&ctx, content).await;
                 }
                 else {
                     match sqlx::query!(
@@ -327,7 +358,9 @@ SELECT command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHER
                         },
 
                         Err(_) => {
-                            let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "alias/not_found").await).await;
+                            let content = user_data.response(&pool, "alias/not_found").await.replace("{name}", name);
+
+                            let _ = msg.channel_id.say(&ctx, content).await;
                         },
                     }
                 }
