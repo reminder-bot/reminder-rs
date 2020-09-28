@@ -5,6 +5,7 @@ mod models;
 mod framework;
 mod commands;
 mod time_parser;
+mod consts;
 
 use serenity::{
     http::CacheHttp,
@@ -34,12 +35,15 @@ use std::{
     env,
 };
 
-use crate::framework::RegexFramework;
-use crate::commands::{
-    info_cmds,
-    reminder_cmds,
-    todo_cmds,
-    moderation_cmds,
+use crate::{
+    framework::RegexFramework,
+    consts::PREFIX,
+    commands::{
+        info_cmds,
+        reminder_cmds,
+        todo_cmds,
+        moderation_cmds,
+    },
 };
 
 struct SQLPool;
@@ -68,7 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let framework = RegexFramework::new(env::var("CLIENT_ID").expect("Missing CLIENT_ID from environment").parse()?)
         .ignore_bots(true)
-        .default_prefix("$")
+        .default_prefix(&env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()))
 
         .add_command("ping", &info_cmds::PING_COMMAND)
 

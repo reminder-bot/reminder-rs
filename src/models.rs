@@ -8,14 +8,17 @@ use serenity::{
     }
 };
 
+use std::env;
+
 use sqlx::MySqlPool;
 
 use chrono::NaiveDateTime;
 use chrono_tz::Tz;
 
+use crate::consts::PREFIX;
+
 pub struct GuildData {
     pub id: u32,
-    guild: u64,
     pub name: String,
     pub prefix: String,
 }
@@ -33,10 +36,10 @@ SELECT prefix FROM guilds WHERE guild = ?
                 .fetch_one(pool)
                 .await;
 
-            row.map_or("$".to_string(), |r| r.prefix)
+            row.map_or_else(|_| env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()), |r| r.prefix)
         }
         else {
-            "$".to_string()
+            env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string())
         }
     }
 
@@ -45,7 +48,7 @@ SELECT prefix FROM guilds WHERE guild = ?
 
         if let Ok(g) = sqlx::query_as!(Self,
             "
-SELECT id, guild, name, prefix FROM guilds WHERE guild = ?
+SELECT id, name, prefix FROM guilds WHERE guild = ?
             ", guild_id)
             .fetch_one(pool)
             .await {
@@ -55,14 +58,14 @@ SELECT id, guild, name, prefix FROM guilds WHERE guild = ?
         else {
             sqlx::query!(
                 "
-INSERT INTO guilds (guild, name) VALUES (?, ?)
-                ", guild_id, guild.name)
+INSERT INTO guilds (guild, name, prefix) VALUES (?, ?, ?)
+                ", guild_id, guild.name, env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()))
                 .execute(&pool.clone())
                 .await?;
 
             Ok(sqlx::query_as!(Self,
             "
-SELECT id, guild, name, prefix FROM guilds WHERE guild = ?
+SELECT id, name, prefix FROM guilds WHERE guild = ?
             ", guild_id)
             .fetch_one(pool)
             .await?)
@@ -81,7 +84,6 @@ UPDATE guilds SET name = ?, prefix = ? WHERE id = ?
 
 pub struct ChannelData {
     pub id: u32,
-    channel: u64,
     pub name: String,
     pub nudge: i16,
     pub blacklisted: bool,
@@ -89,14 +91,13 @@ pub struct ChannelData {
     pub webhook_token: Option<String>,
     pub paused: bool,
     pub paused_until: Option<NaiveDateTime>,
-    guild_id: u32,
 }
 
 impl ChannelData {
     pub async fn from_id(channel_id: u64, pool: &MySqlPool) -> Option<Self> {
         sqlx::query_as_unchecked!(Self,
             "
-SELECT * FROM channels WHERE channel = ?
+SELECT id, name, nudge, blacklisted, webhook_id, webhook_token, paused, paused_until FROM channels WHERE channel = ?
             ", channel_id)
             .fetch_one(pool)
             .await.ok()
@@ -109,7 +110,7 @@ SELECT * FROM channels WHERE channel = ?
 
         if let Ok(c) = sqlx::query_as_unchecked!(Self,
             "
-SELECT * FROM channels WHERE channel = ?
+SELECT id, name, nudge, blacklisted, webhook_id, webhook_token, paused, paused_until FROM channels WHERE channel = ?
             ", channel_id)
             .fetch_one(pool)
             .await {
@@ -134,7 +135,7 @@ INSERT INTO channels (channel, name, guild_id) VALUES (?, ?, (SELECT id FROM gui
 
             Ok(sqlx::query_as_unchecked!(Self,
                 "
-SELECT * FROM channels WHERE channel = ?
+SELECT id, name, nudge, blacklisted, webhook_id, webhook_token, paused, paused_until FROM channels WHERE channel = ?
                 ", channel_id)
                 .fetch_one(pool)
                 .await?)

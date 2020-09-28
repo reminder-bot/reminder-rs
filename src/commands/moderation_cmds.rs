@@ -335,7 +335,10 @@ SELECT command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHER
         }
     }
     else {
-        let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "alias/help").await).await;
+        let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+        let content = user_data.response(&pool, "alias/help").await.replace("{prefix}", &prefix);
+
+        let _ = msg.channel_id.say(&ctx, content).await;
     }
 
     Ok(())

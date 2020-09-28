@@ -32,11 +32,13 @@ use regex::{
 use std::{
     collections::HashMap,
     fmt,
+    env,
 };
 
 use crate::{
     models::ChannelData,
     SQLPool,
+    consts::PREFIX,
 };
 
 type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, CommandResult>;
@@ -147,13 +149,13 @@ impl RegexFramework {
             commands: HashMap::new(),
             command_matcher: Regex::new(r#"^$"#).unwrap(),
             dm_regex_matcher: Regex::new(r#"^$"#).unwrap(),
-            default_prefix: String::from("$"),
+            default_prefix: env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()),
             client_id,
             ignore_bots: true,
         }
     }
 
-    pub fn default_prefix(mut self, new_prefix: &str) -> Self {
+    pub fn default_prefix<T: ToString>(mut self, new_prefix: T) -> Self {
         self.default_prefix = new_prefix.to_string();
 
         self
