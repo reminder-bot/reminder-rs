@@ -32,6 +32,7 @@ use crate::{
     check_subscription,
     SQLPool,
     time_parser::TimeParser,
+    framework::SendIterator,
 };
 
 use chrono::NaiveDateTime;
@@ -68,6 +69,7 @@ use std::{
 use regex::Regex;
 
 use serde_json::json;
+use serenity::cache::Cache;
 
 lazy_static! {
     static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
@@ -347,10 +349,9 @@ LIMIT
 
         let display = reminders
             .iter()
-            .map(|reminder| format!("'{}' *{}* **{}**", reminder.name, &inter, flags.display_time(reminder.time as u64)))
-            .collect::<Vec<String>>().join("\n");
+            .map(|reminder| format!("'{}' *{}* **{}**", reminder.name, &inter, flags.display_time(reminder.time as u64)));
 
-        let _ = msg.channel_id.say(&ctx, display).await;
+        let _ = msg.channel_id.say_lines(&ctx, display).await;
     }
 
     Ok(())
@@ -405,11 +406,9 @@ WHERE
         .map(|(count, reminder)| {
             reminder_ids.push(reminder.id);
             format!("**{}**: '{}' *{}* at {}", count + 1, reminder.name, reminder.channel_id, reminder.time)
-        })
-        .collect::<Vec<String>>()
-        .join("\n");
+        });
 
-    let _ = msg.channel_id.say(&ctx, enumerated_reminders).await;
+    let _ = msg.channel_id.say_lines(&ctx, enumerated_reminders).await;
     let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "del/listed").await).await;
 
     let reply = msg.channel_id.await_reply(&ctx)
@@ -615,7 +614,7 @@ async fn interval(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 async fn remind_command(ctx: &Context, msg: &Message, args: String, command: RemindCommand) {
 
     async fn check_interval(
-        ctx: impl CacheHttp,
+        ctx: impl CacheHttp + AsRef<Cache>,
         msg: &Message,
         mut args_iter: impl Iterator<Item=&str>,
         scope_id: &ReminderScope,
@@ -624,7 +623,10 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
         pool: &MySqlPool)
         -> Result<(), ReminderError> {
 
-        if command == RemindCommand::Interval && check_subscription(&ctx, &msg.author).await {
+        let subscribed = check_subscription(&ctx, &msg.author).await ||
+            if let Some(guild) = msg.guild(&ctx).await { check_subscription(&ctx, guild.owner_id).await } else { false };
+
+        if command == RemindCommand::Interval && subscribed {
             if let Some(interval_arg) = args_iter.next() {
                 let interval = TimeParser::new(interval_arg.to_string(), UTC);
 
@@ -728,7 +730,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     let send_str = user_data.response(&pool, "natural/send").await;
     let to_str = user_data.response(&pool, "natural/to").await;
-    // let every_str = user_data.response(&pool, "natural/every").await;
+    let every_str = user_data.response(&pool, "natural/every").await;
 
     let mut args_iter = args.splitn(2, &send_str);
 
@@ -753,6 +755,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
             let mut location_ids = vec![ReminderScope::Channel(msg.channel_id.as_u64().to_owned())];
             let mut content = msg_crop;
+            let mut interval = None;
 
             // check other options and then create reminder :)
             if msg.guild_id.is_some() {
@@ -779,6 +782,43 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
                 }
             }
 
+            let subscribed = check_subscription(&ctx, &msg.author).await ||
+                if let Some(guild) = msg.guild(&ctx).await { check_subscription(&ctx, guild.owner_id).await } else { false };
+
+            if subscribed {
+                let re_match = Regex::new(&format!(r#"(?P<msg>.*) {} (?P<interval>.*)$"#, every_str))
+                    .unwrap()
+                    .captures(content);
+
+                if let Some(captures) = re_match {
+                    content = captures.name("msg").unwrap().as_str();
+
+                    let interval_str = captures.name("interval").unwrap().as_str();
+
+                    let python_call = Command::new("venv/bin/python3")
+                        .arg("dp.py")
+                        .arg(&format!("1 {}", interval_str))
+                        .arg(&env::var("LOCAL_TIMEZONE").unwrap_or_else(|_| "UTC".to_string()))
+                        .arg(&env::var("LOCAL_TIMEZONE").unwrap_or_else(|_| "UTC".to_string()))
+                        .output()
+                        .await;
+
+                    let now = SystemTime::now();
+                    let since_epoch = now
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Time calculated as going backwards. Very bad");
+
+                    interval = python_call.ok().map(|inner|
+                        if inner.status.success() {
+                            Some(from_utf8(&*inner.stdout).unwrap().parse::<i64>().unwrap() - since_epoch.as_secs() as i64)
+                        }
+                        else {
+                            None
+                        }).flatten();
+                }
+
+            }
+
             let mut issue_count = 0;
 
             for location in location_ids {
@@ -789,7 +829,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
                     msg.guild_id,
                     &location,
                     timestamp,
-                    None,
+                    interval,
                     &content).await;
 
                 if res.is_ok() {
@@ -799,7 +839,6 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
             let _ = msg.channel_id.say(&ctx, format!("successfully set {} reminders", issue_count)).await;
         }
-        // something not right with the time parse
         else {
             let _ = msg.channel_id.say(&ctx, "DEV ERROR: Failed to invoke Python").await;
         }
@@ -871,7 +910,6 @@ async fn create_reminder<T: TryInto<i64>, S: ToString + Type<MySql> + Encode<MyS
     if content_string.is_empty() {
         Err(ReminderError::NotEnoughArgs)
     }
-    // todo replace numbers with configurable values
     else if interval.map_or(false, |inner| inner < *MIN_INTERVAL) {
         Err(ReminderError::ShortInterval)
     }
