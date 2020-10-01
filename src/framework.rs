@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 
 use serenity::{
+    http::Http,
+    Result as SerenityResult,
     client::Context,
     framework::{
         Framework,
@@ -40,6 +42,8 @@ use crate::{
     SQLPool,
     consts::PREFIX,
 };
+use serenity::model::id::ChannelId;
+use crate::consts::MAX_MESSAGE_LENGTH;
 
 type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, CommandResult>;
 
@@ -141,6 +145,34 @@ pub struct RegexFramework {
     default_prefix: String,
     client_id: u64,
     ignore_bots: bool,
+}
+
+#[async_trait]
+pub trait SendIterator {
+    async fn say_lines(self, http: impl AsRef<Http> + Send + Sync + 'async_trait, content: impl Iterator<Item=String> + Send + 'async_trait) -> SerenityResult<()>;
+}
+
+#[async_trait]
+impl SendIterator for ChannelId {
+    async fn say_lines(self, http: impl AsRef<Http> + Send + Sync + 'async_trait, content: impl Iterator<Item=String> + Send + 'async_trait) -> SerenityResult<()> {
+        let mut current_content = String::new();
+
+        for line in content {
+            if current_content.len() + line.len() > MAX_MESSAGE_LENGTH {
+                self.say(&http, &current_content).await?;
+
+                current_content = line;
+            }
+            else {
+                current_content = format!("{}\n{}", current_content, line);
+            }
+        }
+        if !current_content.is_empty() {
+            self.say(&http, &current_content).await?;
+        }
+
+        Ok(())
+    }
 }
 
 impl RegexFramework {

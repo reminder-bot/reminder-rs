@@ -19,7 +19,6 @@ use regex::Regex;
 use chrono_tz::Tz;
 
 use crate::{
-    consts::MAX_MESSAGE_LENGTH,
     models::{
         ChannelData,
         UserData,
@@ -27,6 +26,7 @@ use crate::{
     },
     SQLPool,
     FrameworkCtx,
+    framework::SendIterator,
 };
 
 use std::iter;
@@ -270,23 +270,15 @@ SELECT name, command FROM command_aliases WHERE guild_id = (SELECT id FROM guild
                     .await
                     .unwrap();
 
-                let content = iter::once("Aliases:".to_string()).chain(aliases.iter().map(|row| format!("**{}**: `{}`", row.name, row.command)));
+                let content = iter::once("Aliases:".to_string())
+                    .chain(
+                        aliases
+                            .iter()
+                            .map(|row| format!("**{}**: `{}`", row.name, row.command)
+                        )
+                    );
 
-                let mut current_content = String::new();
-
-                for line in content {
-                    if current_content.len() + line.len() > MAX_MESSAGE_LENGTH {
-                        let _ = msg.channel_id.say(&ctx, &current_content).await;
-
-                        current_content = line;
-                    }
-                    else {
-                        current_content = format!("{}\n{}", current_content, line);
-                    }
-                }
-                if !current_content.is_empty() {
-                    let _ = msg.channel_id.say(&ctx, &current_content).await;
-                }
+                let _ = msg.channel_id.say_lines(&ctx, content).await;
             },
 
             "remove" => {
