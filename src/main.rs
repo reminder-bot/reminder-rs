@@ -8,13 +8,17 @@ mod time_parser;
 mod consts;
 
 use serenity::{
+    cache::Cache,
     http::CacheHttp,
     client::{
         bridge::gateway::GatewayIntents,
         Client,
     },
-    model::id::{
-        GuildId, UserId,
+    model::{
+        id::{
+            GuildId, UserId,
+        },
+        channel::Message,
     },
     framework::Framework,
     prelude::TypeMapKey,
@@ -163,4 +167,9 @@ pub async fn check_subscription(cache_http: impl CacheHttp, user_id: impl Into<U
     else {
         true
     }
+}
+
+pub async fn check_subscription_on_message(cache_http: impl CacheHttp + AsRef<Cache>, msg: &Message) -> bool {
+    check_subscription(&cache_http, &msg.author).await ||
+        if let Some(guild) = msg.guild(&cache_http).await { check_subscription(&cache_http, guild.owner_id).await } else { false }
 }
