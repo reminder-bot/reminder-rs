@@ -455,7 +455,7 @@ DELETE FROM reminders WHERE FIND_IN_SET(id, ?)
 #[command]
 #[permission_level(Managed)]
 async fn timer(ctx: &Context, msg: &Message, args: String) -> CommandResult {
-        fn time_difference(start_time: NaiveDateTime) -> String {
+    fn time_difference(start_time: NaiveDateTime) -> String {
         let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
         let now = NaiveDateTime::from_timestamp(unix_time, 0);
 
@@ -736,7 +736,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
         Err(ReminderError::NotEnoughArgs)
     };
 
-    let str_response = response.to_response()
+    let str_response = user_data.response(&pool, &response.to_response()).await
         .replacen("{location}", &scope_id.mention(), 1)
         .replacen("{offset}", &time_parser.map(|tp| tp.displacement().ok()).flatten().unwrap_or(-1).to_string(), 1)
         .replacen("{min_interval}", &MIN_INTERVAL.to_string(), 1)
@@ -837,7 +837,6 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
                             None
                         }).flatten();
                 }
-
             }
 
             if location_ids.len() == 1 {
@@ -853,8 +852,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
                     interval,
                     &content).await;
 
-
-                let str_response = res.to_response_natural()
+                let str_response = user_data.response(&pool, &res.to_response_natural()).await
                     .replacen("{location}", &location_id.mention(), 1)
                     .replacen("{offset}", &(timestamp as u64 - since_epoch.as_secs()).to_string(), 1)
                     .replacen("{min_interval}", &MIN_INTERVAL.to_string(), 1)

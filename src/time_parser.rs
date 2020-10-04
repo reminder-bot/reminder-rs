@@ -102,6 +102,7 @@ impl TimeParser {
         }
     }
 
+    pub fn string_displacement()
 
     fn process_explicit(&self) -> Result<i64, InvalidTime> {
         let segments = self.time_string.matches('-').count();
