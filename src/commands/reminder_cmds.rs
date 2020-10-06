@@ -34,6 +34,7 @@ use crate::{
     time_parser::TimeParser,
     framework::SendIterator,
     check_subscription_on_message,
+    shorthand_displacement,
 };
 
 use chrono::NaiveDateTime;
@@ -736,9 +737,11 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
         Err(ReminderError::NotEnoughArgs)
     };
 
+    let offset = time_parser.map(|tp| tp.displacement().ok()).flatten().unwrap_or(0) as u64;
+
     let str_response = user_data.response(&pool, &response.to_response()).await
         .replacen("{location}", &scope_id.mention(), 1)
-        .replacen("{offset}", &time_parser.map(|tp| tp.displacement().ok()).flatten().unwrap_or(-1).to_string(), 1)
+        .replacen("{offset}", &shorthand_displacement(offset), 1)
         .replacen("{min_interval}", &MIN_INTERVAL.to_string(), 1)
         .replacen("{max_time}", &MAX_TIME.to_string(), 1);
 
@@ -852,9 +855,11 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
                     interval,
                     &content).await;
 
+                let offset = timestamp as u64 - since_epoch.as_secs();
+
                 let str_response = user_data.response(&pool, &res.to_response_natural()).await
                     .replacen("{location}", &location_id.mention(), 1)
-                    .replacen("{offset}", &(timestamp as u64 - since_epoch.as_secs()).to_string(), 1)
+                    .replacen("{offset}", &shorthand_displacement(offset), 1)
                     .replacen("{min_interval}", &MIN_INTERVAL.to_string(), 1)
                     .replacen("{max_time}", &MAX_TIME.to_string(), 1);
 
@@ -914,6 +919,7 @@ async fn create_reminder<T: TryInto<i64>, S: ToString + Type<MySql> + Encode<MyS
     -> Result<(), ReminderError> {
 
     let content_string = content.to_string();
+    let mut nudge = 0;
 
     let db_channel_id = match scope_id {
         ReminderScope::User(user_id) => {
@@ -932,6 +938,7 @@ async fn create_reminder<T: TryInto<i64>, S: ToString + Type<MySql> + Encode<MyS
             }
 
             let mut channel_data = ChannelData::from_channel(channel.clone(), &pool).await.unwrap();
+            nudge = channel_data.nudge;
 
             if let Some(guild_channel) = channel.guild() {
                 if channel_data.webhook_token.is_none() || channel_data.webhook_id.is_none() {
@@ -963,7 +970,9 @@ async fn create_reminder<T: TryInto<i64>, S: ToString + Type<MySql> + Encode<MyS
     }
     else {
         match time_parser.try_into() {
-            Ok(time) => {
+            Ok(time_pre) => {
+                let time = time_pre + nudge as i64;
+
                 let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
 
                 if time > unix_time {

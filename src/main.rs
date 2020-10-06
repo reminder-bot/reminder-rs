@@ -41,7 +41,9 @@ use std::{
 
 use crate::{
     framework::RegexFramework,
-    consts::PREFIX,
+    consts::{
+        PREFIX, DAY, HOUR, MINUTE,
+    },
     commands::{
         info_cmds,
         reminder_cmds,
@@ -49,6 +51,7 @@ use crate::{
         moderation_cmds,
     },
 };
+use num_integer::Integer;
 
 struct SQLPool;
 
@@ -172,4 +175,27 @@ pub async fn check_subscription(cache_http: impl CacheHttp, user_id: impl Into<U
 pub async fn check_subscription_on_message(cache_http: impl CacheHttp + AsRef<Cache>, msg: &Message) -> bool {
     check_subscription(&cache_http, &msg.author).await ||
         if let Some(guild) = msg.guild(&cache_http).await { check_subscription(&cache_http, guild.owner_id).await } else { false }
+}
+
+pub fn shorthand_displacement(seconds: u64) -> String {
+    let (hours, seconds) = seconds.div_rem(&HOUR);
+    let (minutes, seconds) = seconds.div_rem(&MINUTE);
+
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+}
+
+pub fn longhand_displacement(seconds: u64) -> String {
+    let (days, seconds) = seconds.div_rem(&DAY);
+    let (hours, seconds) = seconds.div_rem(&HOUR);
+    let (minutes, seconds) = seconds.div_rem(&MINUTE);
+
+    let mut sections = vec![];
+
+    for (var, name) in [days, hours, minutes, seconds].iter().zip(["days", "hours", "minutes", "seconds"].iter()) {
+        if *var > 0 {
+            sections.push(format!("{} {}", var, name));
+        }
+    }
+
+    sections.join(", ")
 }
