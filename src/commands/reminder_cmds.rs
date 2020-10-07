@@ -37,7 +37,7 @@ use crate::{
     shorthand_displacement,
 };
 
-use chrono::NaiveDateTime;
+use chrono::{NaiveDateTime, offset::TimeZone};
 
 use chrono_tz::Etc::UTC;
 
@@ -406,7 +406,10 @@ WHERE
         .enumerate()
         .map(|(count, reminder)| {
             reminder_ids.push(reminder.id);
-            format!("**{}**: '{}' *{}* at {}", count + 1, reminder.name, reminder.channel_id, reminder.time)
+            let time = user_data.timezone().timestamp(reminder.time as i64, 0);
+
+            // todo show reminder message instead of name
+            format!("**{}**: '{}' *{}* at {}", count + 1, reminder.name, reminder.channel_id, time.format("%Y-%m-%D %H:%M:%S"))
         });
 
     let _ = msg.channel_id.say_lines(&ctx, enumerated_reminders).await;
