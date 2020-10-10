@@ -42,7 +42,7 @@ use chrono_tz::Etc::UTC;
 
 use rand::{
     rngs::OsRng,
-    RngCore,
+    seq::IteratorRandom,
 };
 
 use sqlx::{
@@ -652,11 +652,9 @@ impl<T> ToResponse for Result<T, ReminderError> {
 fn generate_uid() -> String {
     let mut generator: OsRng = Default::default();
 
-    let mut bytes = vec![0u8, 64];
-
-    generator.fill_bytes(&mut bytes);
-
-    bytes.iter().map(|i| (CHARACTERS.as_bytes()[(i.to_owned() as usize) % CHARACTERS.len()] as char).to_string()).collect::<Vec<String>>().join("")
+    (0..64).map(|_| {
+        CHARACTERS.chars().choose(&mut generator).unwrap().to_owned().to_string()
+    }).collect::<Vec<String>>().join("")
 }
 
 #[command]
