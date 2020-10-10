@@ -27,14 +27,13 @@ use crate::{
         ChannelData,
         GuildData,
         UserData,
-        Reminder,
         Timer,
     },
     SQLPool,
     time_parser::TimeParser,
     framework::SendIterator,
     check_subscription_on_message,
-    shorthand_displacement,
+    shorthand_displacement, longhand_displacement
 };
 
 use chrono::{NaiveDateTime, offset::TimeZone};
@@ -276,18 +275,13 @@ impl LookFlags {
 
         new_flags
     }
+}
 
-    pub fn display_time(&self, timestamp: u64) -> String {
-        match self.time_display {
-            TimeDisplayType::Absolute => {
-                timestamp.to_string()
-            },
-
-            TimeDisplayType::Relative => {
-                timestamp.to_string()
-            },
-        }
-    }
+struct LookReminder {
+    id: u32,
+    time: u32,
+    content: String,
+    channel: u64,
 }
 
 #[command]
@@ -305,16 +299,20 @@ async fn look(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let reminders = if let Some(guild_id) = msg.guild_id.map(|f| f.as_u64().to_owned()) {
         let channel_id = flags.channel_id.unwrap_or_else(|| msg.channel_id.as_u64().to_owned());
 
-        sqlx::query_as!(Reminder,
+        sqlx::query_as!(LookReminder,
             "
 SELECT
-    reminders.id, reminders.time, reminders.name, reminders.channel_id
+    reminders.id, reminders.time, channels.channel, messages.content
 FROM
     reminders
 INNER JOIN
     channels
 ON
     reminders.channel_id = channels.id
+INNER JOIN
+    messages
+ON
+    messages.id = reminders.message_id
 WHERE
     channels.guild_id = (SELECT id FROM guilds WHERE guild = ?) AND
     channels.channel = ? AND
@@ -326,14 +324,22 @@ LIMIT
             .await
     }
     else {
-        sqlx::query_as!(Reminder,
+        sqlx::query_as!(LookReminder,
             "
 SELECT
-    id, time, name, channel_id
+    reminders.id, reminders.time, messages.content, channels.channel
 FROM
     reminders
+INNER JOIN
+    channels
+ON
+    channels.id = reminders.channel_id
+INNER JOIN
+    messages
+ON
+    messages.id = reminders.message_id
 WHERE
-    reminders.channel_id = (SELECT id FROM channels WHERE channel = ?) AND
+    channels.channel = ? AND
     FIND_IN_SET(reminders.enabled, ?)
 LIMIT
     ?
@@ -350,7 +356,18 @@ LIMIT
 
         let display = reminders
             .iter()
-            .map(|reminder| format!("'{}' *{}* **{}**", reminder.name, &inter, flags.display_time(reminder.time as u64)));
+            .map(|reminder| {
+                let time_display = match flags.time_display {
+                    TimeDisplayType::Absolute => {
+                        user_data.timezone().timestamp(reminder.time as i64, 0).format("%Y-%m-%D %H:%M:%S").to_string()
+                    },
+                    TimeDisplayType::Relative => {
+                        longhand_displacement(reminder.time as u64)
+                    },
+                };
+
+                format!("'{}' *{}* **{}**", reminder.content, &inter, time_display)
+            });
 
         let _ = msg.channel_id.say_lines(&ctx, display).await;
     }
@@ -369,16 +386,20 @@ async fn delete(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
     let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "del/listing").await).await;
 
     let reminders = if let Some(guild_id) = msg.guild_id.map(|f| f.as_u64().to_owned()) {
-        sqlx::query_as!(Reminder,
+        sqlx::query_as!(LookReminder,
             "
 SELECT
-    reminders.id, reminders.time, reminders.name, reminders.channel_id
+    reminders.id, reminders.time, messages.content, channels.channel
 FROM
     reminders
 INNER JOIN
     channels
 ON
     reminders.channel_id = channels.id
+INNER JOIN
+    messages
+ON
+    reminders.message_id = messages.id
 WHERE
     channels.guild_id = (SELECT id FROM guilds WHERE guild = ?)
             ", guild_id)
@@ -386,14 +407,22 @@ WHERE
             .await
     }
     else {
-        sqlx::query_as!(Reminder,
+        sqlx::query_as!(LookReminder,
             "
 SELECT
-    id, time, name, channel_id
+    reminders.id, reminders.time, messages.content, channels.channel
 FROM
     reminders
+INNER JOIN
+    messages
+ON
+    reminders.message_id = messages.id
+INNER JOIN
+    channels
+ON
+    channels.id = reminders.channel_id
 WHERE
-    channel_id = (SELECT id FROM channels WHERE channel = ?)
+    channels.channel = ?
             ", msg.channel_id.as_u64())
             .fetch_all(&pool)
             .await
@@ -409,7 +438,7 @@ WHERE
             let time = user_data.timezone().timestamp(reminder.time as i64, 0);
 
             // todo show reminder message instead of name
-            format!("**{}**: '{}' *{}* at {}", count + 1, reminder.name, reminder.channel_id, time.format("%Y-%m-%D %H:%M:%S"))
+            format!("**{}**: '{}' *<#{}>* at {}", count + 1, reminder.content, reminder.channel, time.format("%Y-%m-%D %H:%M:%S"))
         });
 
     let _ = msg.channel_id.say_lines(&ctx, enumerated_reminders).await;

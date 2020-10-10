@@ -229,13 +229,6 @@ SELECT value FROM strings WHERE (language = ? OR language = 'EN') AND name = ? O
     }
 }
 
-pub struct Reminder {
-    pub id: u32,
-    pub name: String,
-    pub time: u32,
-    pub channel_id: u32,
-}
-
 pub struct Timer {
     pub name: String,
     pub start_time: NaiveDateTime,
