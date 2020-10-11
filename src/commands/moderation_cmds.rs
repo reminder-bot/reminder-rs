@@ -199,14 +199,14 @@ async fn restrict(ctx: &Context, msg: &Message, args: String) -> CommandResult {
         let role_opt = role_id.to_role_cached(&ctx).await;
 
         if let Some(role) = role_opt {
-            if commands.is_empty() {
-                let _ = sqlx::query!(
-                    "
+            let _ = sqlx::query!(
+                "
 DELETE FROM command_restrictions WHERE role_id = (SELECT id FROM roles WHERE role = ?)
-                    ", role.id.as_u64())
-                    .execute(&pool)
-                    .await;
+                ", role.id.as_u64())
+                .execute(&pool)
+                .await;
 
+            if commands.is_empty() {
                 let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "restrict/disabled").await).await;
             }
             else {
@@ -226,7 +226,12 @@ INSERT INTO command_restrictions (role_id, command) VALUES ((SELECT id FROM role
                         .await;
 
                     if res.is_err() {
-                        let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "restrict/failure").await).await;
+                        println!("{:?}", res);
+
+                        let content = user_data.response(&pool, "restrict/failure").await
+                            .replacen("{command}", &command, 1);
+
+                        let _ = msg.channel_id.say(&ctx, content).await;
                     }
                 }
 

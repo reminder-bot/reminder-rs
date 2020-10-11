@@ -49,7 +49,7 @@ CREATE TABLE reminders.users (
     dm_channel INT UNSIGNED UNIQUE NOT NULL,
 
     language VARCHAR(2) DEFAULT 'EN' NOT NULL,
-    timezone VARCHAR(32), # nullable s.t it can default to server timezone
+    timezone VARCHAR(32) DEFAULT 'UTC' NOT NULL,
     allowed_dm BOOLEAN DEFAULT 1 NOT NULL,
 
     patreon BOOL NOT NULL DEFAULT 0,

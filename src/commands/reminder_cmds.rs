@@ -30,6 +30,9 @@ use crate::{
         MAX_TIME,
         LOCAL_TIMEZONE,
         CHARACTERS,
+        DAY,
+        HOUR,
+        MINUTE,
     },
     models::{
         ChannelData,
@@ -41,7 +44,6 @@ use crate::{
     time_parser::TimeParser,
     framework::SendIterator,
     check_subscription_on_message,
-    shorthand_displacement, longhand_displacement
 };
 
 use chrono::{NaiveDateTime, offset::TimeZone};
@@ -78,6 +80,29 @@ use regex::Regex;
 
 use serde_json::json;
 
+
+fn shorthand_displacement(seconds: u64) -> String {
+    let (hours, seconds) = seconds.div_rem(&HOUR);
+    let (minutes, seconds) = seconds.div_rem(&MINUTE);
+
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+}
+
+fn longhand_displacement(seconds: u64) -> String {
+    let (days, seconds) = seconds.div_rem(&DAY);
+    let (hours, seconds) = seconds.div_rem(&HOUR);
+    let (minutes, seconds) = seconds.div_rem(&MINUTE);
+
+    let mut sections = vec![];
+
+    for (var, name) in [days, hours, minutes, seconds].iter().zip(["days", "hours", "minutes", "seconds"].iter()) {
+        if *var > 0 {
+            sections.push(format!("{} {}", var, name));
+        }
+    }
+
+    sections.join(", ")
+}
 
 #[command]
 #[supports_dm(false)]
@@ -357,7 +382,11 @@ LIMIT
                         user_data.timezone().timestamp(reminder.time as i64, 0).format("%Y-%m-%D %H:%M:%S").to_string()
                     },
                     TimeDisplayType::Relative => {
-                        longhand_displacement(reminder.time as u64)
+                        let now = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap().as_secs();
+
+                        longhand_displacement(reminder.time as u64 - now)
                     },
                 };
 
@@ -793,6 +822,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
 }
 
 #[command]
+#[permission_level(Managed)]
 async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");

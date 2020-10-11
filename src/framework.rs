@@ -23,7 +23,6 @@ use serenity::{
 use log::{
     warn,
     error,
-    debug,
     info,
 };
 
@@ -47,7 +46,7 @@ use crate::consts::MAX_MESSAGE_LENGTH;
 
 type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, CommandResult>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum PermissionLevel {
     Unrestricted,
     Managed,
@@ -65,14 +64,29 @@ pub struct Command {
 impl Command {
     async fn check_permissions(&self, ctx: &Context, guild: &Guild, member: &Member) -> bool {
 
-        guild.member_permissions(&member.user).manage_guild() || match self.required_perms {
-            PermissionLevel::Unrestricted => true,
+        if self.required_perms == PermissionLevel::Unrestricted {
+            true
+        }
+        else {
+            for role_id in &member.roles {
+                let role = role_id.to_role_cached(&ctx).await;
 
-            PermissionLevel::Managed => {
+                if let Some(cached_role) = role {
+                    if cached_role.permissions.manage_guild() {
+                        return true
+                    }
+                    else if self.required_perms == PermissionLevel::Managed && cached_role.permissions.manage_messages() {
+                        return true
+                    }
+                }
+            }
+
+            if self.required_perms == PermissionLevel::Managed {
                 let pool = ctx.data.read().await
                     .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
-                match sqlx::query!("
+                match sqlx::query!(
+                    "
 SELECT
     role
 FROM
@@ -87,13 +101,12 @@ WHERE
         FROM
             guilds
         WHERE
-            guild = ?
-                )", self.name, guild.id.as_u64())
+            guild = ?)
+                    ", self.name, guild.id.as_u64())
                     .fetch_all(&pool)
                     .await {
 
                     Ok(rows) => {
-
                         let role_ids = member.roles.iter().map(|r| *r.as_u64()).collect::<Vec<u64>>();
 
                         for row in rows {
@@ -114,15 +127,12 @@ WHERE
 
                         false
                     }
-
                 }
             }
-
-            PermissionLevel::Restricted => {
+            else {
                 false
             }
         }
-
     }
 }
 
@@ -340,8 +350,6 @@ impl Framework for RegexFramework {
 
                 if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
 
-                    debug!("Prefix matched on {}", msg.content);
-
                     match check_self_permissions(&ctx, &guild, &channel).await {
                         Ok(perms) => match perms {
                             PermissionCheck::All => {
@@ -359,6 +367,12 @@ impl Framework for RegexFramework {
 
                                     if command.check_permissions(&ctx, &guild, &member).await {
                                         (command.func)(&ctx, &msg, args).await.unwrap();
+                                    }
+                                    else if command.required_perms == PermissionLevel::Restricted {
+                                        let _ = msg.channel_id.say(&ctx, "You must have permission level `Manage Server` or greater to use this command.").await;
+                                    }
+                                    else if command.required_perms == PermissionLevel::Managed {
+                                        let _ = msg.channel_id.say(&ctx, "You must have `Manage Messages` or have a role capable of sending reminders to that channel. Please talk to your server admin, and ask them to use the `{prefix}restrict` command to specify allowed roles.").await;
                                     }
                                 }
                             }
