@@ -18,6 +18,10 @@ use regex::Regex;
 
 use chrono_tz::Tz;
 
+use chrono::offset::Utc;
+
+use inflector::Inflector;
+
 use crate::{
     models::{
         ChannelData,
@@ -78,15 +82,21 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) -> CommandResult {
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
     let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    let guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool).await.unwrap();
 
     if !args.is_empty() {
         match args.parse::<Tz>() {
             Ok(_) => {
                 user_data.timezone = args;
-
                 user_data.commit_changes(&pool).await;
 
-                let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "timezone/set_p").await).await;
+                let now = Utc::now().with_timezone(&user_data.timezone());
+
+                let content = user_data.response(&pool, "timezone/set_p").await
+                    .replacen("{timezone}", &user_data.timezone, 1)
+                    .replacen("{time}", &now.format("%H:%M").to_string(), 1);
+
+                let _ = msg.channel_id.say(&ctx, content).await;
             }
 
             Err(_) => {
@@ -95,7 +105,11 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) -> CommandResult {
         }
     }
     else {
-        let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "timezone/no_argument").await).await;
+        let content = user_data.response(&pool, "timezone/no_argument").await
+            .replace("{prefix}", &guild_data.prefix)
+            .replacen("{timezone}", &user_data.timezone, 1);
+
+        let _ = msg.channel_id.say(&ctx, content).await;
     }
 
     Ok(())
@@ -124,7 +138,19 @@ SELECT code FROM languages WHERE code = ? OR name = ?
         },
 
         Err(_) => {
-            let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "lang/invalid").await).await;
+            let language_codes = sqlx::query!("SELECT name, code FROM languages")
+                .fetch_all(&pool)
+                .await
+                .unwrap()
+                .iter()
+                .map(|language| format!("{} ({})", language.name.to_title_case(), language.code.to_uppercase()))
+                .collect::<Vec<String>>()
+                .join("\n");
+
+            let content = user_data.response(&pool, "lang/invalid").await
+                .replacen("{}", &language_codes, 1);
+
+            let _ = msg.channel_id.say(&ctx, content).await;
         },
     }
 
@@ -151,7 +177,10 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) -> CommandResult {
         guild_data.prefix = args;
         guild_data.commit_changes(&pool).await;
 
-        let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "prefix/success").await).await;
+        let content = user_data.response(&pool, "prefix/success").await
+            .replacen("{prefix}", &guild_data.prefix, 1);
+
+        let _ = msg.channel_id.say(&ctx, content).await;
     }
 
     Ok(())

@@ -11,12 +11,14 @@ use serenity::{
 };
 
 use chrono::offset::Utc;
-use chrono_tz::Tz;
 
 use crate::{
+    models::{
+        UserData,
+        GuildData,
+    },
     THEME_COLOR,
     SQLPool,
-    models::UserData,
 };
 
 use std::time::{
@@ -65,7 +67,11 @@ async fn info(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
-    let desc = user_data.response(&pool, "info").await;
+    let guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool).await.unwrap();
+
+    let desc = user_data.response(&pool, "info").await
+        .replacen("{user}", &ctx.cache.current_user().await.name, 1)
+        .replacen("{prefix}", &guild_data.prefix, 1);
 
     msg.channel_id.send_message(ctx, |m| m
         .embed(move |e| e
@@ -117,9 +123,7 @@ async fn clock(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
-    let tz: Tz = user_data.timezone.parse().unwrap();
-
-    let now = Utc::now().with_timezone(&tz);
+    let now = Utc::now().with_timezone(&user_data.timezone());
 
     if args == "12" {
         let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "clock/time").await.replacen("{}", &now.format("%I:%M:%S %p").to_string(), 1)).await;

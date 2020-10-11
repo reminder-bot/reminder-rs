@@ -85,6 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         .add_command("help", &info_cmds::HELP_COMMAND)
         .add_command("info", &info_cmds::INFO_COMMAND)
+        .add_command("invite", &info_cmds::INFO_COMMAND)
         .add_command("donate", &info_cmds::DONATE_COMMAND)
         .add_command("dashboard", &info_cmds::DASHBOARD_COMMAND)
         .add_command("clock", &info_cmds::CLOCK_COMMAND)
