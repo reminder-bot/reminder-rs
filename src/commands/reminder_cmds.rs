@@ -28,6 +28,7 @@ use crate::{
         REGEX_CHANNEL_USER,
         MIN_INTERVAL,
         MAX_TIME,
+        LOCAL_TIMEZONE,
         CHARACTERS,
     },
     models::{
@@ -66,7 +67,6 @@ use num_integer::Integer;
 use std::{
     convert::TryInto,
     default::Default,
-    env,
     string::ToString,
     time::{
         SystemTime,
@@ -817,7 +817,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
             .arg("dp.py")
             .arg(time_crop)
             .arg(&user_data.timezone)
-            .arg(&env::var("LOCAL_TIMEZONE").unwrap_or_else(|_| "UTC".to_string()))
+            .arg(&*LOCAL_TIMEZONE)
             .output()
             .await;
 
@@ -835,7 +835,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
             // check other options and then create reminder :)
             if msg.guild_id.is_some() {
-                let re_match = Regex::new(&format!(r#"(?P<msg>.*) {} (?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+)$"#, to_str))
+                let re_match = Regex::new(&format!(r#"(?:\s*)(?P<msg>.*) {} (?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+)$"#, to_str))
                     .unwrap()
                     .captures(msg_crop);
 
@@ -871,8 +871,8 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
                     let python_call = Command::new("venv/bin/python3")
                         .arg("dp.py")
                         .arg(&format!("1 {}", interval_str))
-                        .arg(&env::var("LOCAL_TIMEZONE").unwrap_or_else(|_| "UTC".to_string()))
-                        .arg(&env::var("LOCAL_TIMEZONE").unwrap_or_else(|_| "UTC".to_string()))
+                        .arg(&*LOCAL_TIMEZONE)
+                        .arg(&*LOCAL_TIMEZONE)
                         .output()
                         .await;
 
