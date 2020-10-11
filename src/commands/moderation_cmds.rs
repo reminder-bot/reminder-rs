@@ -14,8 +14,6 @@ use serenity::{
     },
 };
 
-use regex::Regex;
-
 use chrono_tz::Tz;
 
 use chrono::offset::Utc;
@@ -31,19 +29,16 @@ use crate::{
     SQLPool,
     FrameworkCtx,
     framework::SendIterator,
+    consts::{
+        REGEX_ALIAS,
+        REGEX_CHANNEL,
+        REGEX_COMMANDS,
+        REGEX_ROLE,
+    },
 };
 
 use std::iter;
 
-lazy_static! {
-    static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
-
-    static ref REGEX_ROLE: Regex = Regex::new(r#"<@&([0-9]+)>"#).unwrap();
-
-    static ref REGEX_COMMANDS: Regex = Regex::new(r#"([a-z]+)"#).unwrap();
-
-    static ref REGEX_ALIAS: Regex = Regex::new(r#"(?P<name>[\S]{1,12})(?:(?: (?P<cmd>.*)$)|$)"#).unwrap();
-}
 
 #[command]
 #[supports_dm(false)]
@@ -82,7 +77,6 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) -> CommandResult {
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
     let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
-    let guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool).await.unwrap();
 
     if !args.is_empty() {
         match args.parse::<Tz>() {
@@ -106,7 +100,7 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     }
     else {
         let content = user_data.response(&pool, "timezone/no_argument").await
-            .replace("{prefix}", &guild_data.prefix)
+            .replace("{prefix}", &GuildData::prefix_from_id(msg.guild_id, &pool).await)
             .replacen("{timezone}", &user_data.timezone, 1);
 
         let _ = msg.channel_id.say(&ctx, content).await;

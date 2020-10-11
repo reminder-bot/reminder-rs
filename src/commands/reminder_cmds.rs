@@ -23,6 +23,13 @@ use serenity::{
 use tokio::process::Command;
 
 use crate::{
+    consts::{
+        REGEX_CHANNEL,
+        REGEX_CHANNEL_USER,
+        MIN_INTERVAL,
+        MAX_TIME,
+        CHARACTERS,
+    },
     models::{
         ChannelData,
         GuildData,
@@ -70,18 +77,6 @@ use std::{
 use regex::Regex;
 
 use serde_json::json;
-
-lazy_static! {
-    static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
-
-    static ref REGEX_CHANNEL_USER: Regex = Regex::new(r#"^\s*<(#|@)(?:!)?(\d+)>\s*$"#).unwrap();
-
-    static ref MIN_INTERVAL: i64 = env::var("MIN_INTERVAL").ok().map(|inner| inner.parse::<i64>().ok()).flatten().unwrap_or(600);
-
-    static ref MAX_TIME: i64 = env::var("MAX_TIME").ok().map(|inner| inner.parse::<i64>().ok()).flatten().unwrap_or(60*60*24*365*50);
-}
-
-static CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
 
 
 #[command]
@@ -330,7 +325,7 @@ SELECT
     reminders.id, reminders.time, messages.content, channels.channel
 FROM
     reminders
-INNER JOIN
+LEFT OUTER JOIN
     channels
 ON
     channels.id = reminders.channel_id
@@ -392,14 +387,14 @@ SELECT
     reminders.id, reminders.time, messages.content, channels.channel
 FROM
     reminders
-INNER JOIN
+LEFT OUTER JOIN
     channels
 ON
-    reminders.channel_id = channels.id
+    channels.id = reminders.channel_id
 INNER JOIN
     messages
 ON
-    reminders.message_id = messages.id
+    messages.id = reminders.message_id
 WHERE
     channels.guild_id = (SELECT id FROM guilds WHERE guild = ?)
             ", guild_id)
@@ -467,17 +462,30 @@ WHERE
             .collect::<Vec<String>>();
 
         if parts.len() == valid_parts.len() {
+            let joined = valid_parts.join(",");
+
+            let count_row = sqlx::query!(
+                "
+SELECT COUNT(1) AS count FROM reminders WHERE FIND_IN_SET(id, ?)
+                ", joined)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
             sqlx::query!(
                 "
 DELETE FROM reminders WHERE FIND_IN_SET(id, ?)
-                ", valid_parts.join(","))
+                ", joined)
                 .execute(&pool)
                 .await
                 .unwrap();
 
             // TODO add deletion events to event list
 
-            let _ = msg.channel_id.say(&ctx, user_data.response(&pool, "del/count").await).await;
+            let content = user_data.response(&pool, "del/count").await
+                .replacen("{}", &count_row.count.to_string(), 1);
+
+            let _ = msg.channel_id.say(&ctx, content).await;
         }
     }
 
@@ -599,6 +607,7 @@ custom_error!{ReminderError
     InvalidTag = "Invalid reminder scope",
     NotEnoughArgs = "Not enough args",
     InvalidTime = "Invalid time provided",
+    NeedSubscription = "Subscription required and not found",
     DiscordError = "Bad response received from Discord"
 }
 
@@ -618,6 +627,7 @@ impl ToResponse for ReminderError {
             Self::InvalidTag => "remind/invalid_tag",
             Self::NotEnoughArgs => "remind/no_argument",
             Self::InvalidTime => "remind/invalid_time",
+            Self::NeedSubscription => "interval/donor",
             Self::DiscordError => "remind/no_webhook",
         }.to_string()
     }
@@ -625,6 +635,7 @@ impl ToResponse for ReminderError {
     fn to_response_natural(&self) -> String {
         match self {
             Self::LongTime => "natural/long_time".to_string(),
+            Self::InvalidTime => "natural/invalid_time".to_string(),
             _ => self.to_response(),
         }
     }
@@ -709,6 +720,9 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                 Err(ReminderError::NotEnoughArgs)
             }
         }
+        else if command == RemindCommand::Interval {
+            Err(ReminderError::NeedSubscription)
+        }
         else {
             let content = args_iter.collect::<Vec<&str>>().join(" ");
 
@@ -769,6 +783,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
     let offset = time_parser.map(|tp| tp.displacement().ok()).flatten().unwrap_or(0) as u64;
 
     let str_response = user_data.response(&pool, &response.to_response()).await
+        .replace("{prefix}", &GuildData::prefix_from_id(msg.guild_id, &pool).await)
         .replacen("{location}", &scope_id.mention(), 1)
         .replacen("{offset}", &shorthand_displacement(offset), 1)
         .replacen("{min_interval}", &MIN_INTERVAL.to_string(), 1)
@@ -887,6 +902,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
                 let offset = timestamp as u64 - since_epoch.as_secs();
 
                 let str_response = user_data.response(&pool, &res.to_response_natural()).await
+                    .replace("{prefix}", &GuildData::prefix_from_id(msg.guild_id, &pool).await)
                     .replacen("{location}", &location_id.mention(), 1)
                     .replacen("{offset}", &shorthand_displacement(offset), 1)
                     .replacen("{min_interval}", &MIN_INTERVAL.to_string(), 1)
@@ -1004,7 +1020,7 @@ async fn create_reminder<T: TryInto<i64>, S: ToString + Type<MySql> + Encode<MyS
 
                 let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
 
-                if time > unix_time {
+                if time >= unix_time {
                     if time > unix_time + *MAX_TIME {
                         Err(ReminderError::LongTime)
                     }
@@ -1031,6 +1047,10 @@ INSERT INTO reminders (uid, message_id, channel_id, time, `interval`, method, se
 
                         Ok(())
                     }
+                }
+                else if time < 0 {
+                    // case required for if python returns -1
+                    Err(ReminderError::InvalidTime)
                 }
                 else {
                     Err(ReminderError::PastTime)

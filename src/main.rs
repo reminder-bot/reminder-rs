@@ -9,7 +9,10 @@ mod consts;
 
 use serenity::{
     cache::Cache,
-    http::CacheHttp,
+    http::{
+        CacheHttp,
+        client::Http,
+    },
     client::{
         bridge::gateway::GatewayIntents,
         Client,
@@ -43,6 +46,7 @@ use crate::{
     framework::RegexFramework,
     consts::{
         PREFIX, DAY, HOUR, MINUTE,
+        SUBSCRIPTION_ROLES, CNC_GUILD,
     },
     commands::{
         info_cmds,
@@ -51,7 +55,9 @@ use crate::{
         moderation_cmds,
     },
 };
+
 use num_integer::Integer;
+use serenity::futures::TryFutureExt;
 
 struct SQLPool;
 
@@ -77,7 +83,11 @@ static THEME_COLOR: u32 = 0x8fb677;
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     dotenv()?;
 
-    let framework = RegexFramework::new(env::var("CLIENT_ID").expect("Missing CLIENT_ID from environment").parse()?)
+    let token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment");
+
+    let http = Http::new_with_token(&token);
+
+    let framework = RegexFramework::new(http.get_current_user().map_ok(|user| user.id.as_u64().to_owned()).await?)
         .ignore_bots(true)
         .default_prefix(&env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()))
 
@@ -122,7 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let framework_arc = Arc::new(Box::new(framework) as Box<dyn Framework + Send + Sync>);
 
-    let mut client = Client::new(&env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment"))
+    let mut client = Client::new(&token)
         .intents(GatewayIntents::GUILD_MESSAGES | GatewayIntents::GUILDS | GatewayIntents::DIRECT_MESSAGES)
         .framework_arc(framework_arc.clone())
         .await.expect("Error occurred creating client");
@@ -144,23 +154,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 
 pub async fn check_subscription(cache_http: impl CacheHttp, user_id: impl Into<UserId>) -> bool {
-    let role_ids = env::var("SUBSCRIPTION_ROLES")
-        .map(
-            |var| var
-                .split(',')
-                .filter_map(|item| {
-                    item.parse::<u64>().ok()
-                })
-                .collect::<Vec<u64>>()
-        );
 
-    if let Some(subscription_guild) = env::var("CNC_GUILD").map(|var| var.parse::<u64>().ok()).ok().flatten() {
-        if let Ok(role_ids) = role_ids {
-            // todo remove unwrap and propagate error
-            let guild_member = GuildId(subscription_guild).member(cache_http, user_id).await.unwrap();
+    if let Some(subscription_guild) = *CNC_GUILD {
+        let guild_member = GuildId(subscription_guild).member(cache_http, user_id).await;
 
-            for role in guild_member.roles {
-                if role_ids.contains(role.as_u64()) {
+        if let Ok(member) = guild_member {
+            for role in member.roles {
+                if SUBSCRIPTION_ROLES.contains(role.as_u64()) {
                     return true
                 }
             }
