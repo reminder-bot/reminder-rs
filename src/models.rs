@@ -1,11 +1,6 @@
 use serenity::{
     http::CacheHttp,
-    model::{
-        id::GuildId,
-        guild::Guild,
-        channel::Channel,
-        user::User,
-    }
+    model::{channel::Channel, guild::Guild, id::GuildId, user::User},
 };
 
 use std::env;
@@ -24,49 +19,67 @@ pub struct GuildData {
 }
 
 impl GuildData {
-    pub async fn prefix_from_id<T: Into<GuildId>>(guild_id_opt: Option<T>, pool: &MySqlPool) -> String {
+    pub async fn prefix_from_id<T: Into<GuildId>>(
+        guild_id_opt: Option<T>,
+        pool: &MySqlPool,
+    ) -> String {
         if let Some(guild_id) = guild_id_opt {
             let guild_id = guild_id.into().as_u64().to_owned();
 
             let row = sqlx::query!(
                 "
 SELECT prefix FROM guilds WHERE guild = ?
-                ", guild_id
+                ",
+                guild_id
             )
-                .fetch_one(pool)
-                .await;
+            .fetch_one(pool)
+            .await;
 
-            row.map_or_else(|_| env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()), |r| r.prefix)
-        }
-        else {
+            row.map_or_else(
+                |_| env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()),
+                |r| r.prefix,
+            )
+        } else {
             env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string())
         }
     }
 
-    pub async fn from_guild(guild: Guild, pool: &MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    pub async fn from_guild(
+        guild: Guild,
+        pool: &MySqlPool,
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         let guild_id = guild.id.as_u64().to_owned();
 
-        if let Ok(g) = sqlx::query_as!(Self,
+        if let Ok(g) = sqlx::query_as!(
+            Self,
             "
 SELECT id, name, prefix FROM guilds WHERE guild = ?
-            ", guild_id)
-            .fetch_one(pool)
-            .await {
-
+            ",
+            guild_id
+        )
+        .fetch_one(pool)
+        .await
+        {
             Ok(g)
-        }
-        else {
+        } else {
             sqlx::query!(
                 "
 INSERT INTO guilds (guild, name, prefix) VALUES (?, ?, ?)
-                ", guild_id, guild.name, env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()))
-                .execute(&pool.clone())
-                .await?;
+                ",
+                guild_id,
+                guild.name,
+                env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string())
+            )
+            .execute(&pool.clone())
+            .await?;
 
-            Ok(sqlx::query_as!(Self,
-            "
+            Ok(sqlx::query_as!(
+                Self,
+                "
 SELECT id, name, prefix FROM guilds WHERE guild = ?
-            ", guild_id)
+            ",
+                guild_id
+            )
             .fetch_one(pool)
             .await?)
         }
@@ -76,9 +89,14 @@ SELECT id, name, prefix FROM guilds WHERE guild = ?
         sqlx::query!(
             "
 UPDATE guilds SET name = ?, prefix = ? WHERE id = ?
-            ", self.name, self.prefix, self.id)
-            .execute(pool)
-            .await.unwrap();
+            ",
+            self.name,
+            self.prefix,
+            self.id
+        )
+        .execute(pool)
+        .await
+        .unwrap();
     }
 }
 
@@ -103,9 +121,10 @@ SELECT id, name, nudge, blacklisted, webhook_id, webhook_token, paused, paused_u
             .await.ok()
     }
 
-    pub async fn from_channel(channel: Channel, pool: &MySqlPool)
-        -> Result<Self, Box<dyn std::error::Error + Sync + Send>>
-    {
+    pub async fn from_channel(
+        channel: Channel,
+        pool: &MySqlPool,
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         let channel_id = channel.id().as_u64().to_owned();
 
         if let Ok(c) = sqlx::query_as_unchecked!(Self,
@@ -162,19 +181,25 @@ pub struct UserData {
 }
 
 impl UserData {
-    pub async fn from_user(user: &User, ctx: impl CacheHttp, pool: &MySqlPool) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    pub async fn from_user(
+        user: &User,
+        ctx: impl CacheHttp,
+        pool: &MySqlPool,
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         let user_id = user.id.as_u64().to_owned();
 
-        if let Ok(c) = sqlx::query_as_unchecked!(Self,
+        if let Ok(c) = sqlx::query_as_unchecked!(
+            Self,
             "
 SELECT id, user, name, dm_channel, language, timezone FROM users WHERE user = ?
-            ", user_id)
-            .fetch_one(pool)
-            .await {
-
+            ",
+            user_id
+        )
+        .fetch_one(pool)
+        .await
+        {
             Ok(c)
-        }
-        else {
+        } else {
             let dm_channel = user.create_dm_channel(ctx).await?;
             let dm_id = dm_channel.id.as_u64().to_owned();
 
@@ -183,9 +208,11 @@ SELECT id, user, name, dm_channel, language, timezone FROM users WHERE user = ?
             sqlx::query!(
                 "
 INSERT INTO channels (channel) VALUES (?)
-                ", dm_id)
-                .execute(&pool_c)
-                .await?;
+                ",
+                dm_id
+            )
+            .execute(&pool_c)
+            .await?;
 
             sqlx::query!(
                 "
@@ -194,12 +221,15 @@ INSERT INTO users (user, name, dm_channel) VALUES (?, ?, (SELECT id FROM channel
                 .execute(&pool_c)
                 .await?;
 
-            Ok(sqlx::query_as_unchecked!(Self,
+            Ok(sqlx::query_as_unchecked!(
+                Self,
                 "
 SELECT id, user, name, dm_channel, language, timezone FROM users WHERE user = ?
-                ", user_id)
-                .fetch_one(pool)
-                .await?)
+                ",
+                user_id
+            )
+            .fetch_one(pool)
+            .await?)
         }
     }
 
@@ -207,9 +237,15 @@ SELECT id, user, name, dm_channel, language, timezone FROM users WHERE user = ?
         sqlx::query!(
             "
 UPDATE users SET name = ?, language = ?, timezone = ? WHERE id = ?
-            ", self.name, self.language, self.timezone, self.id)
-            .execute(pool)
-            .await.unwrap();
+            ",
+            self.name,
+            self.language,
+            self.timezone,
+            self.id
+        )
+        .execute(pool)
+        .await
+        .unwrap();
     }
 
     pub async fn response(&self, pool: &MySqlPool, name: &str) -> String {
@@ -221,7 +257,8 @@ SELECT value FROM strings WHERE (language = ? OR language = 'EN') AND name = ? O
             .await
             .unwrap_or_else(|_| panic!("No string with that name: {}", name));
 
-        row.value.unwrap_or_else(|| panic!("Null string with that name: {}", name))
+        row.value
+            .unwrap_or_else(|| panic!("Null string with that name: {}", name))
     }
 
     pub fn timezone(&self) -> Tz {
@@ -237,33 +274,41 @@ pub struct Timer {
 
 impl Timer {
     pub async fn from_owner(owner: u64, pool: &MySqlPool) -> Vec<Self> {
-        sqlx::query_as_unchecked!(Timer,
+        sqlx::query_as_unchecked!(
+            Timer,
             "
 SELECT name, start_time, owner FROM timers WHERE owner = ?
-            ", owner)
-            .fetch_all(pool)
-            .await
-            .unwrap()
+            ",
+            owner
+        )
+        .fetch_all(pool)
+        .await
+        .unwrap()
     }
 
     pub async fn count_from_owner(owner: u64, pool: &MySqlPool) -> u32 {
         sqlx::query!(
             "
 SELECT COUNT(1) as count FROM timers WHERE owner = ?
-            ", owner)
-            .fetch_one(pool)
-            .await
-            .unwrap()
-            .count as u32
+            ",
+            owner
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap()
+        .count as u32
     }
 
     pub async fn create(name: &str, owner: u64, pool: &MySqlPool) {
         sqlx::query!(
             "
 INSERT INTO timers (name, owner) VALUES (?, ?)
-            ", name, owner)
-            .execute(pool)
-            .await
-            .unwrap();
+            ",
+            name,
+            owner
+        )
+        .execute(pool)
+        .await
+        .unwrap();
     }
 }

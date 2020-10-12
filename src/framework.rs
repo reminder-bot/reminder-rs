@@ -1,50 +1,29 @@
 use async_trait::async_trait;
 
 use serenity::{
-    constants::MESSAGE_CODE_LIMIT,
-    http::Http,
-    Result as SerenityResult,
     client::Context,
-    framework::{
-        Framework,
-        standard::CommandResult,
-    },
-    model::{
-        id::ChannelId,
-        guild::{
-            Guild,
-            Member,
-        },
-        channel::{
-            Channel, GuildChannel, Message,
-        }
-    },
+    constants::MESSAGE_CODE_LIMIT,
+    framework::{standard::CommandResult, Framework},
     futures::prelude::future::BoxFuture,
+    http::Http,
+    model::{
+        channel::{Channel, GuildChannel, Message},
+        guild::{Guild, Member},
+        id::ChannelId,
+    },
+    Result as SerenityResult,
 };
 
-use log::{
-    warn,
-    error,
-    info,
-};
+use log::{error, info, warn};
 
-use regex::{
-    Regex, Match
-};
+use regex::{Match, Regex};
 
-use std::{
-    collections::HashMap,
-    fmt,
-    env,
-};
+use std::{collections::HashMap, env, fmt};
 
-use crate::{
-    models::ChannelData,
-    SQLPool,
-    consts::PREFIX,
-};
+use crate::{consts::PREFIX, models::ChannelData, SQLPool};
 
-type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, CommandResult>;
+type CommandFn =
+    for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, CommandResult>;
 
 #[derive(Debug, PartialEq)]
 pub enum PermissionLevel {
@@ -63,27 +42,30 @@ pub struct Command {
 
 impl Command {
     async fn check_permissions(&self, ctx: &Context, guild: &Guild, member: &Member) -> bool {
-
         if self.required_perms == PermissionLevel::Unrestricted {
             true
-        }
-        else {
+        } else {
             for role_id in &member.roles {
                 let role = role_id.to_role_cached(&ctx).await;
 
                 if let Some(cached_role) = role {
-                    if cached_role.permissions.manage_guild() {
-                        return true
-                    }
-                    else if self.required_perms == PermissionLevel::Managed && cached_role.permissions.manage_messages() {
-                        return true
+                    if cached_role.permissions.manage_guild()
+                        || (self.required_perms == PermissionLevel::Managed
+                            && cached_role.permissions.manage_messages())
+                    {
+                        return true;
                     }
                 }
             }
 
             if self.required_perms == PermissionLevel::Managed {
-                let pool = ctx.data.read().await
-                    .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+                let pool = ctx
+                    .data
+                    .read()
+                    .await
+                    .get::<SQLPool>()
+                    .cloned()
+                    .expect("Could not get SQLPool from data");
 
                 match sqlx::query!(
                     "
@@ -102,34 +84,41 @@ WHERE
             guilds
         WHERE
             guild = ?)
-                    ", self.name, guild.id.as_u64())
-                    .fetch_all(&pool)
-                    .await {
-
+                    ",
+                    self.name,
+                    guild.id.as_u64()
+                )
+                .fetch_all(&pool)
+                .await
+                {
                     Ok(rows) => {
-                        let role_ids = member.roles.iter().map(|r| *r.as_u64()).collect::<Vec<u64>>();
+                        let role_ids = member
+                            .roles
+                            .iter()
+                            .map(|r| *r.as_u64())
+                            .collect::<Vec<u64>>();
 
                         for row in rows {
                             if role_ids.contains(&row.role) {
-                                return true
+                                return true;
                             }
                         }
 
                         false
                     }
 
-                    Err(sqlx::Error::RowNotFound) => {
-                        false
-                    }
+                    Err(sqlx::Error::RowNotFound) => false,
 
                     Err(e) => {
-                        warn!("Unexpected error occurred querying command_restrictions: {:?}", e);
+                        warn!(
+                            "Unexpected error occurred querying command_restrictions: {:?}",
+                            e
+                        );
 
                         false
                     }
                 }
-            }
-            else {
+            } else {
                 false
             }
         }
@@ -139,11 +128,11 @@ WHERE
 impl fmt::Debug for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Command")
-         .field("name", &self.name)
-         .field("required_perms", &self.required_perms)
-         .field("supports_dm", &self.supports_dm)
-         .field("can_blacklist", &self.can_blacklist)
-         .finish()
+            .field("name", &self.name)
+            .field("required_perms", &self.required_perms)
+            .field("supports_dm", &self.supports_dm)
+            .field("can_blacklist", &self.can_blacklist)
+            .finish()
     }
 }
 
@@ -159,12 +148,20 @@ pub struct RegexFramework {
 
 #[async_trait]
 pub trait SendIterator {
-    async fn say_lines(self, http: impl AsRef<Http> + Send + Sync + 'async_trait, content: impl Iterator<Item=String> + Send + 'async_trait) -> SerenityResult<()>;
+    async fn say_lines(
+        self,
+        http: impl AsRef<Http> + Send + Sync + 'async_trait,
+        content: impl Iterator<Item = String> + Send + 'async_trait,
+    ) -> SerenityResult<()>;
 }
 
 #[async_trait]
 impl SendIterator for ChannelId {
-    async fn say_lines(self, http: impl AsRef<Http> + Send + Sync + 'async_trait, content: impl Iterator<Item=String> + Send + 'async_trait) -> SerenityResult<()> {
+    async fn say_lines(
+        self,
+        http: impl AsRef<Http> + Send + Sync + 'async_trait,
+        content: impl Iterator<Item = String> + Send + 'async_trait,
+    ) -> SerenityResult<()> {
         let mut current_content = String::new();
 
         for line in content {
@@ -172,8 +169,7 @@ impl SendIterator for ChannelId {
                 self.say(&http, &current_content).await?;
 
                 current_content = line;
-            }
-            else {
+            } else {
                 current_content = format!("{}\n{}", current_content, line);
             }
         }
@@ -220,10 +216,8 @@ impl RegexFramework {
             let command_names;
 
             {
-                let mut command_names_vec = self.commands
-                    .keys()
-                    .map(|k| &k[..])
-                    .collect::<Vec<&str>>();
+                let mut command_names_vec =
+                    self.commands.keys().map(|k| &k[..]).collect::<Vec<&str>>();
 
                 command_names_vec.sort_unstable_by(|a, b| b.len().cmp(&a.len()));
 
@@ -245,7 +239,8 @@ impl RegexFramework {
             let dm_command_names;
 
             {
-                let mut command_names_vec = self.commands
+                let mut command_names_vec = self
+                    .commands
                     .iter()
                     .filter_map(|(key, command)| {
                         if command.supports_dm {
@@ -283,8 +278,11 @@ enum PermissionCheck {
 #[async_trait]
 impl Framework for RegexFramework {
     async fn dispatch(&self, ctx: Context, msg: Message) {
-
-        async fn check_self_permissions(ctx: &Context, guild: &Guild, channel: &GuildChannel) -> Result<PermissionCheck, Box<dyn std::error::Error + Sync + Send>> {
+        async fn check_self_permissions(
+            ctx: &Context,
+            guild: &Guild,
+            channel: &GuildChannel,
+        ) -> Result<PermissionCheck, Box<dyn std::error::Error + Sync + Send>> {
             let user_id = ctx.cache.current_user_id().await;
 
             let guild_perms = guild.member_permissions(user_id);
@@ -294,31 +292,40 @@ impl Framework for RegexFramework {
 
             Ok(if basic_perms && guild_perms.manage_webhooks() {
                 PermissionCheck::All
-            }
-            else if basic_perms {
+            } else if basic_perms {
                 PermissionCheck::Basic
-            }
-            else {
+            } else {
                 PermissionCheck::None
             })
         }
 
         async fn check_prefix(ctx: &Context, guild: &Guild, prefix_opt: Option<Match<'_>>) -> bool {
             if let Some(prefix) = prefix_opt {
-                let pool = ctx.data.read().await
-                    .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+                let pool = ctx
+                    .data
+                    .read()
+                    .await
+                    .get::<SQLPool>()
+                    .cloned()
+                    .expect("Could not get SQLPool from data");
 
-                match sqlx::query!("SELECT prefix FROM guilds WHERE guild = ?", guild.id.as_u64())
-                    .fetch_one(&pool)
-                    .await {
-                    Ok(row) => {
-                        prefix.as_str() == row.prefix
-                    }
+                match sqlx::query!(
+                    "SELECT prefix FROM guilds WHERE guild = ?",
+                    guild.id.as_u64()
+                )
+                .fetch_one(&pool)
+                .await
+                {
+                    Ok(row) => prefix.as_str() == row.prefix,
 
                     Err(sqlx::Error::RowNotFound) => {
-                        let _ = sqlx::query!("INSERT INTO guilds (guild, name) VALUES (?, ?)", guild.id.as_u64(), guild.name)
-                            .execute(&pool)
-                            .await;
+                        let _ = sqlx::query!(
+                            "INSERT INTO guilds (guild, name) VALUES (?, ?)",
+                            guild.id.as_u64(),
+                            guild.name
+                        )
+                        .execute(&pool)
+                        .await;
 
                         prefix.as_str() == "$"
                     }
@@ -329,49 +336,62 @@ impl Framework for RegexFramework {
                         false
                     }
                 }
-            }
-            else {
+            } else {
                 true
             }
         }
 
         // gate to prevent analysing messages unnecessarily
-        if (msg.author.bot && self.ignore_bots) ||
-            msg.tts                             ||
-            msg.content.is_empty()              ||
-            !msg.attachments.is_empty()         {}
-
+        if (msg.author.bot && self.ignore_bots)
+            || msg.tts
+            || msg.content.is_empty()
+            || !msg.attachments.is_empty()
+        {
+        }
         // Guild Command
-        else if let (Some(guild), Some(Channel::Guild(channel))) = (msg.guild(&ctx).await, msg.channel(&ctx).await) {
-
+        else if let (Some(guild), Some(Channel::Guild(channel))) =
+            (msg.guild(&ctx).await, msg.channel(&ctx).await)
+        {
             let member = guild.member(&ctx, &msg.author).await.unwrap();
 
             if let Some(full_match) = self.command_matcher.captures(&msg.content[..]) {
-
                 if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
-
                     match check_self_permissions(&ctx, &guild, &channel).await {
                         Ok(perms) => match perms {
                             PermissionCheck::All => {
-                                let pool = ctx.data.read().await
-                                    .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+                                let pool = ctx
+                                    .data
+                                    .read()
+                                    .await
+                                    .get::<SQLPool>()
+                                    .cloned()
+                                    .expect("Could not get SQLPool from data");
 
-                                let command = self.commands.get(full_match.name("cmd").unwrap().as_str()).unwrap();
-                                let channel_data = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool).await;
+                                let command = self
+                                    .commands
+                                    .get(full_match.name("cmd").unwrap().as_str())
+                                    .unwrap();
+                                let channel_data = ChannelData::from_channel(
+                                    msg.channel(&ctx).await.unwrap(),
+                                    &pool,
+                                )
+                                .await;
 
-                                if !command.can_blacklist || !channel_data.map(|c| c.blacklisted).unwrap_or(false) {
-                                    let args = full_match.name("args")
+                                if !command.can_blacklist
+                                    || !channel_data.map(|c| c.blacklisted).unwrap_or(false)
+                                {
+                                    let args = full_match
+                                        .name("args")
                                         .map(|m| m.as_str())
                                         .unwrap_or("")
                                         .to_string();
 
                                     if command.check_permissions(&ctx, &guild, &member).await {
                                         (command.func)(&ctx, &msg, args).await.unwrap();
-                                    }
-                                    else if command.required_perms == PermissionLevel::Restricted {
+                                    } else if command.required_perms == PermissionLevel::Restricted
+                                    {
                                         let _ = msg.channel_id.say(&ctx, "You must have permission level `Manage Server` or greater to use this command.").await;
-                                    }
-                                    else if command.required_perms == PermissionLevel::Managed {
+                                    } else if command.required_perms == PermissionLevel::Managed {
                                         let _ = msg.channel_id.say(&ctx, "You must have `Manage Messages` or have a role capable of sending reminders to that channel. Please talk to your server admin, and ask them to use the `{prefix}restrict` command to specify allowed roles.").await;
                                     }
                                 }
@@ -384,20 +404,26 @@ impl Framework for RegexFramework {
                             PermissionCheck::None => {
                                 warn!("Missing enough permissions for guild {}", guild.id);
                             }
-                        }
+                        },
 
                         Err(e) => {
-                            error!("Error occurred getting permissions in guild {}: {:?}", guild.id, e);
+                            error!(
+                                "Error occurred getting permissions in guild {}: {:?}",
+                                guild.id, e
+                            );
                         }
                     }
                 }
             }
         }
-
         // DM Command
         else if let Some(full_match) = self.dm_regex_matcher.captures(&msg.content[..]) {
-            let command = self.commands.get(full_match.name("cmd").unwrap().as_str()).unwrap();
-            let args = full_match.name("args")
+            let command = self
+                .commands
+                .get(full_match.name("cmd").unwrap().as_str())
+                .unwrap();
+            let args = full_match
+                .name("args")
                 .map(|m| m.as_str())
                 .unwrap_or("")
                 .to_string();

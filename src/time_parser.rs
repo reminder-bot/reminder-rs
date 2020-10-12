@@ -1,16 +1,9 @@
-use std::time::{
-    SystemTime,
-    UNIX_EPOCH,
-};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use std::fmt::{
-    Formatter,
-    Display,
-    Result as FmtResult,
-};
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
-use chrono_tz::Tz;
 use chrono::TimeZone;
+use chrono_tz::Tz;
 use std::convert::TryFrom;
 
 #[derive(Debug)]
@@ -55,8 +48,7 @@ impl TimeParser {
 
         let parse_type = if input.contains('/') || input.contains(':') {
             ParseType::Explicit
-        }
-        else {
+        } else {
             ParseType::Displacement
         };
 
@@ -70,9 +62,7 @@ impl TimeParser {
 
     pub fn timestamp(&self) -> Result<i64, InvalidTime> {
         match self.parse_type {
-            ParseType::Explicit => {
-                Ok(self.process_explicit()?)
-            },
+            ParseType::Explicit => Ok(self.process_explicit()?),
 
             ParseType::Displacement => {
                 let now = SystemTime::now();
@@ -81,7 +71,7 @@ impl TimeParser {
                     .expect("Time calculated as going backwards. Very bad");
 
                 Ok(since_epoch.as_secs() as i64 + self.process_displacement()?)
-            },
+            }
         }
     }
 
@@ -94,11 +84,9 @@ impl TimeParser {
                     .expect("Time calculated as going backwards. Very bad");
 
                 Ok(self.process_explicit()? - since_epoch.as_secs() as i64)
-            },
+            }
 
-            ParseType::Displacement => {
-                Ok(self.process_displacement()?)
-            },
+            ParseType::Displacement => Ok(self.process_displacement()?),
         }
     }
 
@@ -112,7 +100,7 @@ impl TimeParser {
                 0 => Ok("%d-".to_string()),
                 1 => Ok("%d/%m-".to_string()),
                 2 => Ok("%d/%m/%Y-".to_string()),
-                _ => Err(InvalidTime::ParseErrorDMY)
+                _ => Err(InvalidTime::ParseErrorDMY),
             }
         } else {
             Ok("".to_string())
@@ -122,13 +110,16 @@ impl TimeParser {
             match colons {
                 1 => Ok("%H:%M"),
                 2 => Ok("%H:%M:%S"),
-                _ => Err(InvalidTime::ParseErrorHMS)
+                _ => Err(InvalidTime::ParseErrorHMS),
             }
         } else {
             Ok("")
         }?;
 
-        let dt = self.timezone.datetime_from_str(self.time_string.as_str(), &parse_string).map_err(|_| InvalidTime::ParseErrorChrono)?;
+        let dt = self
+            .timezone
+            .datetime_from_str(self.time_string.as_str(), &parse_string)
+            .map_err(|_| InvalidTime::ParseErrorChrono)?;
 
         Ok(dt.timestamp() as i64)
     }
@@ -143,40 +134,42 @@ impl TimeParser {
 
         for character in self.time_string.chars() {
             match character {
-
                 's' => {
                     seconds = current_buffer.parse::<i64>().unwrap();
                     current_buffer = String::from("0");
-                },
+                }
 
                 'm' => {
                     minutes = current_buffer.parse::<i64>().unwrap();
                     current_buffer = String::from("0");
-                },
+                }
 
                 'h' => {
                     hours = current_buffer.parse::<i64>().unwrap();
                     current_buffer = String::from("0");
-                },
+                }
 
                 'd' => {
                     days = current_buffer.parse::<i64>().unwrap();
                     current_buffer = String::from("0");
-                },
+                }
 
                 c => {
                     if c.is_digit(10) {
                         current_buffer += &c.to_string();
+                    } else {
+                        return Err(InvalidTime::ParseErrorDisplacement);
                     }
-                    else {
-                        return Err(InvalidTime::ParseErrorDisplacement)
-                    }
-                },
+                }
             }
         }
 
-        let full = (seconds + (minutes * 60) + (hours * 3600) + (days * 86400) + current_buffer.parse::<i64>().unwrap()) *
-            if self.inverted { -1 } else { 1 };
+        let full = (seconds
+            + (minutes * 60)
+            + (hours * 3600)
+            + (days * 86400)
+            + current_buffer.parse::<i64>().unwrap())
+            * if self.inverted { -1 } else { 1 };
 
         Ok(full)
     }
