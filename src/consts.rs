@@ -45,4 +45,6 @@ lazy_static! {
         env::var("LOCAL_LANGUAGE").unwrap_or_else(|_| "EN".to_string());
     pub static ref PYTHON_LOCATION: String =
         env::var("PYTHON_LOCATION").unwrap_or_else(|_| "venv/bin/python3".to_string());
+    pub static ref STRINGS_TABLE: String =
+        env::var("STRINGS_TABLE").unwrap_or_else(|_| "strings".to_string());
 }
