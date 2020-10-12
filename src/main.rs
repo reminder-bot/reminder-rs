@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let logged_in_id = http.get_current_user().map_ok(|user| user.id.as_u64().to_owned()).await?;
 
     let framework = RegexFramework::new(logged_in_id)
-        .ignore_bots(true)
+        .ignore_bots(env::var("IGNORE_BOTS").map_or(true, |var| var == "1"))
         .default_prefix(&env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()))
 
         .add_command("ping", &info_cmds::PING_COMMAND)

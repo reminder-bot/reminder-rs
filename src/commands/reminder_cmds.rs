@@ -29,6 +29,7 @@ use crate::{
         MIN_INTERVAL,
         MAX_TIME,
         LOCAL_TIMEZONE,
+        PYTHON_LOCATION,
         CHARACTERS,
         DAY,
         HOUR,
@@ -843,7 +844,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     let (time_crop_opt, msg_crop_opt) = (args_iter.next(), args_iter.next());
 
     if let (Some(time_crop), Some(msg_crop)) = (time_crop_opt, msg_crop_opt) {
-        let python_call = Command::new("venv/bin/python3")
+        let python_call = Command::new(&*PYTHON_LOCATION)
             .arg("dp.py")
             .arg(time_crop)
             .arg(&user_data.timezone)
@@ -863,7 +864,6 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
             let mut content = msg_crop;
             let mut interval = None;
 
-            // check other options and then create reminder :)
             if msg.guild_id.is_some() {
                 let re_match = Regex::new(&format!(r#"(?:\s*)(?P<msg>.*) {} (?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+)$"#, to_str))
                     .unwrap()
@@ -898,7 +898,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
                     let interval_str = captures.name("interval").unwrap().as_str();
 
-                    let python_call = Command::new("venv/bin/python3")
+                    let python_call = Command::new(&*PYTHON_LOCATION)
                         .arg("dp.py")
                         .arg(&format!("1 {}", interval_str))
                         .arg(&*LOCAL_TIMEZONE)

@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 
 use serenity::{
+    constants::MESSAGE_CODE_LIMIT,
     http::Http,
     Result as SerenityResult,
     client::Context,
@@ -9,6 +10,7 @@ use serenity::{
         standard::CommandResult,
     },
     model::{
+        id::ChannelId,
         guild::{
             Guild,
             Member,
@@ -41,8 +43,6 @@ use crate::{
     SQLPool,
     consts::PREFIX,
 };
-use serenity::model::id::ChannelId;
-use crate::consts::MAX_MESSAGE_LENGTH;
 
 type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, CommandResult>;
 
@@ -168,7 +168,7 @@ impl SendIterator for ChannelId {
         let mut current_content = String::new();
 
         for line in content {
-            if current_content.len() + line.len() > MAX_MESSAGE_LENGTH {
+            if current_content.len() + line.len() > MESSAGE_CODE_LIMIT as usize {
                 self.say(&http, &current_content).await?;
 
                 current_content = line;

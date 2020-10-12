@@ -1,6 +1,7 @@
 use regex_command_attr::command;
 
 use serenity::{
+    constants::MESSAGE_CODE_LIMIT,
     client::Context,
     model::{
         id::{
@@ -20,7 +21,6 @@ use crate::{
         UserData,
         GuildData,
     },
-    consts::MAX_MESSAGE_LENGTH,
     SQLPool,
 };
 use sqlx::MySqlPool;
@@ -321,7 +321,7 @@ async fn todo(ctx: &Context, msg: &Message, target: TodoTarget, subcommand: SubC
             todo_items.iter().enumerate().for_each(|(count, todo)| {
                 let display = format!("{}: {}\n", count + 1, todo.value);
 
-                if char_count + display.len() > MAX_MESSAGE_LENGTH {
+                if char_count + display.len() > MESSAGE_CODE_LIMIT as usize {
                     char_count = display.len();
 
                     todo_groups.push(display);

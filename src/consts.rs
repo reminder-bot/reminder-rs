@@ -1,5 +1,4 @@
 pub const PREFIX: &str = "$";
-pub const MAX_MESSAGE_LENGTH: usize = 2048;
 
 pub const DAY: u64 = 86_400;
 pub const HOUR: u64 = 3_600;
@@ -45,4 +44,6 @@ lazy_static! {
     pub static ref MAX_TIME: i64 = env::var("MAX_TIME").ok().map(|inner| inner.parse::<i64>().ok()).flatten().unwrap_or(60*60*24*365*50);
 
     pub static ref LOCAL_TIMEZONE: String = env::var("LOCAL_TIMEZONE").unwrap_or_else(|_| "UTC".to_string());
+
+    pub static ref PYTHON_LOCATION: String = env::var("PYTHON_LOCATION").unwrap_or_else(|_| "venv/bin/python3".to_string());
 }
