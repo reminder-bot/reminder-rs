@@ -85,7 +85,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let http = Http::new_with_token(&token);
 
-    let framework = RegexFramework::new(http.get_current_user().map_ok(|user| user.id.as_u64().to_owned()).await?)
+    let logged_in_id = http.get_current_user().map_ok(|user| user.id.as_u64().to_owned()).await?;
+
+    let framework = RegexFramework::new(logged_in_id)
         .ignore_bots(true)
         .default_prefix(&env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()))
 

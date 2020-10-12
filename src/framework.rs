@@ -186,13 +186,13 @@ impl SendIterator for ChannelId {
 }
 
 impl RegexFramework {
-    pub fn new(client_id: u64) -> Self {
+    pub fn new<T: Into<u64>>(client_id: T) -> Self {
         Self {
             commands: HashMap::new(),
             command_matcher: Regex::new(r#"^$"#).unwrap(),
             dm_regex_matcher: Regex::new(r#"^$"#).unwrap(),
             default_prefix: env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()),
-            client_id,
+            client_id: client_id.into(),
             ignore_bots: true,
         }
     }
@@ -209,7 +209,7 @@ impl RegexFramework {
         self
     }
 
-    pub fn add_command(mut self, name: &str, command: &'static Command) -> Self {
+    pub fn add_command<S: ToString>(mut self, name: S, command: &'static Command) -> Self {
         self.commands.insert(name.to_string(), command);
 
         self

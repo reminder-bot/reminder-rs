@@ -15,7 +15,14 @@ use serenity::{
 
 use std::fmt;
 
-use crate::SQLPool;
+use crate::{
+    models::{
+        UserData,
+        GuildData,
+    },
+    consts::MAX_MESSAGE_LENGTH,
+    SQLPool,
+};
 use sqlx::MySqlPool;
 
 #[derive(Debug)]
@@ -44,6 +51,25 @@ struct TodoTarget {
 }
 
 impl TodoTarget {
+    pub fn command(&self, subcommand_opt: Option<SubCommand>) -> String {
+        let context = if self.channel.is_some() {
+            "channel"
+        }
+        else if self.guild.is_some() {
+            "guild"
+        }
+        else {
+            "user"
+        };
+
+        if let Some(subcommand) = subcommand_opt {
+            format!("todo {} {}", context, subcommand.to_string())
+        }
+        else {
+            format!("todo {}", context)
+        }
+    }
+
     pub fn name(&self) -> String {
         if self.channel.is_some() {
             "Channel"
@@ -124,30 +150,38 @@ INSERT INTO todos (user_id, value) VALUES (
         Ok(())
     }
 
-    pub async fn remove(&self, num: usize, pool: MySqlPool) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
+    pub async fn remove(&self, num: usize, pool: &MySqlPool) -> Result<Todo, Box<dyn std::error::Error + Sync + Send>> {
         let todos = self.view(pool.clone()).await?;
 
         if let Some(removal_todo) = todos.get(num) {
+            let deleting = sqlx::query_as!(Todo,
+                "
+SELECT * FROM todos WHERE id = ?
+                ", removal_todo.id)
+                .fetch_one(&pool.clone())
+                .await?;
+
             sqlx::query!(
                 "
 DELETE FROM todos WHERE id = ?
                 ", removal_todo.id)
-                .execute(&pool)
+                .execute(pool)
                 .await?;
-            Ok(())
+
+            Ok(deleting)
         }
         else {
             Err(Box::new(TodoNotFound))
         }
     }
 
-    pub async fn clear(&self, pool: MySqlPool) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
+    pub async fn clear(&self, pool: &MySqlPool) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
         if let Some(cid) = self.channel {
             sqlx::query!(
                 "
 DELETE FROM todos WHERE channel_id = (SELECT id FROM channels WHERE channel = ?)
                 ", cid.as_u64())
-                .execute(&pool)
+                .execute(pool)
                 .await?;
         }
         else if let Some(gid) = self.guild {
@@ -155,7 +189,7 @@ DELETE FROM todos WHERE channel_id = (SELECT id FROM channels WHERE channel = ?)
                 "
 DELETE FROM todos WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND channel_id IS NULL
                 ", gid.as_u64())
-                .execute(&pool)
+                .execute(pool)
                 .await?;
         }
         else {
@@ -163,7 +197,7 @@ DELETE FROM todos WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND c
                 "
 DELETE FROM todos WHERE user_id = (SELECT id FROM users WHERE user = ?) AND guild_id IS NULL
                 ", self.user.as_u64())
-                .execute(&pool)
+                .execute(pool)
                 .await?;
         }
 
@@ -176,6 +210,17 @@ enum SubCommand {
     Add,
     Remove,
     Clear,
+}
+
+impl ToString for SubCommand {
+    fn to_string(&self) -> String {
+        match self {
+            SubCommand::View => "",
+            SubCommand::Add => "add",
+            SubCommand::Remove => "remove",
+            SubCommand::Clear => "clear",
+        }.to_string()
+    }
 }
 
 #[command]
@@ -230,42 +275,59 @@ async fn todo_parse(ctx: &Context, msg: &Message, args: String) -> CommandResult
                 todo(ctx, msg, target, subcommand, split.collect::<Vec<&str>>().join(" ")).await;
             }
             else {
-                let _ = msg.channel_id.say(&ctx, "Todo help").await;
+                show_help(&ctx, msg, Some(target)).await;
             }
 
         }
         else {
-            let _ = msg.channel_id.say(&ctx, "Todo help").await;
+            show_help(&ctx, msg, None).await;
         }
 
     }
     else {
-        let _ = msg.channel_id.say(&ctx, "Todo help").await;
+        show_help(&ctx, msg, None).await;
     }
 
     Ok(())
+}
+
+async fn show_help(ctx: &Context, msg: &Message, target: Option<TodoTarget>) {
+    let pool = ctx.data.read().await
+        .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+
+    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+
+    let content = user_data.response(&pool, "todo/help").await
+        .replace("{prefix}", &prefix)
+        .replace("{command}", target.map_or_else(|| "todo user".to_string(), |t| t.command(None)).as_str());
+
+    let _ = msg.channel_id.say(&ctx, content).await;
 }
 
 async fn todo(ctx: &Context, msg: &Message, target: TodoTarget, subcommand: SubCommand, extra: String) {
     let pool = ctx.data.read().await
         .get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
+    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+
     match subcommand {
         SubCommand::View => {
             let todo_items = target.view(pool).await.unwrap();
             let mut todo_groups = vec!["".to_string()];
-            let mut char_count: u16 = 0;
+            let mut char_count = 0;
 
             todo_items.iter().enumerate().for_each(|(count, todo)| {
                 let display = format!("{}: {}\n", count + 1, todo.value);
 
-                if char_count + display.len() as u16 > 2000 {
-                    char_count = display.len() as u16;
+                if char_count + display.len() > MAX_MESSAGE_LENGTH {
+                    char_count = display.len();
 
                     todo_groups.push(display);
                 }
                 else {
-                    char_count += display.len() as u16;
+                    char_count += display.len();
 
                     let last_group = todo_groups.pop().unwrap();
 
@@ -284,27 +346,41 @@ async fn todo(ctx: &Context, msg: &Message, target: TodoTarget, subcommand: SubC
         },
 
         SubCommand::Add => {
+            let content = user_data.response(&pool, "todo/added").await
+                .replacen("{name}", &extra, 1);
+
             target.add(extra, pool).await.unwrap();
 
-            let _ = msg.channel_id.say(&ctx, "Todo added").await;
+            let _ = msg.channel_id.say(&ctx, content).await;
         },
 
         SubCommand::Remove => {
             let _ = if let Ok(num) = extra.parse::<usize>() {
-                if target.remove(num - 1, pool).await.is_ok() {
-                    msg.channel_id.say(&ctx, "Todo removed")
+                if let Ok(todo) = target.remove(num - 1, &pool).await {
+                    let content = user_data.response(&pool, "todo/removed").await
+                        .replacen("{}", &todo.value, 1);
+
+                    msg.channel_id.say(&ctx, content)
                 }
                 else {
-                    msg.channel_id.say(&ctx, "Todo not removed")
+                    msg.channel_id.say(&ctx, user_data.response(&pool, "todo/error_index").await)
                 }
             }
             else {
-                msg.channel_id.say(&ctx, "Todo not removed")
+                let content = user_data.response(&pool, "todo/error_value").await
+                    .replacen("{prefix}", &prefix, 1)
+                    .replacen("{command}", &target.command(Some(subcommand)), 1);
+
+                msg.channel_id.say(&ctx, content)
             }.await;
         },
 
         SubCommand::Clear => {
-            target.clear(pool).await.unwrap();
+            target.clear(&pool).await.unwrap();
+
+            let content = user_data.response(&pool, "todo/cleared").await;
+
+            let _ = msg.channel_id.say(&ctx, content).await;
         },
     }
 }
