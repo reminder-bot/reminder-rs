@@ -31,3 +31,4 @@ __Other Variables__
 * `CNC_GUILD` - default `None`, accepts a single Discord guild ID for the server that the subscription roles belong to
 * `IGNORE_BOTS` - default `1`, if `1`, Reminder Bot will ignore all other bots
 * `PYTHON_LOCATION` - default `venv/bin/python3`. Can be changed if your Python executable is located somewhere else
+* `LOCAL_LANGUAGE` - default `EN`. Specifies the string set to fall back to if a string cannot be found (and to be used with new users)

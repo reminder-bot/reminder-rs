@@ -41,6 +41,8 @@ lazy_static! {
         .unwrap_or(60 * 60 * 24 * 365 * 50);
     pub static ref LOCAL_TIMEZONE: String =
         env::var("LOCAL_TIMEZONE").unwrap_or_else(|_| "UTC".to_string());
+    pub static ref LOCAL_LANGUAGE: String =
+        env::var("LOCAL_LANGUAGE").unwrap_or_else(|_| "EN".to_string());
     pub static ref PYTHON_LOCATION: String =
         env::var("PYTHON_LOCATION").unwrap_or_else(|_| "venv/bin/python3".to_string());
 }

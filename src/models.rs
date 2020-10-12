@@ -10,7 +10,7 @@ use sqlx::MySqlPool;
 use chrono::NaiveDateTime;
 use chrono_tz::Tz;
 
-use crate::consts::PREFIX;
+use crate::consts::{LOCAL_LANGUAGE, PREFIX};
 
 pub struct GuildData {
     pub id: u32,
@@ -251,8 +251,8 @@ UPDATE users SET name = ?, language = ?, timezone = ? WHERE id = ?
     pub async fn response(&self, pool: &MySqlPool, name: &str) -> String {
         let row = sqlx::query!(
             "
-SELECT value FROM strings WHERE (language = ? OR language = 'EN') AND name = ? ORDER BY language = 'EN'
-            ", self.language, name)
+SELECT value FROM strings WHERE (language = ? OR language = ?) AND name = ? ORDER BY language = ?
+            ", self.language, *LOCAL_LANGUAGE, name, *LOCAL_LANGUAGE)
             .fetch_one(pool)
             .await
             .unwrap_or_else(|_| panic!("No string with that name: {}", name));
