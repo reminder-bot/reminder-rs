@@ -1004,7 +1004,8 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     if let (Some(time_crop), Some(msg_crop)) = (time_crop_opt, msg_crop_opt) {
         let python_call = Command::new(&*PYTHON_LOCATION)
-            .arg("dp.py")
+            .arg("-c")
+            .arg(include_str!("../../dp.py"))
             .arg(time_crop)
             .arg(&user_data.timezone)
             .arg(&*LOCAL_TIMEZONE)
@@ -1063,7 +1064,8 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
                     let interval_str = captures.name("interval").unwrap().as_str();
 
                     let python_call = Command::new(&*PYTHON_LOCATION)
-                        .arg("dp.py")
+                        .arg("-c")
+                        .arg(include_str!("../../dp.py"))
                         .arg(&format!("1 {}", interval_str))
                         .arg(&*LOCAL_TIMEZONE)
                         .arg(&*LOCAL_TIMEZONE)
