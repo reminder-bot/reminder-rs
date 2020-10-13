@@ -21,6 +21,7 @@ use regex::{Match, Regex};
 use std::{collections::HashMap, env, fmt};
 
 use crate::{consts::PREFIX, models::ChannelData, SQLPool};
+use serenity::futures::TryFutureExt;
 
 type CommandFn =
     for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, CommandResult>;
@@ -45,6 +46,21 @@ impl Command {
         if self.required_perms == PermissionLevel::Unrestricted {
             true
         } else {
+            if member
+                .permissions(&ctx)
+                .map_ok_or_else(
+                    |_| false,
+                    |perms| {
+                        perms.manage_guild()
+                            || (self.required_perms == PermissionLevel::Managed
+                                && perms.manage_messages())
+                    },
+                )
+                .await
+            {
+                return true;
+            }
+
             for role_id in &member.roles {
                 let role = role_id.to_role_cached(&ctx).await;
 
