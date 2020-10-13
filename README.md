@@ -32,3 +32,4 @@ __Other Variables__
 * `IGNORE_BOTS` - default `1`, if `1`, Reminder Bot will ignore all other bots
 * `PYTHON_LOCATION` - default `venv/bin/python3`. Can be changed if your Python executable is located somewhere else
 * `LOCAL_LANGUAGE` - default `EN`. Specifies the string set to fall back to if a string cannot be found (and to be used with new users)
+* `THEME_COLOR` - default `8fb677`. Specifies the hex value of the color to use on info message embeds 

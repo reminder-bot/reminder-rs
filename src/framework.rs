@@ -18,9 +18,9 @@ use log::{error, info, warn};
 
 use regex::{Match, Regex};
 
-use std::{collections::HashMap, env, fmt};
+use std::{collections::HashMap, fmt};
 
-use crate::{consts::PREFIX, models::ChannelData, SQLPool};
+use crate::{models::ChannelData, SQLPool};
 use serenity::futures::TryFutureExt;
 
 type CommandFn =
@@ -203,7 +203,7 @@ impl RegexFramework {
             commands: HashMap::new(),
             command_matcher: Regex::new(r#"^$"#).unwrap(),
             dm_regex_matcher: Regex::new(r#"^$"#).unwrap(),
-            default_prefix: env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()),
+            default_prefix: "".to_string(),
             client_id: client_id.into(),
             ignore_bots: true,
         }
@@ -315,7 +315,12 @@ impl Framework for RegexFramework {
             })
         }
 
-        async fn check_prefix(ctx: &Context, guild: &Guild, prefix_opt: Option<Match<'_>>) -> bool {
+        async fn check_prefix(
+            ctx: &Context,
+            guild: &Guild,
+            prefix_opt: Option<Match<'_>>,
+            default_prefix: &String,
+        ) -> bool {
             if let Some(prefix) = prefix_opt {
                 let pool = ctx
                     .data
@@ -343,7 +348,7 @@ impl Framework for RegexFramework {
                         .execute(&pool)
                         .await;
 
-                        prefix.as_str() == "$"
+                        prefix.as_str() == default_prefix.as_str()
                     }
 
                     Err(e) => {
@@ -371,7 +376,14 @@ impl Framework for RegexFramework {
             let member = guild.member(&ctx, &msg.author).await.unwrap();
 
             if let Some(full_match) = self.command_matcher.captures(&msg.content[..]) {
-                if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
+                if check_prefix(
+                    &ctx,
+                    &guild,
+                    full_match.name("prefix"),
+                    &self.default_prefix,
+                )
+                .await
+                {
                     match check_self_permissions(&ctx, &guild, &channel).await {
                         Ok(perms) => match perms {
                             PermissionCheck::All => {

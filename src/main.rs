@@ -30,7 +30,7 @@ use std::{env, sync::Arc};
 
 use crate::{
     commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
-    consts::{CNC_GUILD, PREFIX, SUBSCRIPTION_ROLES},
+    consts::{CNC_GUILD, DEFAULT_PREFIX, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
 };
 
@@ -54,8 +54,6 @@ impl TypeMapKey for FrameworkCtx {
     type Value = Arc<Box<dyn Framework + Send + Sync>>;
 }
 
-static THEME_COLOR: u32 = 0x8fb677;
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     dotenv()?;
@@ -70,8 +68,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .await?;
 
     let framework = RegexFramework::new(logged_in_id)
+        .default_prefix(DEFAULT_PREFIX.clone())
         .ignore_bots(env::var("IGNORE_BOTS").map_or(true, |var| var == "1"))
-        .default_prefix(&env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()))
         .add_command("ping", &info_cmds::PING_COMMAND)
         .add_command("help", &info_cmds::HELP_COMMAND)
         .add_command("info", &info_cmds::INFO_COMMAND)

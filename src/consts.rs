@@ -1,10 +1,10 @@
-pub const PREFIX: &str = "$";
-
 pub const DAY: u64 = 86_400;
 pub const HOUR: u64 = 3_600;
 pub const MINUTE: u64 = 60;
 
 pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+
+const THEME_COLOR_FALLBACK: u32 = 0x8fb677;
 
 use std::{collections::HashSet, env, iter::FromIterator};
 
@@ -47,4 +47,10 @@ lazy_static! {
         env::var("PYTHON_LOCATION").unwrap_or_else(|_| "venv/bin/python3".to_string());
     pub static ref STRINGS_TABLE: String =
         env::var("STRINGS_TABLE").unwrap_or_else(|_| "strings".to_string());
+    pub static ref DEFAULT_PREFIX: String =
+        env::var("DEFAULT_PREFIX").unwrap_or_else(|_| "$".to_string());
+    pub static ref THEME_COLOR: u32 = env::var("THEME_COLOR").map_or(
+        THEME_COLOR_FALLBACK,
+        |inner| u32::from_str_radix(&inner, 16).unwrap_or(THEME_COLOR_FALLBACK)
+    );
 }

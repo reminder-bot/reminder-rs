@@ -3,8 +3,6 @@ use serenity::{
     model::{channel::Channel, guild::Guild, id::GuildId, user::User},
 };
 
-use std::env;
-
 use sqlx::{Cursor, MySqlPool, Row};
 
 use chrono::NaiveDateTime;
@@ -12,7 +10,7 @@ use chrono_tz::Tz;
 
 use log::error;
 
-use crate::consts::{LOCAL_LANGUAGE, LOCAL_TIMEZONE, PREFIX, STRINGS_TABLE};
+use crate::consts::{DEFAULT_PREFIX, LOCAL_LANGUAGE, LOCAL_TIMEZONE, STRINGS_TABLE};
 
 pub struct GuildData {
     pub id: u32,
@@ -37,12 +35,9 @@ SELECT prefix FROM guilds WHERE guild = ?
             .fetch_one(pool)
             .await;
 
-            row.map_or_else(
-                |_| env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string()),
-                |r| r.prefix,
-            )
+            row.map_or_else(|_| DEFAULT_PREFIX.clone(), |r| r.prefix)
         } else {
-            env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string())
+            DEFAULT_PREFIX.clone()
         }
     }
 
@@ -70,7 +65,7 @@ INSERT INTO guilds (guild, name, prefix) VALUES (?, ?, ?)
                 ",
                 guild_id,
                 guild.name,
-                env::var("DEFAULT_PREFIX").unwrap_or_else(|_| PREFIX.to_string())
+                *DEFAULT_PREFIX
             )
             .execute(&pool.clone())
             .await?;
