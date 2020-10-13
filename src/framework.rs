@@ -182,7 +182,11 @@ impl SendIterator for ChannelId {
 
         for line in content {
             if current_content.len() + line.len() > MESSAGE_CODE_LIMIT as usize {
-                self.say(&http, &current_content).await?;
+                self.send_message(&http, |m| {
+                    m.allowed_mentions(|am| am.empty_parse())
+                        .content(&current_content)
+                })
+                .await?;
 
                 current_content = line;
             } else {
@@ -190,7 +194,11 @@ impl SendIterator for ChannelId {
             }
         }
         if !current_content.is_empty() {
-            self.say(&http, &current_content).await?;
+            self.send_message(&http, |m| {
+                m.allowed_mentions(|am| am.empty_parse())
+                    .content(&current_content)
+            })
+            .await?;
         }
 
         Ok(())
