@@ -10,6 +10,8 @@ use sqlx::{Cursor, MySqlPool, Row};
 use chrono::NaiveDateTime;
 use chrono_tz::Tz;
 
+use log::error;
+
 use crate::consts::{LOCAL_LANGUAGE, PREFIX, STRINGS_TABLE};
 
 pub struct GuildData {
@@ -188,7 +190,7 @@ impl UserData {
     ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         let user_id = user.id.as_u64().to_owned();
 
-        if let Ok(c) = sqlx::query_as_unchecked!(
+        match sqlx::query_as_unchecked!(
             Self,
             "
 SELECT id, user, name, dm_channel, language, timezone FROM users WHERE user = ?
@@ -198,38 +200,42 @@ SELECT id, user, name, dm_channel, language, timezone FROM users WHERE user = ?
         .fetch_one(pool)
         .await
         {
-            Ok(c)
-        } else {
-            let dm_channel = user.create_dm_channel(ctx).await?;
-            let dm_id = dm_channel.id.as_u64().to_owned();
+            Ok(c) => Ok(c),
 
-            let pool_c = pool.clone();
+            Err(sqlx::Error::RowNotFound) => {
+                let dm_channel = user.create_dm_channel(ctx).await?;
+                let dm_id = dm_channel.id.as_u64().to_owned();
 
-            sqlx::query!(
-                "
+                let pool_c = pool.clone();
+
+                sqlx::query!(
+                    "
 INSERT IGNORE INTO channels (channel) VALUES (?)
-                ",
-                dm_id
-            )
-            .execute(&pool_c)
-            .await?;
-
-            sqlx::query!(
-                "
-INSERT INTO users (user, name, dm_channel) VALUES (?, ?, (SELECT id FROM channels WHERE channel = ?))
-                ", user_id, user.name, dm_id)
+                    ",
+                    dm_id
+                )
                 .execute(&pool_c)
                 .await?;
 
-            Ok(sqlx::query_as_unchecked!(
-                Self,
-                "
+                sqlx::query!(
+                    "
+INSERT INTO users (user, name, dm_channel) VALUES (?, ?, (SELECT id FROM channels WHERE channel = ?))
+                    ", user_id, user.name, dm_id)
+                    .execute(&pool_c)
+                    .await?;
+
+                Ok(sqlx::query_as_unchecked!(
+                    Self,
+                    "
 SELECT id, user, name, dm_channel, language, timezone FROM users WHERE user = ?
-                ",
-                user_id
-            )
-            .fetch_one(pool)
-            .await?)
+                    ",
+                    user_id
+                )
+                .fetch_one(pool)
+                .await?)
+            }
+
+            Err(e) => error!("Error querying for user: {:?}", e),
         }
     }
 
