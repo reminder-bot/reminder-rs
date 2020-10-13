@@ -207,7 +207,7 @@ SELECT id, user, name, dm_channel, language, timezone FROM users WHERE user = ?
 
             sqlx::query!(
                 "
-INSERT INTO channels (channel) VALUES (?)
+INSERT IGNORE INTO channels (channel) VALUES (?)
                 ",
                 dm_id
             )
