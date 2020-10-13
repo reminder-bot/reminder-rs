@@ -12,7 +12,7 @@ use chrono_tz::Tz;
 
 use log::error;
 
-use crate::consts::{LOCAL_LANGUAGE, PREFIX, STRINGS_TABLE};
+use crate::consts::{LOCAL_LANGUAGE, LOCAL_TIMEZONE, PREFIX, STRINGS_TABLE};
 
 pub struct GuildData {
     pub id: u32,
@@ -193,9 +193,9 @@ impl UserData {
         match sqlx::query_as_unchecked!(
             Self,
             "
-SELECT id, user, name, dm_channel, language, timezone FROM users WHERE user = ?
+SELECT id, user, name, dm_channel, IF(language IS NULL, ?, language) AS language, IF(timezone IS NULL, ?, timezone) AS timezone FROM users WHERE user = ?
             ",
-            user_id
+            *LOCAL_LANGUAGE, *LOCAL_TIMEZONE, user_id
         )
         .fetch_one(pool)
         .await
@@ -235,7 +235,11 @@ SELECT id, user, name, dm_channel, language, timezone FROM users WHERE user = ?
                 .await?)
             }
 
-            Err(e) => error!("Error querying for user: {:?}", e),
+            Err(e) => {
+                error!("Error querying for user: {:?}", e);
+
+                Err(Box::new(e))
+            },
         }
     }
 
