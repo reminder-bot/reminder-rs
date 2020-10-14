@@ -6,12 +6,15 @@ use serenity::{
     cache::Cache,
     client::Context,
     framework::standard::CommandResult,
-    http::CacheHttp,
+    http::{AttachmentType, CacheHttp},
     model::{
+        channel::GuildChannel,
         channel::Message,
         id::{ChannelId, GuildId, UserId},
         misc::Mentionable,
+        webhook::Webhook,
     },
+    Result as SerenityResult,
 };
 
 use tokio::process::Command;
@@ -20,7 +23,7 @@ use crate::{
     check_subscription_on_message,
     consts::{
         CHARACTERS, DAY, HOUR, LOCAL_TIMEZONE, MAX_TIME, MINUTE, MIN_INTERVAL, PYTHON_LOCATION,
-        REGEX_CHANNEL, REGEX_CHANNEL_USER,
+        REGEX_CHANNEL, REGEX_CHANNEL_USER, WEBHOOK_AVATAR,
     },
     framework::SendIterator,
     models::{ChannelData, GuildData, Timer, UserData},
@@ -43,13 +46,13 @@ use num_integer::Integer;
 use std::{
     convert::TryInto,
     default::Default,
+    fmt::Display,
+    path::Path,
     string::ToString,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use regex::Regex;
-
-use serde_json::json;
 
 fn shorthand_displacement(seconds: u64) -> String {
     let (hours, seconds) = seconds.div_rem(&HOUR);
@@ -75,6 +78,21 @@ fn longhand_displacement(seconds: u64) -> String {
     }
 
     sections.join(", ")
+}
+
+async fn create_webhook(
+    ctx: impl CacheHttp,
+    channel: GuildChannel,
+    name: impl Display,
+    avatar: Option<String>,
+) -> SerenityResult<Webhook> {
+    if let Some(path) = avatar {
+        channel
+            .create_webhook_with_avatar(ctx.http(), name, AttachmentType::from(Path::new(&path)))
+            .await
+    } else {
+        channel.create_webhook(ctx.http(), name).await
+    }
 }
 
 #[command]
@@ -1205,13 +1223,9 @@ async fn create_reminder<T: TryInto<i64>, S: ToString + Type<MySql> + Encode<MyS
 
             if let Some(guild_channel) = channel.guild() {
                 if channel_data.webhook_token.is_none() || channel_data.webhook_id.is_none() {
-                    if let Ok(webhook) = ctx
-                        .http()
-                        .create_webhook(
-                            guild_channel.id.as_u64().to_owned(),
-                            &json!({"name": "Reminder"}),
-                        )
-                        .await
+                    if let Ok(webhook) =
+                        create_webhook(&ctx, guild_channel, "Reminder", WEBHOOK_AVATAR.clone())
+                            .await
                     {
                         channel_data.webhook_id = Some(webhook.id.as_u64().to_owned());
                         channel_data.webhook_token = Some(webhook.token);

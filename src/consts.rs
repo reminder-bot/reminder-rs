@@ -53,4 +53,5 @@ lazy_static! {
         THEME_COLOR_FALLBACK,
         |inner| u32::from_str_radix(&inner, 16).unwrap_or(THEME_COLOR_FALLBACK)
     );
+    pub static ref WEBHOOK_AVATAR: Option<String> = env::var("WEBHOOK_AVATAR").ok();
 }

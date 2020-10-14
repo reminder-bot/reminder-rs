@@ -33,3 +33,4 @@ __Other Variables__
 * `PYTHON_LOCATION` - default `venv/bin/python3`. Can be changed if your Python executable is located somewhere else
 * `LOCAL_LANGUAGE` - default `EN`. Specifies the string set to fall back to if a string cannot be found (and to be used with new users)
 * `THEME_COLOR` - default `8fb677`. Specifies the hex value of the color to use on info message embeds 
+* `WEBHOOK_AVATAR` - default `None`, accepts the path to an image file to be used as the avatar when creating webhooks. **IMPORTANT: image file must be 128x128 or smaller in size**
