@@ -15,7 +15,7 @@ You'll need rustc and cargo for compilation. To run, you'll need Python 3 still 
 Reminder Bot can be built by running `cargo build --release` in the top level directory.
 
 ### Setting up Python
-Reminder Bot by default looks for a venv within it's working directory to run Python out of. To set up a venv, install `python-venv` and run `python -m venv venv`. Then, run `source venv/bin/activate` to activate the venv, and do `pip install dateparser` to install the required library
+Reminder Bot by default looks for a venv within it's working directory to run Python out of. To set up a venv, install `python3-venv` and run `python3 -m venv venv`. Then, run `source venv/bin/activate` to activate the venv, and do `pip install dateparser` to install the required library
 
 ### Environment Variables
 Reminder Bot reads a number of environment variables. Some are essential, and others have hardcoded fallbacks. Environment variables can be loaded from a .env file in the working directory.

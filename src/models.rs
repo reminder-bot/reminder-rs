@@ -169,7 +169,7 @@ UPDATE channels SET name = ?, nudge = ?, blacklisted = ?, webhook_id = ?, webhoo
 }
 
 pub struct UserData {
-    id: u32,
+    pub id: u32,
     pub user: u64,
     pub name: String,
     pub dm_channel: u32,

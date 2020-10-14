@@ -605,7 +605,18 @@ DELETE FROM reminders WHERE FIND_IN_SET(id, ?)
             .await
             .unwrap();
 
-            // TODO add deletion events to event list
+            if let Some(guild_id) = msg.guild_id {
+                let _ = sqlx::query!(
+                    "
+INSERT INTO events (event_name, bulk_count, guild_id, user_id) VALUES ('delete', ?, ?, ?)
+                    ",
+                    count_row.count,
+                    guild_id.as_u64(),
+                    user_data.id
+                )
+                .execute(&pool)
+                .await;
+            }
 
             let content = user_data.response(&pool, "del/count").await.replacen(
                 "{}",
