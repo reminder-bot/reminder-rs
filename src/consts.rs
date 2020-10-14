@@ -6,9 +6,11 @@ pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX
 
 const THEME_COLOR_FALLBACK: u32 = 0x8fb677;
 
-use std::{collections::HashSet, env, iter::FromIterator};
+use std::{collections::HashSet, env, iter::FromIterator, path::Path};
 
 use regex::Regex;
+
+use log::warn;
 
 lazy_static! {
     pub static ref SUBSCRIPTION_ROLES: HashSet<u64> = HashSet::from_iter(
@@ -53,5 +55,18 @@ lazy_static! {
         THEME_COLOR_FALLBACK,
         |inner| u32::from_str_radix(&inner, 16).unwrap_or(THEME_COLOR_FALLBACK)
     );
-    pub static ref WEBHOOK_AVATAR: Option<String> = env::var("WEBHOOK_AVATAR").ok();
+    pub static ref WEBHOOK_AVATAR: Option<String> = env::var("WEBHOOK_AVATAR")
+        .ok()
+        .map(|s| {
+            let p = Path::new(&s);
+
+            if !p.exists() {
+                warn!("WEBHOOK_AVATAR path doesn't exist. Falling back");
+
+                None
+            } else {
+                Some(s)
+            }
+        })
+        .flatten();
 }
