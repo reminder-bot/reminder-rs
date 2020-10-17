@@ -36,6 +36,8 @@ use crate::{
 
 use serenity::futures::TryFutureExt;
 
+use log::info;
+
 struct SQLPool;
 
 impl TypeMapKey for SQLPool {
@@ -56,6 +58,8 @@ impl TypeMapKey for FrameworkCtx {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    env_logger::init();
+
     dotenv()?;
 
     let token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment");
@@ -137,7 +141,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         data.insert::<FrameworkCtx>(framework_arc);
     }
 
-    client.start_autosharded().await?;
+    if let Ok((Some(lower), Some(upper))) = env::var("SHARD_RANGE").map(|sr| {
+        let mut split = sr
+            .split(',')
+            .map(|val| val.parse::<u64>().expect("SHARD_RANGE not an integer"));
+
+        (split.next(), split.next())
+    }) {
+        let total_shards = env::var("SHARD_COUNT")
+            .map(|shard_count| shard_count.parse::<u64>().ok())
+            .ok()
+            .flatten()
+            .expect("No SHARD_COUNT provided, but SHARD_RANGE was provided");
+
+        assert!(
+            lower < upper,
+            "SHARD_RANGE lower limit is not less than the upper limit"
+        );
+
+        info!(
+            "Starting client fragment with shards {}-{}/{}",
+            lower, upper, total_shards
+        );
+
+        client
+            .start_shard_range([lower, upper], total_shards)
+            .await?;
+    } else if let Ok(total_shards) = env::var("SHARD_COUNT").map(|shard_count| {
+        shard_count
+            .parse::<u64>()
+            .expect("SHARD_COUNT not an integer")
+    }) {
+        info!("Starting client with {} shards", total_shards);
+
+        client.start_shards(total_shards).await?;
+    } else {
+        info!("Starting client as autosharded");
+
+        client.start_autosharded().await?;
+    }
 
     Ok(())
 }
