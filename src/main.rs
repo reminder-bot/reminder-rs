@@ -70,6 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let framework = RegexFramework::new(logged_in_id)
         .default_prefix(DEFAULT_PREFIX.clone())
         .ignore_bots(env::var("IGNORE_BOTS").map_or(true, |var| var == "1"))
+        // info commands
         .add_command("ping", &info_cmds::PING_COMMAND)
         .add_command("help", &info_cmds::HELP_COMMAND)
         .add_command("info", &info_cmds::INFO_COMMAND)
@@ -77,6 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("donate", &info_cmds::DONATE_COMMAND)
         .add_command("dashboard", &info_cmds::DASHBOARD_COMMAND)
         .add_command("clock", &info_cmds::CLOCK_COMMAND)
+        // reminder commands
         .add_command("timer", &reminder_cmds::TIMER_COMMAND)
         .add_command("remind", &reminder_cmds::REMIND_COMMAND)
         .add_command("r", &reminder_cmds::REMIND_COMMAND)
@@ -85,9 +87,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("natural", &reminder_cmds::NATURAL_COMMAND)
         .add_command("n", &reminder_cmds::NATURAL_COMMAND)
         .add_command("", &reminder_cmds::NATURAL_COMMAND)
+        // management commands
         .add_command("look", &reminder_cmds::LOOK_COMMAND)
         .add_command("del", &reminder_cmds::DELETE_COMMAND)
-        .add_command("todo", &todo_cmds::TODO_PARSE_COMMAND)
+        // to-do commands
+        .add_command("todo", &todo_cmds::TODO_USER_COMMAND)
+        .add_command("todo user", &todo_cmds::TODO_USER_COMMAND)
+        .add_command("todoc", &todo_cmds::TODO_CHANNEL_COMMAND)
+        .add_command("todo channel", &todo_cmds::TODO_CHANNEL_COMMAND)
+        .add_command("todos", &todo_cmds::TODO_GUILD_COMMAND)
+        .add_command("todo server", &todo_cmds::TODO_GUILD_COMMAND)
+        .add_command("todo guild", &todo_cmds::TODO_GUILD_COMMAND)
+        // moderation commands
         .add_command("blacklist", &moderation_cmds::BLACKLIST_COMMAND)
         .add_command("restrict", &moderation_cmds::RESTRICT_COMMAND)
         .add_command("timezone", &moderation_cmds::TIMEZONE_COMMAND)
