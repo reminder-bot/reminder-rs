@@ -17,6 +17,7 @@ use crate::{
     SQLPool,
 };
 use sqlx::MySqlPool;
+use std::convert::TryFrom;
 
 #[derive(Debug)]
 struct TodoNotFound;
@@ -240,6 +241,24 @@ enum SubCommand {
     Clear,
 }
 
+impl TryFrom<Option<&str>> for SubCommand {
+    type Error = ();
+
+    fn try_from(value: Option<&str>) -> Result<Self, Self::Error> {
+        match value {
+            Some("add") => Ok(SubCommand::Add),
+
+            Some("remove") => Ok(SubCommand::Remove),
+
+            Some("clear") => Ok(SubCommand::Clear),
+
+            None => Ok(SubCommand::View),
+
+            Some(_unrecognised) => Err(()),
+        }
+    }
+}
+
 impl ToString for SubCommand {
     fn to_string(&self) -> String {
         match self {
@@ -250,6 +269,35 @@ impl ToString for SubCommand {
         }
         .to_string()
     }
+}
+
+#[command]
+#[permission_level(Managed)]
+async fn todo_user(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+    let mut split = args.split(' ');
+
+    let target = TodoTarget {
+        user: msg.author.id,
+        guild: None,
+        channel: None,
+    };
+
+    let subcommand_opt = SubCommand::try_from(split.next());
+
+    if let Ok(subcommand) = subcommand_opt {
+        todo(
+            ctx,
+            msg,
+            target,
+            subcommand,
+            split.collect::<Vec<&str>>().join(" "),
+        )
+        .await;
+    } else {
+        show_help(&ctx, msg, Some(target)).await;
+    }
+
+    Ok(())
 }
 
 #[command]
@@ -293,19 +341,9 @@ async fn todo_parse(ctx: &Context, msg: &Message, args: String) -> CommandResult
         };
 
         if let Some(target) = target_opt {
-            let subcommand_opt = match split.next() {
-                Some("add") => Some(SubCommand::Add),
+            let subcommand_opt = SubCommand::try_from(split.next());
 
-                Some("remove") => Some(SubCommand::Remove),
-
-                Some("clear") => Some(SubCommand::Clear),
-
-                None => Some(SubCommand::View),
-
-                Some(_unrecognised) => None,
-            };
-
-            if let Some(subcommand) = subcommand_opt {
+            if let Ok(subcommand) = subcommand_opt {
                 todo(
                     ctx,
                     msg,

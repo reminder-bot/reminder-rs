@@ -2,6 +2,7 @@
   <dictionary name="jude">
     <words>
       <w>reqwest</w>
+      <w>subcommand</w>
       <w>todos</w>
       <w>webhook</w>
       <w>webhooks</w>

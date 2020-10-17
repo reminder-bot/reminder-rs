@@ -1034,7 +1034,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
     if let (Some(time_crop), Some(msg_crop)) = (time_crop_opt, msg_crop_opt) {
         let python_call = Command::new(&*PYTHON_LOCATION)
             .arg("-c")
-            .arg(include_str!("../../dp.py"))
+            .arg(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/dp.py")))
             .arg(time_crop)
             .arg(&user_data.timezone)
             .arg(&*LOCAL_TIMEZONE)
@@ -1094,7 +1094,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
                     let python_call = Command::new(&*PYTHON_LOCATION)
                         .arg("-c")
-                        .arg(include_str!("../../dp.py"))
+                        .arg(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/dp.py")))
                         .arg(&format!("1 {}", interval_str))
                         .arg(&*LOCAL_TIMEZONE)
                         .arg(&*LOCAL_TIMEZONE)
