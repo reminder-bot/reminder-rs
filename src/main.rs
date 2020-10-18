@@ -8,15 +8,18 @@ mod models;
 mod time_parser;
 
 use serenity::{
+    async_trait,
     cache::Cache,
     client::{bridge::gateway::GatewayIntents, Client},
     framework::Framework,
     http::{client::Http, CacheHttp},
     model::{
+        channel::GuildChannel,
         channel::Message,
+        guild::{Guild, PartialGuild},
         id::{GuildId, UserId},
     },
-    prelude::TypeMapKey,
+    prelude::{Context, EventHandler, TypeMapKey},
 };
 
 use sqlx::{
@@ -26,7 +29,7 @@ use sqlx::{
 
 use dotenv::dotenv;
 
-use std::{env, sync::Arc};
+use std::{collections::HashMap, env, sync::Arc};
 
 use crate::{
     commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
@@ -54,6 +57,87 @@ struct FrameworkCtx;
 
 impl TypeMapKey for FrameworkCtx {
     type Value = Arc<Box<dyn Framework + Send + Sync>>;
+}
+
+struct Handler;
+
+#[async_trait]
+impl EventHandler for Handler {
+    async fn channel_delete(&self, ctx: Context, channel: &GuildChannel) {
+        let pool = ctx
+            .data
+            .read()
+            .await
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        sqlx::query!(
+            "
+DELETE FROM channels WHERE channel = ?
+            ",
+            channel.id.as_u64()
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+
+    async fn guild_create(&self, ctx: Context, _guild: Guild, is_new: bool) {
+        if is_new {
+            if let Ok(token) = env::var("DISCORDBOTS_TOKEN") {
+                let guild_count = ctx.cache.guild_count().await;
+
+                let mut hm = HashMap::new();
+                hm.insert("server_count", guild_count);
+
+                let client = ctx
+                    .data
+                    .read()
+                    .await
+                    .get::<ReqwestClient>()
+                    .cloned()
+                    .expect("Could not get ReqwestClient from data");
+
+                let response = client
+                    .post(
+                        format!(
+                            "https://top.gg/api/bots/{}/stats",
+                            ctx.cache.current_user_id().await.as_u64()
+                        )
+                        .as_str(),
+                    )
+                    .header("Authorization", token)
+                    .json(&hm)
+                    .send()
+                    .await;
+
+                if let Err(res) = response {
+                    println!("DiscordBots Response: {:?}", res);
+                }
+            }
+        }
+    }
+
+    async fn guild_delete(&self, ctx: Context, guild: PartialGuild, _guild: Option<Guild>) {
+        let pool = ctx
+            .data
+            .read()
+            .await
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        sqlx::query!(
+            "
+DELETE FROM guilds WHERE guild = ?
+            ",
+            guild.id.as_u64()
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
 }
 
 #[tokio::main]
@@ -123,6 +207,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 | GatewayIntents::GUILDS
                 | GatewayIntents::DIRECT_MESSAGES,
         )
+        .event_handler(Handler)
         .framework_arc(framework_arc.clone())
         .await
         .expect("Error occurred creating client");
