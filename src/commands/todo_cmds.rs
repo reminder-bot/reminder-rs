@@ -82,7 +82,7 @@ impl TodoTarget {
             sqlx::query_as!(
                 Todo,
                 "
-SELECT * FROM todos WHERE channel_id = (SELECT id FROM channels WHERE channel = ?)
+SELECT id, user_id, guild_id, channel_id, value FROM todos WHERE channel_id = (SELECT id FROM channels WHERE channel = ?)
                 ",
                 cid.as_u64()
             )
@@ -92,7 +92,7 @@ SELECT * FROM todos WHERE channel_id = (SELECT id FROM channels WHERE channel = 
             sqlx::query_as!(
                 Todo,
                 "
-SELECT * FROM todos WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND channel_id IS NULL
+SELECT id, user_id, guild_id, channel_id, value FROM todos WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND channel_id IS NULL
                 ",
                 gid.as_u64()
             )
@@ -102,7 +102,7 @@ SELECT * FROM todos WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND
             sqlx::query_as!(
                 Todo,
                 "
-SELECT * FROM todos WHERE user_id = (SELECT id FROM users WHERE user = ?) AND guild_id IS NULL
+SELECT id, user_id, guild_id, channel_id, value FROM todos WHERE user_id = (SELECT id FROM users WHERE user = ?) AND guild_id IS NULL
                 ",
                 self.user.as_u64()
             )
