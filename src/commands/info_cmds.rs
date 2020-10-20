@@ -45,7 +45,18 @@ async fn help(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
 
     msg.channel_id
         .send_message(ctx, |m| {
-            m.embed(move |e| e.title("Help").description(desc).color(*THEME_COLOR))
+            m.embed(move |e| {
+                e.title("Help")
+                    .description(desc)
+                    .footer(|f| {
+                        f.text(concat!(
+                            env!("CARGO_PKG_NAME"),
+                            " ver ",
+                            env!("CARGO_PKG_VERSION")
+                        ))
+                    })
+                    .color(*THEME_COLOR)
+            })
         })
         .await?;
 
@@ -75,7 +86,18 @@ async fn info(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
 
     msg.channel_id
         .send_message(ctx, |m| {
-            m.embed(move |e| e.title("Info").description(desc).color(*THEME_COLOR))
+            m.embed(move |e| {
+                e.title("Info")
+                    .description(desc)
+                    .footer(|f| {
+                        f.text(concat!(
+                            env!("CARGO_PKG_NAME"),
+                            " ver ",
+                            env!("CARGO_PKG_VERSION")
+                        ))
+                    })
+                    .color(*THEME_COLOR)
+            })
         })
         .await?;
 
@@ -97,7 +119,18 @@ async fn donate(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
 
     msg.channel_id
         .send_message(ctx, |m| {
-            m.embed(move |e| e.title("Donate").description(desc).color(*THEME_COLOR))
+            m.embed(move |e| {
+                e.title("Donate")
+                    .description(desc)
+                    .footer(|f| {
+                        f.text(concat!(
+                            env!("CARGO_PKG_NAME"),
+                            " ver ",
+                            env!("CARGO_PKG_VERSION")
+                        ))
+                    })
+                    .color(*THEME_COLOR)
+            })
         })
         .await?;
 
@@ -111,6 +144,13 @@ async fn dashboard(ctx: &Context, msg: &Message, _args: String) -> CommandResult
             m.embed(move |e| {
                 e.title("Dashboard")
                     .description("https://reminder-bot.com/dashboard")
+                    .footer(|f| {
+                        f.text(concat!(
+                            env!("CARGO_PKG_NAME"),
+                            " ver ",
+                            env!("CARGO_PKG_VERSION")
+                        ))
+                    })
                     .color(*THEME_COLOR)
             })
         })
