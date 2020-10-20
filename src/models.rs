@@ -214,8 +214,8 @@ INSERT IGNORE INTO channels (channel) VALUES (?)
 
                 sqlx::query!(
                     "
-INSERT INTO users (user, name, dm_channel) VALUES (?, ?, (SELECT id FROM channels WHERE channel = ?))
-                    ", user_id, user.name, dm_id)
+INSERT INTO users (user, name, dm_channel, language, timezone) VALUES (?, ?, (SELECT id FROM channels WHERE channel = ?), ?, ?)
+                    ", user_id, user.name, dm_id, *LOCAL_LANGUAGE, *LOCAL_TIMEZONE)
                     .execute(&pool_c)
                     .await?;
 
