@@ -16,7 +16,7 @@ use serenity::{
 
 use log::{error, info, warn};
 
-use regex::{Match, Regex};
+use regex::{Match, Regex, RegexBuilder};
 
 use std::{collections::HashMap, fmt};
 
@@ -152,16 +152,6 @@ impl fmt::Debug for Command {
     }
 }
 
-// create event handler for bot
-pub struct RegexFramework {
-    commands: HashMap<String, &'static Command>,
-    command_matcher: Regex,
-    dm_regex_matcher: Regex,
-    default_prefix: String,
-    client_id: u64,
-    ignore_bots: bool,
-}
-
 #[async_trait]
 pub trait SendIterator {
     async fn say_lines(
@@ -205,6 +195,16 @@ impl SendIterator for ChannelId {
     }
 }
 
+pub struct RegexFramework {
+    commands: HashMap<String, &'static Command>,
+    command_matcher: Regex,
+    dm_regex_matcher: Regex,
+    default_prefix: String,
+    client_id: u64,
+    ignore_bots: bool,
+    case_insensitive: bool,
+}
+
 impl RegexFramework {
     pub fn new<T: Into<u64>>(client_id: T) -> Self {
         Self {
@@ -214,7 +214,14 @@ impl RegexFramework {
             default_prefix: "".to_string(),
             client_id: client_id.into(),
             ignore_bots: true,
+            case_insensitive: true,
         }
+    }
+
+    pub fn case_insensitive(mut self, case_insensitive: bool) -> Self {
+        self.case_insensitive = case_insensitive;
+
+        self
     }
 
     pub fn default_prefix<T: ToString>(mut self, new_prefix: T) -> Self {
@@ -255,7 +262,10 @@ impl RegexFramework {
                     .replace("COMMANDS", command_names.as_str())
                     .replace("ID", self.client_id.to_string().as_str());
 
-                self.command_matcher = Regex::new(match_string.as_str()).unwrap();
+                self.command_matcher = RegexBuilder::new(match_string.as_str())
+                    .case_insensitive(self.case_insensitive)
+                    .build()
+                    .unwrap();
             }
         }
 
@@ -285,7 +295,10 @@ impl RegexFramework {
                     .replace("COMMANDS", dm_command_names.as_str())
                     .replace("ID", self.client_id.to_string().as_str());
 
-                self.dm_regex_matcher = Regex::new(match_string.as_str()).unwrap();
+                self.dm_regex_matcher = RegexBuilder::new(match_string.as_str())
+                    .case_insensitive(self.case_insensitive)
+                    .build()
+                    .unwrap();
             }
         }
 
@@ -405,7 +418,7 @@ impl Framework for RegexFramework {
 
                                 let command = self
                                     .commands
-                                    .get(full_match.name("cmd").unwrap().as_str())
+                                    .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
                                     .unwrap();
                                 let channel_data = ChannelData::from_channel(
                                     msg.channel(&ctx).await.unwrap(),
@@ -456,7 +469,7 @@ impl Framework for RegexFramework {
         else if let Some(full_match) = self.dm_regex_matcher.captures(&msg.content[..]) {
             let command = self
                 .commands
-                .get(full_match.name("cmd").unwrap().as_str())
+                .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
                 .unwrap();
             let args = full_match
                 .name("args")

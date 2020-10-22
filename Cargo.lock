@@ -1165,7 +1165,7 @@ dependencies = [
 
 [[package]]
 name = "reminder_rs"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "Inflector",
  "async-trait",

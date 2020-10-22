@@ -34,3 +34,4 @@ __Other Variables__
 * `LOCAL_LANGUAGE` - default `EN`. Specifies the string set to fall back to if a string cannot be found (and to be used with new users)
 * `THEME_COLOR` - default `8fb677`. Specifies the hex value of the color to use on info message embeds 
 * `WEBHOOK_AVATAR` - default `None`, accepts the path to an image file to be used as the avatar when creating webhooks. **IMPORTANT: image file must be 128x128 or smaller in size**
+* `CASE_INSENSITIVE` - default `1`, if `1`, commands will be treated with case insensitivity (so both `$help` and `$HELP` will work)
