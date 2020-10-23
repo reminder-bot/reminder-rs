@@ -20,6 +20,7 @@ use regex::{Match, Regex, RegexBuilder};
 
 use std::{collections::HashMap, fmt};
 
+use crate::models::{GuildData, UserData};
 use crate::{models::ChannelData, SQLPool};
 use serenity::futures::TryFutureExt;
 
@@ -325,23 +326,20 @@ impl Framework for RegexFramework {
             let guild_perms = guild.member_permissions(user_id);
             let perms = channel.permissions_for_user(ctx, user_id).await?;
 
-            let basic_perms = perms.send_messages() && perms.embed_links();
+            let basic_perms = perms.send_messages();
 
-            Ok(if basic_perms && guild_perms.manage_webhooks() {
-                PermissionCheck::All
-            } else if basic_perms {
-                PermissionCheck::Basic
-            } else {
-                PermissionCheck::None
-            })
+            Ok(
+                if basic_perms && guild_perms.manage_webhooks() && perms.embed_links() {
+                    PermissionCheck::All
+                } else if basic_perms {
+                    PermissionCheck::Basic
+                } else {
+                    PermissionCheck::None
+                },
+            )
         }
 
-        async fn check_prefix(
-            ctx: &Context,
-            guild: &Guild,
-            prefix_opt: Option<Match<'_>>,
-            default_prefix: &String,
-        ) -> bool {
+        async fn check_prefix(ctx: &Context, guild: &Guild, prefix_opt: Option<Match<'_>>) -> bool {
             if let Some(prefix) = prefix_opt {
                 let pool = ctx
                     .data
@@ -351,33 +349,9 @@ impl Framework for RegexFramework {
                     .cloned()
                     .expect("Could not get SQLPool from data");
 
-                match sqlx::query!(
-                    "SELECT prefix FROM guilds WHERE guild = ?",
-                    guild.id.as_u64()
-                )
-                .fetch_one(&pool)
-                .await
-                {
-                    Ok(row) => prefix.as_str() == row.prefix,
+                let guild_prefix = GuildData::prefix_from_id(Some(guild.id), &pool).await;
 
-                    Err(sqlx::Error::RowNotFound) => {
-                        let _ = sqlx::query!(
-                            "INSERT INTO guilds (guild, name) VALUES (?, ?)",
-                            guild.id.as_u64(),
-                            guild.name
-                        )
-                        .execute(&pool)
-                        .await;
-
-                        prefix.as_str() == default_prefix.as_str()
-                    }
-
-                    Err(e) => {
-                        warn!("Unexpected error in prefix query: {:?}", e);
-
-                        false
-                    }
-                }
+                guild_prefix.as_str() == prefix.as_str()
             } else {
                 true
             }
@@ -397,25 +371,20 @@ impl Framework for RegexFramework {
             let member = guild.member(&ctx, &msg.author).await.unwrap();
 
             if let Some(full_match) = self.command_matcher.captures(&msg.content[..]) {
-                if check_prefix(
-                    &ctx,
-                    &guild,
-                    full_match.name("prefix"),
-                    &self.default_prefix,
-                )
-                .await
-                {
+                if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
+                    let pool = ctx
+                        .data
+                        .read()
+                        .await
+                        .get::<SQLPool>()
+                        .cloned()
+                        .expect("Could not get SQLPool from data");
+
+                    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+
                     match check_self_permissions(&ctx, &guild, &channel).await {
                         Ok(perms) => match perms {
                             PermissionCheck::All => {
-                                let pool = ctx
-                                    .data
-                                    .read()
-                                    .await
-                                    .get::<SQLPool>()
-                                    .cloned()
-                                    .expect("Could not get SQLPool from data");
-
                                 let command = self
                                     .commands
                                     .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
@@ -439,15 +408,42 @@ impl Framework for RegexFramework {
                                         (command.func)(&ctx, &msg, args).await.unwrap();
                                     } else if command.required_perms == PermissionLevel::Restricted
                                     {
-                                        let _ = msg.channel_id.say(&ctx, "You must have permission level `Manage Server` or greater to use this command.").await;
+                                        let _ = msg
+                                            .channel_id
+                                            .say(
+                                                &ctx,
+                                                user_data
+                                                    .response(&pool, "no_perms_restricted")
+                                                    .await,
+                                            )
+                                            .await;
                                     } else if command.required_perms == PermissionLevel::Managed {
-                                        let _ = msg.channel_id.say(&ctx, "You must have `Manage Messages` or have a role capable of sending reminders to that channel. Please talk to your server admin, and ask them to use the `{prefix}restrict` command to specify allowed roles.").await;
+                                        let _ = msg
+                                            .channel_id
+                                            .say(
+                                                &ctx,
+                                                user_data
+                                                    .response(&pool, "no_perms_managed")
+                                                    .await
+                                                    .replace(
+                                                        "{prefix}",
+                                                        &GuildData::prefix_from_id(
+                                                            msg.guild_id,
+                                                            &pool,
+                                                        )
+                                                        .await,
+                                                    ),
+                                            )
+                                            .await;
                                     }
                                 }
                             }
 
                             PermissionCheck::Basic => {
-                                let _ = msg.channel_id.say(&ctx, "Not enough perms").await;
+                                let _ = msg
+                                    .channel_id
+                                    .say(&ctx, user_data.response(&pool, "no_perms_general").await)
+                                    .await;
                             }
 
                             PermissionCheck::None => {
