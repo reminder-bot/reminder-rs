@@ -20,6 +20,7 @@ use serenity::{
         id::{GuildId, UserId},
     },
     prelude::{Context, EventHandler, TypeMapKey},
+    utils::shard_id,
 };
 
 use sqlx::{
@@ -83,13 +84,19 @@ DELETE FROM channels WHERE channel = ?
         .unwrap();
     }
 
-    async fn guild_create(&self, ctx: Context, _guild: Guild, is_new: bool) {
+    async fn guild_create(&self, ctx: Context, guild: Guild, is_new: bool) {
         if is_new {
             if let Ok(token) = env::var("DISCORDBOTS_TOKEN") {
-                let guild_count = ctx.cache.guild_count().await;
+                let guild_count = ctx.cache.guild_count().await as u64;
+                let shard_count = ctx.cache.shard_count().await;
 
                 let mut hm = HashMap::new();
                 hm.insert("server_count", guild_count);
+                hm.insert(
+                    "shard_id",
+                    shard_id(guild.id.as_u64().to_owned(), shard_count),
+                );
+                hm.insert("shard_count", shard_count);
 
                 let client = ctx
                     .data

@@ -5,6 +5,7 @@ use serenity::{client::Context, framework::standard::CommandResult, model::chann
 use chrono::offset::Utc;
 
 use crate::{
+    consts::DEFAULT_PREFIX,
     models::{GuildData, UserData},
     SQLPool, THEME_COLOR,
 };
@@ -82,7 +83,8 @@ async fn info(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
         .response(&pool, "info")
         .await
         .replacen("{user}", &ctx.cache.current_user().await.name, 1)
-        .replacen("{prefix}", &guild_data.prefix, 1);
+        .replace("{default_prefix}", &*DEFAULT_PREFIX)
+        .replace("{prefix}", &guild_data.prefix);
 
     msg.channel_id
         .send_message(ctx, |m| {
