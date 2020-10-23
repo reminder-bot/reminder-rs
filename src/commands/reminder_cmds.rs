@@ -6,7 +6,7 @@ use serenity::{
     cache::Cache,
     client::Context,
     framework::standard::CommandResult,
-    http::{AttachmentType, CacheHttp},
+    http::CacheHttp,
     model::{
         channel::GuildChannel,
         channel::Message,
@@ -23,7 +23,7 @@ use crate::{
     check_subscription_on_message,
     consts::{
         CHARACTERS, DAY, HOUR, LOCAL_TIMEZONE, MAX_TIME, MINUTE, MIN_INTERVAL, PYTHON_LOCATION,
-        REGEX_CHANNEL, REGEX_CHANNEL_USER, WEBHOOK_AVATAR,
+        REGEX_CHANNEL, REGEX_CHANNEL_USER,
     },
     framework::SendIterator,
     models::{ChannelData, GuildData, Timer, UserData},
@@ -47,7 +47,6 @@ use std::{
     convert::TryInto,
     default::Default,
     fmt::Display,
-    path::Path,
     string::ToString,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -55,10 +54,17 @@ use std::{
 use regex::Regex;
 
 fn shorthand_displacement(seconds: u64) -> String {
+    let (days, seconds) = seconds.div_rem(&DAY);
     let (hours, seconds) = seconds.div_rem(&HOUR);
     let (minutes, seconds) = seconds.div_rem(&MINUTE);
 
-    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+    let time_repr = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
+
+    if days > 0 {
+        format!("{} days, {}", days, time_repr)
+    } else {
+        time_repr
+    }
 }
 
 fn longhand_displacement(seconds: u64) -> String {
@@ -84,15 +90,24 @@ async fn create_webhook(
     ctx: impl CacheHttp,
     channel: GuildChannel,
     name: impl Display,
-    avatar: Option<String>,
 ) -> SerenityResult<Webhook> {
-    if let Some(path) = avatar {
-        channel
-            .create_webhook_with_avatar(ctx.http(), name, AttachmentType::from(Path::new(&path)))
-            .await
-    } else {
-        channel.create_webhook(ctx.http(), name).await
-    }
+    channel
+        .create_webhook_with_avatar(
+            ctx.http(),
+            name,
+            (
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/assets/",
+                    env!(
+                        "WEBHOOK_AVATAR",
+                        "WEBHOOK_AVATAR not provided for compilation"
+                    )
+                )) as &[u8],
+                env!("WEBHOOK_AVATAR"),
+            ),
+        )
+        .await
 }
 
 #[command]
@@ -249,10 +264,12 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) -> CommandResult {
         .unwrap();
 
     if args.is_empty() {
-        let _ = msg
-            .channel_id
-            .say(&ctx, user_data.response(&pool, "nudge/invalid_time").await)
-            .await;
+        let content = user_data
+            .response(&pool, "nudge/no_argument")
+            .await
+            .replace("{nudge}", &format!("{}s", &channel.nudge.to_string()));
+
+        let _ = msg.channel_id.say(&ctx, content).await;
     } else {
         let parser = TimeParser::new(args, user_data.timezone.parse().unwrap());
         let nudge_time = parser.displacement();
@@ -1234,10 +1251,7 @@ async fn create_reminder<T: TryInto<i64>, S: ToString + Type<MySql> + Encode<MyS
 
             if let Some(guild_channel) = channel.guild() {
                 if channel_data.webhook_token.is_none() || channel_data.webhook_id.is_none() {
-                    if let Ok(webhook) =
-                        create_webhook(&ctx, guild_channel, "Reminder", WEBHOOK_AVATAR.clone())
-                            .await
-                    {
+                    if let Ok(webhook) = create_webhook(&ctx, guild_channel, "Reminder").await {
                         channel_data.webhook_id = Some(webhook.id.as_u64().to_owned());
                         channel_data.webhook_token = Some(webhook.token);
 

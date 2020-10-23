@@ -12,7 +12,7 @@ Serenity and Rust are proving wonders for SoundFX. This is all in an effort to r
 You'll need rustc and cargo for compilation. To run, you'll need Python 3 still (due to no suitable replacement for dateparser in Rust)
 
 ### Compiling
-Reminder Bot can be built by running `cargo build --release` in the top level directory.
+Reminder Bot can be built by running `cargo build --release` in the top level directory. It is necessary to create a folder called 'assets' containing an image file with its name specified in the environment as `WEBHOOK_AVATAR`, of dimensions 128x128px to be used as the webhook avatar.
 
 ### Setting up Python
 Reminder Bot by default looks for a venv within it's working directory to run Python out of. To set up a venv, install `python3-venv` and run `python3 -m venv venv`. Then, run `source venv/bin/activate` to activate the venv, and do `pip install dateparser` to install the required library
