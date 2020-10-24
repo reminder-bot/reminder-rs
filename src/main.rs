@@ -87,15 +87,20 @@ DELETE FROM channels WHERE channel = ?
     async fn guild_create(&self, ctx: Context, guild: Guild, is_new: bool) {
         if is_new {
             if let Ok(token) = env::var("DISCORDBOTS_TOKEN") {
-                let guild_count = ctx.cache.guild_count().await as u64;
                 let shard_count = ctx.cache.shard_count().await;
+                let current_shard_id = shard_id(guild.id.as_u64().to_owned(), shard_count);
+
+                let guild_count = ctx
+                    .cache
+                    .guilds()
+                    .await
+                    .iter()
+                    .filter(|g| shard_id(g.as_u64().to_owned(), shard_count) == current_shard_id)
+                    .count() as u64;
 
                 let mut hm = HashMap::new();
                 hm.insert("server_count", guild_count);
-                hm.insert(
-                    "shard_id",
-                    shard_id(guild.id.as_u64().to_owned(), shard_count),
-                );
+                hm.insert("shard_id", current_shard_id);
                 hm.insert("shard_count", shard_count);
 
                 let client = ctx
