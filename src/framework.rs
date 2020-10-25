@@ -22,7 +22,6 @@ use std::{collections::HashMap, fmt};
 
 use crate::models::{GuildData, UserData};
 use crate::{models::ChannelData, SQLPool};
-use serenity::futures::TryFutureExt;
 
 type CommandFn =
     for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, CommandResult>;
@@ -47,32 +46,13 @@ impl Command {
         if self.required_perms == PermissionLevel::Unrestricted {
             true
         } else {
-            if member
-                .permissions(&ctx)
-                .map_ok_or_else(
-                    |_| false,
-                    |perms| {
-                        perms.manage_guild()
-                            || (self.required_perms == PermissionLevel::Managed
-                                && perms.manage_messages())
-                    },
-                )
-                .await
+            let permissions = guild.member_permissions(&ctx, &member.user).await.unwrap();
+
+            if permissions.manage_guild()
+                || (permissions.manage_messages()
+                    && self.required_perms == PermissionLevel::Managed)
             {
                 return true;
-            }
-
-            for role_id in &member.roles {
-                let role = role_id.to_role_cached(&ctx).await;
-
-                if let Some(cached_role) = role {
-                    if cached_role.permissions.manage_guild()
-                        || (self.required_perms == PermissionLevel::Managed
-                            && cached_role.permissions.manage_messages())
-                    {
-                        return true;
-                    }
-                }
             }
 
             if self.required_perms == PermissionLevel::Managed {
@@ -320,10 +300,10 @@ impl Framework for RegexFramework {
             ctx: &Context,
             guild: &Guild,
             channel: &GuildChannel,
-        ) -> Result<PermissionCheck, Box<dyn std::error::Error + Sync + Send>> {
+        ) -> SerenityResult<PermissionCheck> {
             let user_id = ctx.cache.current_user_id().await;
 
-            let guild_perms = guild.member_permissions(user_id);
+            let guild_perms = guild.member_permissions(&ctx, user_id).await?;
             let perms = channel.permissions_for_user(ctx, user_id).await?;
 
             let basic_perms = perms.send_messages();

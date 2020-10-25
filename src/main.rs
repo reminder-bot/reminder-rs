@@ -16,7 +16,7 @@ use serenity::{
     model::{
         channel::GuildChannel,
         channel::Message,
-        guild::{Guild, PartialGuild},
+        guild::{Guild, GuildUnavailable},
         id::{GuildId, UserId},
     },
     prelude::{Context, EventHandler, TypeMapKey},
@@ -131,7 +131,7 @@ DELETE FROM channels WHERE channel = ?
         }
     }
 
-    async fn guild_delete(&self, ctx: Context, guild: PartialGuild, _guild: Option<Guild>) {
+    async fn guild_delete(&self, ctx: Context, guild: GuildUnavailable, _guild: Option<Guild>) {
         let pool = ctx
             .data
             .read()
@@ -214,7 +214,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let framework_arc = Arc::new(Box::new(framework) as Box<dyn Framework + Send + Sync>);
 
-    let mut client = Client::new(&token)
+    let mut client = Client::builder(&token)
         .intents(
             GatewayIntents::GUILD_MESSAGES
                 | GatewayIntents::GUILDS

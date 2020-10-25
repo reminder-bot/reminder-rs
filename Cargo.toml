@@ -1,11 +1,11 @@
 [package]
 name = "reminder_rs"
-version = "1.0.0-rc.9"
+version = "1.0.0-rc.10"
 authors = ["jellywx <judesouthworth@pm.me>"]
 edition = "2018"
 
 [dependencies]
-serenity = { version = "0.9.0-rc.2", features = ["collector", "rustls_backend"] }
+serenity = { git = "https://github.com/jellywx/serenity", branch = "jellywx-member_permissions", features = ["collector", "rustls_backend"] }
 dotenv = "0.15"
 tokio = { version = "0.2", features = ["process"] }
 reqwest = { version = "0.10", features = ["rustls-tls"] }
