@@ -144,7 +144,7 @@ SELECT id, name, nudge, blacklisted, webhook_id, webhook_token, paused, paused_u
 
             sqlx::query!(
                 "
-INSERT INTO channels (channel, name, guild_id) VALUES (?, ?, (SELECT id FROM guilds WHERE guild = ?))
+INSERT IGNORE INTO channels (channel, name, guild_id) VALUES (?, ?, (SELECT id FROM guilds WHERE guild = ?))
                 ", channel_id, channel_name, guild_id)
                 .execute(&pool.clone())
                 .await?;

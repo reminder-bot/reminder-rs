@@ -577,7 +577,6 @@ WHERE
     let reply = msg
         .channel_id
         .await_reply(&ctx)
-        .filter_limit(1)
         .author_id(msg.author.id)
         .channel_id(msg.channel_id)
         .await;
@@ -640,6 +639,13 @@ INSERT INTO events (event_name, bulk_count, guild_id, user_id) VALUES ('delete',
                 &count_row.count.to_string(),
                 1,
             );
+
+            let _ = msg.channel_id.say(&ctx, content).await;
+        } else {
+            let content = user_data
+                .response(&pool, "del/count")
+                .await
+                .replacen("{}", "0", 1);
 
             let _ = msg.channel_id.say(&ctx, content).await;
         }
@@ -1046,7 +1052,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
     let mut args_iter = args.splitn(2, &send_str);
 
-    let (time_crop_opt, msg_crop_opt) = (args_iter.next(), args_iter.next());
+    let (time_crop_opt, msg_crop_opt) = (args_iter.next(), args_iter.next().map(|m| m.trim()));
 
     if let (Some(time_crop), Some(msg_crop)) = (time_crop_opt, msg_crop_opt) {
         let python_call = Command::new(&*PYTHON_LOCATION)

@@ -14,6 +14,10 @@ You'll need rustc and cargo for compilation. To run, you'll need Python 3 still 
 ### Compiling
 Reminder Bot can be built by running `cargo build --release` in the top level directory. It is necessary to create a folder called 'assets' containing an image file with its name specified in the environment as `WEBHOOK_AVATAR`, of dimensions 128x128px to be used as the webhook avatar.
 
+#### Compilation environment variables
+These environment variables must be provided when compiling the bot
+* `WEBHOOK_AVATAR` - accepts the name of an image file located in `$CARGO_MANIFEST_DIR/assets/` to be used as the avatar when creating webhooks. **IMPORTANT: image file must be 128x128 or smaller in size**
+
 ### Setting up Python
 Reminder Bot by default looks for a venv within it's working directory to run Python out of. To set up a venv, install `python3-venv` and run `python3 -m venv venv`. Then, run `source venv/bin/activate` to activate the venv, and do `pip install dateparser` to install the required library
 
@@ -33,7 +37,6 @@ __Other Variables__
 * `PYTHON_LOCATION` - default `venv/bin/python3`. Can be changed if your Python executable is located somewhere else
 * `LOCAL_LANGUAGE` - default `EN`. Specifies the string set to fall back to if a string cannot be found (and to be used with new users)
 * `THEME_COLOR` - default `8fb677`. Specifies the hex value of the color to use on info message embeds 
-* `WEBHOOK_AVATAR` - default `None`, accepts the path to an image file to be used as the avatar when creating webhooks. **IMPORTANT: image file must be 128x128 or smaller in size**
 * `CASE_INSENSITIVE` - default `1`, if `1`, commands will be treated with case insensitivity (so both `$help` and `$HELP` will work)
 * `SHARD_COUNT` - default `None`, accepts the number of shards that are being ran
 * `SHARD_RANGE` - default `None`, if `SHARD_COUNT` is specified, specifies what range of shards to start on this process 
