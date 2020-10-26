@@ -99,7 +99,7 @@ UPDATE guilds SET name = ?, prefix = ? WHERE id = ?
 
 pub struct ChannelData {
     pub id: u32,
-    pub name: String,
+    pub name: Option<String>,
     pub nudge: i16,
     pub blacklisted: bool,
     pub webhook_id: Option<u64>,
