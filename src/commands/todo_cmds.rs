@@ -397,7 +397,7 @@ async fn todo_user(ctx: &Context, msg: &Message, args: String) {
         .await;
 }
 
-#[command]
+#[command("todos")]
 #[supports_dm(false)]
 #[permission_level(Managed)]
 async fn todo_channel(ctx: &Context, msg: &Message, args: String) {
@@ -416,7 +416,7 @@ async fn todo_channel(ctx: &Context, msg: &Message, args: String) {
         .await;
 }
 
-#[command]
+#[command("todos")]
 #[supports_dm(false)]
 #[permission_level(Managed)]
 async fn todo_guild(ctx: &Context, msg: &Message, args: String) {

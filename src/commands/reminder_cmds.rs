@@ -363,7 +363,7 @@ struct LookReminder {
     channel: u64,
 }
 
-#[command]
+#[command("look")]
 #[permission_level(Managed)]
 async fn look(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx
@@ -477,7 +477,7 @@ LIMIT
     }
 }
 
-#[command]
+#[command("del")]
 #[permission_level(Managed)]
 async fn delete(ctx: &Context, msg: &Message, _args: String) {
     let pool = ctx
@@ -643,7 +643,7 @@ INSERT INTO events (event_name, bulk_count, guild_id, user_id) VALUES ('delete',
     }
 }
 
-#[command]
+#[command("timer")]
 #[permission_level(Managed)]
 async fn timer(ctx: &Context, msg: &Message, args: String) {
     fn time_difference(start_time: NaiveDateTime) -> String {
@@ -865,13 +865,13 @@ fn generate_uid() -> String {
         .join("")
 }
 
-#[command]
+#[command("remind")]
 #[permission_level(Managed)]
 async fn remind(ctx: &Context, msg: &Message, args: String) {
     remind_command(ctx, msg, args, RemindCommand::Remind).await;
 }
 
-#[command]
+#[command("interval")]
 #[permission_level(Managed)]
 async fn interval(ctx: &Context, msg: &Message, args: String) {
     remind_command(ctx, msg, args, RemindCommand::Interval).await;
@@ -1011,7 +1011,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
     let _ = msg.channel_id.say(&ctx, &str_response).await;
 }
 
-#[command]
+#[command("natural")]
 #[permission_level(Managed)]
 async fn natural(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx

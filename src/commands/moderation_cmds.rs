@@ -339,7 +339,7 @@ WHERE
     }
 }
 
-#[command]
+#[command("alias")]
 #[supports_dm(false)]
 #[permission_level(Managed)]
 async fn alias(ctx: &Context, msg: &Message, args: String) {
