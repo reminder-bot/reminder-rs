@@ -245,6 +245,7 @@ impl RegexFramework {
 
                 self.command_matcher = RegexBuilder::new(match_string.as_str())
                     .case_insensitive(self.case_insensitive)
+                    .dot_matches_new_line(true)
                     .build()
                     .unwrap();
             }
@@ -278,6 +279,7 @@ impl RegexFramework {
 
                 self.dm_regex_matcher = RegexBuilder::new(match_string.as_str())
                     .case_insensitive(self.case_insensitive)
+                    .dot_matches_new_line(true)
                     .build()
                     .unwrap();
             }
@@ -350,7 +352,7 @@ impl Framework for RegexFramework {
         {
             let member = guild.member(&ctx, &msg.author).await.unwrap();
 
-            if let Some(full_match) = self.command_matcher.captures(&msg.content[..]) {
+            if let Some(full_match) = self.command_matcher.captures(&msg.content) {
                 if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
                     let pool = ctx
                         .data
