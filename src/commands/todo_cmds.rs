@@ -3,7 +3,6 @@ use regex_command_attr::command;
 use serenity::{
     client::Context,
     constants::MESSAGE_CODE_LIMIT,
-    framework::standard::CommandResult,
     model::{
         channel::Message,
         id::{ChannelId, GuildId, UserId},
@@ -382,7 +381,7 @@ impl Execute for Result<SubCommand, ()> {
 
 #[command]
 #[permission_level(Managed)]
-async fn todo_user(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn todo_user(ctx: &Context, msg: &Message, args: String) {
     let mut split = args.split(' ');
 
     let target = TodoTarget {
@@ -396,14 +395,12 @@ async fn todo_user(ctx: &Context, msg: &Message, args: String) -> CommandResult 
     subcommand_opt
         .execute(ctx, msg, split.collect::<Vec<&str>>().join(" "), target)
         .await;
-
-    Ok(())
 }
 
 #[command]
 #[supports_dm(false)]
 #[permission_level(Managed)]
-async fn todo_channel(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn todo_channel(ctx: &Context, msg: &Message, args: String) {
     let mut split = args.split(' ');
 
     let target = TodoTarget {
@@ -417,14 +414,12 @@ async fn todo_channel(ctx: &Context, msg: &Message, args: String) -> CommandResu
     subcommand_opt
         .execute(ctx, msg, split.collect::<Vec<&str>>().join(" "), target)
         .await;
-
-    Ok(())
 }
 
 #[command]
 #[supports_dm(false)]
 #[permission_level(Managed)]
-async fn todo_guild(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn todo_guild(ctx: &Context, msg: &Message, args: String) {
     let mut split = args.split(' ');
 
     let target = TodoTarget {
@@ -438,8 +433,6 @@ async fn todo_guild(ctx: &Context, msg: &Message, args: String) -> CommandResult
     subcommand_opt
         .execute(ctx, msg, split.collect::<Vec<&str>>().join(" "), target)
         .await;
-
-    Ok(())
 }
 
 async fn show_help(ctx: &Context, msg: &Message, target: Option<TodoTarget>) {

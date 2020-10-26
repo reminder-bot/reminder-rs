@@ -1,6 +1,6 @@
 use regex_command_attr::command;
 
-use serenity::{client::Context, framework::standard::CommandResult, model::channel::Message};
+use serenity::{client::Context, model::channel::Message};
 
 use chrono::offset::Utc;
 
@@ -14,7 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[command]
 #[can_blacklist(false)]
-async fn ping(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
+async fn ping(ctx: &Context, msg: &Message, _args: String) {
     let now = SystemTime::now();
     let since_epoch = now
         .duration_since(UNIX_EPOCH)
@@ -26,13 +26,11 @@ async fn ping(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
         .channel_id
         .say(&ctx, format!("Time taken to receive message: {}ms", delta))
         .await;
-
-    Ok(())
 }
 
 #[command]
 #[can_blacklist(false)]
-async fn help(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
+async fn help(ctx: &Context, msg: &Message, _args: String) {
     let pool = ctx
         .data
         .read()
@@ -44,7 +42,8 @@ async fn help(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let desc = user_data.response(&pool, "help").await;
 
-    msg.channel_id
+    let _ = msg
+        .channel_id
         .send_message(ctx, |m| {
             m.embed(move |e| {
                 e.title("Help")
@@ -59,13 +58,11 @@ async fn help(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
                     .color(*THEME_COLOR)
             })
         })
-        .await?;
-
-    Ok(())
+        .await;
 }
 
 #[command]
-async fn info(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
+async fn info(ctx: &Context, msg: &Message, _args: String) {
     let pool = ctx
         .data
         .read()
@@ -86,7 +83,8 @@ async fn info(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
         .replace("{default_prefix}", &*DEFAULT_PREFIX)
         .replace("{prefix}", &guild_data.prefix);
 
-    msg.channel_id
+    let _ = msg
+        .channel_id
         .send_message(ctx, |m| {
             m.embed(move |e| {
                 e.title("Info")
@@ -101,13 +99,11 @@ async fn info(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
                     .color(*THEME_COLOR)
             })
         })
-        .await?;
-
-    Ok(())
+        .await;
 }
 
 #[command]
-async fn donate(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
+async fn donate(ctx: &Context, msg: &Message, _args: String) {
     let pool = ctx
         .data
         .read()
@@ -119,7 +115,8 @@ async fn donate(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let desc = user_data.response(&pool, "donate").await;
 
-    msg.channel_id
+    let _ = msg
+        .channel_id
         .send_message(ctx, |m| {
             m.embed(move |e| {
                 e.title("Donate")
@@ -134,14 +131,13 @@ async fn donate(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
                     .color(*THEME_COLOR)
             })
         })
-        .await?;
-
-    Ok(())
+        .await;
 }
 
 #[command]
-async fn dashboard(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
-    msg.channel_id
+async fn dashboard(ctx: &Context, msg: &Message, _args: String) {
+    let _ = msg
+        .channel_id
         .send_message(ctx, |m| {
             m.embed(move |e| {
                 e.title("Dashboard")
@@ -156,13 +152,11 @@ async fn dashboard(ctx: &Context, msg: &Message, _args: String) -> CommandResult
                     .color(*THEME_COLOR)
             })
         })
-        .await?;
-
-    Ok(())
+        .await;
 }
 
 #[command]
-async fn clock(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn clock(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx
         .data
         .read()
@@ -200,6 +194,4 @@ async fn clock(ctx: &Context, msg: &Message, args: String) -> CommandResult {
             )
             .await;
     }
-
-    Ok(())
 }

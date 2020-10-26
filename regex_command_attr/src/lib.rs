@@ -8,12 +8,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{
-    parse::Error,
-    parse_macro_input, parse_quote,
-    spanned::Spanned,
-    Lit,
-};
+use syn::{parse::Error, parse_macro_input, spanned::Spanned, Lit};
 
 pub(crate) mod attributes;
 pub(crate) mod consts;
@@ -74,15 +69,9 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         can_blacklist,
     } = options;
 
-    propagate_err!(create_declaration_validations(&mut fun, DeclarFor::Command));
-
-    let res = parse_quote!(serenity::framework::standard::CommandResult);
-    create_return_type_validation(&mut fun, res);
-
     let visibility = fun.visibility;
     let name = fun.name.clone();
     let body = fun.body;
-    let ret = fun.ret;
 
     let n = name.with_suffix(COMMAND);
 
@@ -103,7 +92,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
             can_blacklist: #can_blacklist,
         };
 
-        #visibility fn #name<'fut> (#(#args),*) -> ::serenity::futures::future::BoxFuture<'fut, #ret> {
+        #visibility fn #name<'fut> (#(#args),*) -> ::serenity::futures::future::BoxFuture<'fut, ()> {
             use ::serenity::futures::future::FutureExt;
 
             async move { #(#body)* }.boxed()

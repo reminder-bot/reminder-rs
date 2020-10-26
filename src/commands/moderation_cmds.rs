@@ -2,7 +2,7 @@ use regex_command_attr::command;
 
 use serenity::{
     client::Context,
-    framework::{standard::CommandResult, Framework},
+    framework::Framework,
     model::{channel::Message, id::RoleId},
 };
 
@@ -25,7 +25,7 @@ use std::iter;
 #[supports_dm(false)]
 #[permission_level(Restricted)]
 #[can_blacklist(false)]
-async fn blacklist(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn blacklist(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx
         .data
         .read()
@@ -57,12 +57,10 @@ async fn blacklist(ctx: &Context, msg: &Message, args: String) -> CommandResult 
     } else {
         let _ = msg.channel_id.say(&ctx, "Unblacklisted").await;
     }
-
-    Ok(())
 }
 
 #[command]
-async fn timezone(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn timezone(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx
         .data
         .read()
@@ -112,12 +110,10 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
         let _ = msg.channel_id.say(&ctx, content).await;
     }
-
-    Ok(())
 }
 
 #[command]
-async fn language(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn language(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx
         .data
         .read()
@@ -174,14 +170,12 @@ SELECT code FROM languages WHERE code = ? OR name = ?
             let _ = msg.channel_id.say(&ctx, content).await;
         }
     }
-
-    Ok(())
 }
 
 #[command]
 #[supports_dm(false)]
 #[permission_level(Restricted)]
-async fn prefix(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn prefix(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx
         .data
         .read()
@@ -217,14 +211,12 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) -> CommandResult {
 
         let _ = msg.channel_id.say(&ctx, content).await;
     }
-
-    Ok(())
 }
 
 #[command]
 #[supports_dm(false)]
 #[permission_level(Restricted)]
-async fn restrict(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn restrict(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx
         .data
         .read()
@@ -345,14 +337,12 @@ WHERE
             .say(&ctx, user_data.response(&pool, "restrict/help").await)
             .await;
     }
-
-    Ok(())
 }
 
 #[command]
 #[supports_dm(false)]
 #[permission_level(Managed)]
-async fn alias(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn alias(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx
         .data
         .read()
@@ -488,6 +478,4 @@ SELECT command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHER
 
         let _ = msg.channel_id.say(&ctx, content).await;
     }
-
-    Ok(())
 }

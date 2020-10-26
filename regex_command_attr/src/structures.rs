@@ -6,8 +6,7 @@ use syn::{
     braced,
     parse::{Error, Parse, ParseStream, Result},
     spanned::Spanned,
-    Attribute, Block, FnArg, Ident, Pat, Path, PathSegment, ReturnType, Stmt,
-    Token, Type, Visibility,
+    Attribute, Block, FnArg, Ident, Pat, Path, PathSegment, Stmt, Token, Visibility,
 };
 
 fn parse_argument(arg: FnArg) -> Result<Argument> {
@@ -54,15 +53,7 @@ fn parse_argument(arg: FnArg) -> Result<Argument> {
 /// Test if the attribute is cooked.
 fn is_cooked(attr: &Attribute) -> bool {
     const COOKED_ATTRIBUTE_NAMES: &[&str] = &[
-        "cfg",
-        "cfg_attr",
-        "doc",
-        "derive",
-        "inline",
-        "allow",
-        "warn",
-        "deny",
-        "forbid",
+        "cfg", "cfg_attr", "doc", "derive", "inline", "allow", "warn", "deny", "forbid",
     ];
 
     COOKED_ATTRIBUTE_NAMES.iter().any(|n| attr.path.is_ident(n))
@@ -100,7 +91,6 @@ pub struct CommandFun {
     pub visibility: Visibility,
     pub name: Ident,
     pub args: Vec<Argument>,
-    pub ret: Type,
     pub body: Vec<Stmt>,
 }
 
@@ -131,14 +121,6 @@ impl Parse for CommandFun {
         // (...)
         let Parenthesised(args) = input.parse::<Parenthesised<FnArg>>()?;
 
-        let ret = match input.parse::<ReturnType>()? {
-            ReturnType::Type(_, t) => (*t).clone(),
-            ReturnType::Default => {
-                return Err(input
-                    .error("expected a result type of either `CommandResult` or `CheckResult`"))
-            }
-        };
-
         // { ... }
         let bcont;
         braced!(bcont in input);
@@ -155,7 +137,6 @@ impl Parse for CommandFun {
             visibility,
             name,
             args,
-            ret,
             body,
         })
     }
@@ -169,13 +150,12 @@ impl ToTokens for CommandFun {
             visibility,
             name,
             args,
-            ret,
             body,
         } = self;
 
         stream.extend(quote! {
             #(#cooked)*
-            #visibility async fn #name (#(#args),*) -> #ret {
+            #visibility async fn #name (#(#args),*) -> () {
                 #(#body)*
             }
         });

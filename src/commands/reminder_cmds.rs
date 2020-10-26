@@ -5,7 +5,6 @@ use regex_command_attr::command;
 use serenity::{
     cache::Cache,
     client::Context,
-    framework::standard::CommandResult,
     http::CacheHttp,
     model::{
         channel::GuildChannel,
@@ -113,7 +112,7 @@ async fn create_webhook(
 #[command]
 #[supports_dm(false)]
 #[permission_level(Restricted)]
-async fn pause(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn pause(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx
         .data
         .read()
@@ -172,13 +171,11 @@ async fn pause(ctx: &Context, msg: &Message, args: String) -> CommandResult {
             }
         }
     }
-
-    Ok(())
 }
 
 #[command]
 #[permission_level(Restricted)]
-async fn offset(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn offset(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx
         .data
         .read()
@@ -243,13 +240,11 @@ UPDATE reminders SET `time` = `time` + ? WHERE reminders.channel_id = ?
                 .await;
         }
     }
-
-    Ok(())
 }
 
 #[command]
 #[permission_level(Restricted)]
-async fn nudge(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn nudge(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx
         .data
         .read()
@@ -304,8 +299,6 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) -> CommandResult {
             }
         }
     }
-
-    Ok(())
 }
 
 enum TimeDisplayType {
@@ -372,7 +365,7 @@ struct LookReminder {
 
 #[command]
 #[permission_level(Managed)]
-async fn look(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn look(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx
         .data
         .read()
@@ -482,13 +475,11 @@ LIMIT
 
         let _ = msg.channel_id.say_lines(&ctx, display).await;
     }
-
-    Ok(())
 }
 
 #[command]
 #[permission_level(Managed)]
-async fn delete(ctx: &Context, msg: &Message, _args: String) -> CommandResult {
+async fn delete(ctx: &Context, msg: &Message, _args: String) {
     let pool = ctx
         .data
         .read()
@@ -650,13 +641,11 @@ INSERT INTO events (event_name, bulk_count, guild_id, user_id) VALUES ('delete',
             let _ = msg.channel_id.say(&ctx, content).await;
         }
     }
-
-    Ok(())
 }
 
 #[command]
 #[permission_level(Managed)]
-async fn timer(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn timer(ctx: &Context, msg: &Message, args: String) {
     fn time_difference(start_time: NaiveDateTime) -> String {
         let unix_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -777,8 +766,6 @@ DELETE FROM timers WHERE owner = ? AND name = ?
                 .await;
         }
     }
-
-    Ok(())
 }
 
 #[derive(PartialEq)]
@@ -880,18 +867,14 @@ fn generate_uid() -> String {
 
 #[command]
 #[permission_level(Managed)]
-async fn remind(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn remind(ctx: &Context, msg: &Message, args: String) {
     remind_command(ctx, msg, args, RemindCommand::Remind).await;
-
-    Ok(())
 }
 
 #[command]
 #[permission_level(Managed)]
-async fn interval(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn interval(ctx: &Context, msg: &Message, args: String) {
     remind_command(ctx, msg, args, RemindCommand::Interval).await;
-
-    Ok(())
 }
 
 async fn remind_command(ctx: &Context, msg: &Message, args: String, command: RemindCommand) {
@@ -1030,7 +1013,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
 
 #[command]
 #[permission_level(Managed)]
-async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
+async fn natural(ctx: &Context, msg: &Message, args: String) {
     let pool = ctx
         .data
         .read()
@@ -1217,8 +1200,6 @@ async fn natural(ctx: &Context, msg: &Message, args: String) -> CommandResult {
             .send_message(&ctx, |m| m.embed(|e| e.description(resp)))
             .await;
     }
-
-    Ok(())
 }
 
 async fn create_reminder<T: TryInto<i64>, S: ToString + Type<MySql> + Encode<MySql>>(

@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serenity::{
     client::Context,
     constants::MESSAGE_CODE_LIMIT,
-    framework::{standard::CommandResult, Framework},
+    framework::Framework,
     futures::prelude::future::BoxFuture,
     http::Http,
     model::{
@@ -23,8 +23,7 @@ use std::{collections::HashMap, fmt};
 use crate::models::{GuildData, UserData};
 use crate::{models::ChannelData, SQLPool};
 
-type CommandFn =
-    for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, CommandResult>;
+type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, ()>;
 
 #[derive(Debug, PartialEq)]
 pub enum PermissionLevel {
@@ -387,7 +386,7 @@ impl Framework for RegexFramework {
                                         .to_string();
 
                                     if command.check_permissions(&ctx, &guild, &member).await {
-                                        (command.func)(&ctx, &msg, args).await.unwrap();
+                                        (command.func)(&ctx, &msg, args).await;
                                     } else if command.required_perms == PermissionLevel::Restricted
                                     {
                                         let _ = msg
@@ -455,7 +454,7 @@ impl Framework for RegexFramework {
                 .unwrap_or("")
                 .to_string();
 
-            (command.func)(&ctx, &msg, args).await.unwrap();
+            (command.func)(&ctx, &msg, args).await;
         }
     }
 }

@@ -1,4 +1,3 @@
-use crate::structures::CommandFun;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use proc_macro2::TokenStream as TokenStream2;
@@ -6,9 +5,7 @@ use quote::{format_ident, quote, ToTokens};
 use syn::{
     braced, bracketed, parenthesized,
     parse::{Error, Parse, ParseStream, Result as SynResult},
-    parse_quote,
     punctuated::Punctuated,
-    spanned::Spanned,
     token::{Comma, Mut},
     Ident, Lifetime, Lit, Type,
 };
@@ -151,83 +148,6 @@ impl ToTokens for Argument {
             #mutable #name: #kind
         });
     }
-}
-
-#[inline]
-pub fn generate_type_validation(have: Type, expect: Type) -> syn::Stmt {
-    parse_quote! {
-        serenity::static_assertions::assert_type_eq_all!(#have, #expect);
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DeclarFor {
-    Command,
-    Help,
-    Check,
-}
-
-pub fn create_declaration_validations(fun: &mut CommandFun, dec_for: DeclarFor) -> SynResult<()> {
-    let len = match dec_for {
-        DeclarFor::Command => 3,
-        DeclarFor::Help => 6,
-        DeclarFor::Check => 4,
-    };
-
-    if fun.args.len() > len {
-        return Err(Error::new(
-            fun.args.last().unwrap().span(),
-            format_args!("function's arity exceeds more than {} arguments", len),
-        ));
-    }
-
-    let context: Type = parse_quote!(&serenity::client::Context);
-    let message: Type = parse_quote!(&serenity::model::channel::Message);
-    let args: Type = parse_quote!(String);
-    let options: Type = parse_quote!(&serenity::framework::standard::CommandOptions);
-    let hoptions: Type = parse_quote!(&'static serenity::framework::standard::HelpOptions);
-    let groups: Type = parse_quote!(&[&'static serenity::framework::standard::CommandGroup]);
-    let owners: Type = parse_quote!(std::collections::HashSet<serenity::model::id::UserId>);
-
-    let mut index = 0;
-
-    let mut spoof_or_check = |kind: Type, name: &str| {
-        match fun.args.get(index) {
-            Some(x) => fun.body.insert(0, generate_type_validation(x.kind.clone(), kind)),
-            None => fun.args.push(Argument {
-                mutable: None,
-                name: Ident::new(name, Span::call_site()),
-                kind,
-            }),
-        }
-
-        index += 1;
-    };
-
-    spoof_or_check(context, "_ctx");
-    spoof_or_check(message, "_msg");
-
-    if dec_for == DeclarFor::Check {
-        spoof_or_check(options, "_options");
-
-        return Ok(());
-    }
-
-    spoof_or_check(args, "_args");
-
-    if dec_for == DeclarFor::Help {
-        spoof_or_check(hoptions, "_hoptions");
-        spoof_or_check(groups, "_groups");
-        spoof_or_check(owners, "_owners");
-    }
-
-    Ok(())
-}
-
-#[inline]
-pub fn create_return_type_validation(r#fn: &mut CommandFun, expect: Type) {
-    let stmt = generate_type_validation(r#fn.ret.clone(), expect);
-    r#fn.body.insert(0, stmt);
 }
 
 #[inline]
