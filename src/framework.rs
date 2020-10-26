@@ -349,8 +349,6 @@ impl Framework for RegexFramework {
         else if let (Some(guild), Some(Channel::Guild(channel))) =
             (msg.guild(&ctx).await, msg.channel(&ctx).await)
         {
-            let member = guild.member(&ctx, &msg.author).await.unwrap();
-
             if let Some(full_match) = self.command_matcher.captures(&msg.content) {
                 if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
                     let pool = ctx
@@ -370,6 +368,7 @@ impl Framework for RegexFramework {
                                     .commands
                                     .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
                                     .unwrap();
+
                                 let channel_data = ChannelData::from_channel(
                                     msg.channel(&ctx).await.unwrap(),
                                     &pool,
@@ -384,6 +383,8 @@ impl Framework for RegexFramework {
                                         .map(|m| m.as_str())
                                         .unwrap_or("")
                                         .to_string();
+
+                                    let member = guild.member(&ctx, &msg.author).await.unwrap();
 
                                     if command.check_permissions(&ctx, &guild, &member).await {
                                         (command.func)(&ctx, &msg, args).await;
