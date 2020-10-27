@@ -1071,6 +1071,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                     content = captures.name("msg").unwrap().as_str();
 
                     let mentions = captures.name("mentions").unwrap().as_str();
+
                     location_ids = REGEX_CHANNEL_USER
                         .captures_iter(mentions)
                         .map(|i| {
@@ -1154,7 +1155,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
 
                 let _ = msg.channel_id.say(&ctx, &str_response).await;
             } else {
-                let mut issue_count = 0_u8;
+                let mut ok_count = 0_u8;
 
                 for location in location_ids {
                     let res = create_reminder(
@@ -1170,14 +1171,14 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                     .await;
 
                     if res.is_ok() {
-                        issue_count += 1;
+                        ok_count += 1;
                     }
                 }
 
                 let content = user_data
                     .response(&pool, "natural/bulk_set")
                     .await
-                    .replace("{count}", &issue_count.to_string());
+                    .replace("{}", &ok_count.to_string());
 
                 let _ = msg.channel_id.say(&ctx, content).await;
             }

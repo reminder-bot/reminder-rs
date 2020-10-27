@@ -28,7 +28,7 @@ lazy_static! {
     pub static ref REGEX_COMMANDS: Regex = Regex::new(r#"([a-z]+)"#).unwrap();
     pub static ref REGEX_ALIAS: Regex =
         Regex::new(r#"(?P<name>[\S]{1,12})(?:(?: (?P<cmd>.*)$)|$)"#).unwrap();
-    pub static ref REGEX_CHANNEL_USER: Regex = Regex::new(r#"^\s*<(#|@)(?:!)?(\d+)>\s*$"#).unwrap();
+    pub static ref REGEX_CHANNEL_USER: Regex = Regex::new(r#"\s*<(#|@)(?:!)?(\d+)>\s*"#).unwrap();
     pub static ref MIN_INTERVAL: i64 = env::var("MIN_INTERVAL")
         .ok()
         .map(|inner| inner.parse::<i64>().ok())
