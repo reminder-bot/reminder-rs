@@ -176,7 +176,7 @@ INSERT INTO todos (user_id, value) VALUES (
             let deleting = sqlx::query_as!(
                 Todo,
                 "
-SELECT * FROM todos WHERE id = ?
+SELECT id, user_id, guild_id, channel_id, value FROM todos WHERE id = ?
                 ",
                 removal_todo.id
             )
