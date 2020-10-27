@@ -14,7 +14,7 @@ use crate::consts::{DEFAULT_PREFIX, LOCAL_LANGUAGE, LOCAL_TIMEZONE, STRINGS_TABL
 
 pub struct GuildData {
     pub id: u32,
-    pub name: String,
+    pub name: Option<String>,
     pub prefix: String,
 }
 
@@ -57,6 +57,8 @@ SELECT id, name, prefix FROM guilds WHERE guild = ?
         .fetch_one(pool)
         .await
         {
+            g.name = guild.name;
+
             Ok(g)
         } else {
             sqlx::query!(
