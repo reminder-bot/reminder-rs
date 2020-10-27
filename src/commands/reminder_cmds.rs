@@ -466,7 +466,7 @@ LIMIT
                         .unwrap()
                         .as_secs();
 
-                    longhand_displacement(reminder.time as u64 - now)
+                    longhand_displacement((reminder.time as u64).checked_sub(now).unwrap_or(0))
                 }
             };
 

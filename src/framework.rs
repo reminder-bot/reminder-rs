@@ -360,6 +360,7 @@ impl Framework for RegexFramework {
                         .expect("Could not get SQLPool from data");
 
                     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+                    let guild_data = GuildData::from_guild(guild.clone(), &pool).await.unwrap();
 
                     match check_self_permissions(&ctx, &guild, &channel).await {
                         Ok(perms) => match perms {
@@ -373,11 +374,13 @@ impl Framework for RegexFramework {
                                     msg.channel(&ctx).await.unwrap(),
                                     &pool,
                                 )
-                                .await;
+                                .await
+                                .unwrap();
 
-                                if !command.can_blacklist
-                                    || !channel_data.map(|c| c.blacklisted).unwrap_or(false)
-                                {
+                                // required due to a small bug resulting in some channels being detached from their guild ids
+                                channel_data.update_guild_id(guild_data.id, &pool).await;
+
+                                if !command.can_blacklist || !channel_data.blacklisted {
                                     let args = full_match
                                         .name("args")
                                         .map(|m| m.as_str())

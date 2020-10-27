@@ -158,6 +158,19 @@ SELECT id, name, nudge, blacklisted, webhook_id, webhook_token, paused, paused_u
         }
     }
 
+    pub async fn update_guild_id(&self, id: u32, pool: &MySqlPool) {
+        sqlx::query!(
+            "
+UPDATE channels SET guild_id = ? WHERE id = ?
+            ",
+            id,
+            self.id
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
     pub async fn commit_changes(&self, pool: &MySqlPool) {
         sqlx::query!(
             "
