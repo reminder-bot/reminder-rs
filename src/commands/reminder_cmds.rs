@@ -50,7 +50,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use regex::Regex;
+use regex::RegexBuilder;
 
 fn shorthand_displacement(seconds: u64) -> String {
     let (days, seconds) = seconds.div_rem(&DAY);
@@ -466,7 +466,7 @@ LIMIT
                         .unwrap()
                         .as_secs();
 
-                    longhand_displacement((reminder.time as u64).checked_sub(now).unwrap_or(0))
+                    longhand_displacement((reminder.time as u64).checked_sub(now).unwrap_or(1))
                 }
             };
 
@@ -1063,7 +1063,9 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
             let mut interval = None;
 
             if msg.guild_id.is_some() {
-                let re_match = Regex::new(&format!(r#"(?:\s*)(?P<msg>.*) {} (?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+)$"#, to_str))
+                let re_match = RegexBuilder::new(&format!(r#"(?:\s*)(?P<msg>.*) {} (?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+)$"#, to_str))
+                    .dot_matches_new_line(true)
+                    .build()
                     .unwrap()
                     .captures(msg_crop);
 
@@ -1090,7 +1092,9 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
 
             if check_subscription_on_message(&ctx, &msg).await {
                 let re_match =
-                    Regex::new(&format!(r#"(?P<msg>.*) {} (?P<interval>.*)$"#, every_str))
+                    RegexBuilder::new(&format!(r#"(?P<msg>.*) {} (?P<interval>.*)$"#, every_str))
+                        .dot_matches_new_line(true)
+                        .build()
                         .unwrap()
                         .captures(content);
 
