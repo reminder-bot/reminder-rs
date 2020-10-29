@@ -380,7 +380,6 @@ impl Execute for Result<SubCommand, ()> {
 }
 
 #[command]
-#[permission_level(Managed)]
 async fn todo_user(ctx: &Context, msg: &Message, args: String) {
     let mut split = args.split(' ');
 

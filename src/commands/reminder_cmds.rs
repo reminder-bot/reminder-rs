@@ -404,6 +404,8 @@ WHERE
     channels.guild_id = (SELECT id FROM guilds WHERE guild = ?) AND
     channels.channel = ? AND
     FIND_IN_SET(reminders.enabled, ?)
+ORDER BY
+    reminders.time
 LIMIT
     ?
             ",
@@ -433,6 +435,8 @@ ON
 WHERE
     channels.channel = ? AND
     FIND_IN_SET(reminders.enabled, ?)
+ORDER BY
+    reminders.time
 LIMIT
     ?
             ",
@@ -555,7 +559,7 @@ WHERE
             count + 1,
             reminder.content,
             reminder.channel,
-            time.format("%Y-%m-%D %H:%M:%S")
+            time.format("%Y-%m-%d %H:%M:%S")
         )
     });
 
