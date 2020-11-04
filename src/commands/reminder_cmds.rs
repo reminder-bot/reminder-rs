@@ -359,8 +359,19 @@ impl LookFlags {
 struct LookReminder {
     id: u32,
     time: u32,
-    content: String,
     channel: u64,
+    content: String,
+    description: String,
+}
+
+impl LookReminder {
+    fn display_content(&self) -> &str {
+        if self.content.len() > 0 {
+            self.content.as_str()
+        } else {
+            self.description.as_str()
+        }
+    }
 }
 
 #[command("look")]
@@ -389,7 +400,7 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
             LookReminder,
             "
 SELECT
-    reminders.id, reminders.time, channels.channel, messages.content
+    reminders.id, reminders.time, channels.channel, messages.content, embeds.description
 FROM
     reminders
 INNER JOIN
@@ -400,6 +411,10 @@ INNER JOIN
     messages
 ON
     messages.id = reminders.message_id
+INNER JOIN
+    embeds
+ON
+    embeds.id = messages.embed_id
 WHERE
     channels.guild_id = (SELECT id FROM guilds WHERE guild = ?) AND
     channels.channel = ? AND
@@ -421,7 +436,7 @@ LIMIT
             LookReminder,
             "
 SELECT
-    reminders.id, reminders.time, messages.content, channels.channel
+    reminders.id, reminders.time, channels.channel, messages.content, embeds.description
 FROM
     reminders
 LEFT OUTER JOIN
@@ -432,6 +447,10 @@ INNER JOIN
     messages
 ON
     messages.id = reminders.message_id
+INNER JOIN
+    embeds
+ON
+    embeds.id = messages.embed_id
 WHERE
     channels.channel = ? AND
     FIND_IN_SET(reminders.enabled, ?)
@@ -474,7 +493,12 @@ LIMIT
                 }
             };
 
-            format!("'{}' *{}* **{}**", reminder.content, &inter, time_display)
+            format!(
+                "'{}' *{}* **{}**",
+                reminder.display_content(),
+                &inter,
+                time_display
+            )
         });
 
         let _ = msg.channel_id.say_lines(&ctx, display).await;
@@ -504,7 +528,7 @@ async fn delete(ctx: &Context, msg: &Message, _args: String) {
             LookReminder,
             "
 SELECT
-    reminders.id, reminders.time, messages.content, channels.channel
+    reminders.id, reminders.time, channels.channel, messages.content, embeds.description
 FROM
     reminders
 LEFT OUTER JOIN
@@ -515,6 +539,10 @@ INNER JOIN
     messages
 ON
     messages.id = reminders.message_id
+INNER JOIN
+    embeds
+ON
+    embeds.id = messages.embed_id
 WHERE
     channels.guild_id = (SELECT id FROM guilds WHERE guild = ?)
             ",
@@ -527,13 +555,17 @@ WHERE
             LookReminder,
             "
 SELECT
-    reminders.id, reminders.time, messages.content, channels.channel
+    reminders.id, reminders.time, channels.channel, messages.content, embeds.description
 FROM
     reminders
 INNER JOIN
     messages
 ON
     reminders.message_id = messages.id
+INNER JOIN
+    embeds
+ON
+    embeds.id = messages.embed_id
 INNER JOIN
     channels
 ON
@@ -557,7 +589,7 @@ WHERE
         format!(
             "**{}**: '{}' *<#{}>* at {}",
             count + 1,
-            reminder.content,
+            reminder.display_content(),
             reminder.channel,
             time.format("%Y-%m-%d %H:%M:%S")
         )
