@@ -361,15 +361,15 @@ struct LookReminder {
     time: u32,
     channel: u64,
     content: String,
-    description: String,
+    description: Option<String>,
 }
 
 impl LookReminder {
-    fn display_content(&self) -> &str {
+    fn display_content(&self) -> String {
         if self.content.len() > 0 {
-            self.content.as_str()
+            self.content.clone()
         } else {
-            self.description.as_str()
+            self.description.clone().unwrap_or(String::from(""))
         }
     }
 }
@@ -411,7 +411,7 @@ INNER JOIN
     messages
 ON
     messages.id = reminders.message_id
-INNER JOIN
+LEFT JOIN
     embeds
 ON
     embeds.id = messages.embed_id
@@ -447,7 +447,7 @@ INNER JOIN
     messages
 ON
     messages.id = reminders.message_id
-INNER JOIN
+LEFT JOIN
     embeds
 ON
     embeds.id = messages.embed_id
@@ -539,7 +539,7 @@ INNER JOIN
     messages
 ON
     messages.id = reminders.message_id
-INNER JOIN
+LEFT JOIN
     embeds
 ON
     embeds.id = messages.embed_id
@@ -562,7 +562,7 @@ INNER JOIN
     messages
 ON
     reminders.message_id = messages.id
-INNER JOIN
+LEFT JOIN
     embeds
 ON
     embeds.id = messages.embed_id
