@@ -1311,7 +1311,7 @@ async fn create_reminder<T: TryInto<i64>, S: ToString + Type<MySql> + Encode<MyS
                     .unwrap()
                     .as_secs() as i64;
 
-                if time >= unix_time {
+                if time >= unix_time - 10 {
                     if time > unix_time + *MAX_TIME {
                         Err(ReminderError::LongTime)
                     } else {
