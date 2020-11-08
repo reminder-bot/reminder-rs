@@ -87,6 +87,18 @@ CREATE TABLE reminders.embeds (
     PRIMARY KEY (id)
 );
 
+CREATE TABLE reminders.embed_fields (
+    id INT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
+
+    title VARCHAR(256) NOT NULL DEFAULT '',
+    value VARCHAR(1024) NOT NULL DEFAULT '',
+    inline BOOL NOT NULL DEFAULT 0,
+    embed_id INT UNSIGNED NOT NULL,
+
+    PRIMARY KEY (id),
+    FOREIGN KEY (embed_id) REFERENCES reminders.embeds(id) ON DELETE CASCADE
+);
+
 CREATE TABLE reminders.messages (
     id INT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
 
