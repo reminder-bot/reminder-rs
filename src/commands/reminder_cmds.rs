@@ -22,7 +22,7 @@ use crate::{
     check_subscription_on_message,
     consts::{
         CHARACTERS, DAY, HOUR, LOCAL_TIMEZONE, MAX_TIME, MINUTE, MIN_INTERVAL, PYTHON_LOCATION,
-        REGEX_CHANNEL, REGEX_CHANNEL_USER,
+        REGEX_CHANNEL, REGEX_CHANNEL_USER, REGEX_CONTENT_SUBSTITUTION,
     },
     framework::SendIterator,
     models::{ChannelData, GuildData, Timer, UserData},
@@ -306,10 +306,16 @@ enum TimeDisplayType {
     Relative,
 }
 
+enum Selection<T> {
+    None,
+    Single(T),
+    All,
+}
+
 struct LookFlags {
     pub limit: u16,
     pub show_disabled: bool,
-    pub channel_id: Option<u64>,
+    pub channel_id: Selection<u64>,
     time_display: TimeDisplayType,
 }
 
@@ -318,7 +324,7 @@ impl Default for LookFlags {
         Self {
             limit: u16::MAX,
             show_disabled: true,
-            channel_id: None,
+            channel_id: Selection::None,
             time_display: TimeDisplayType::Relative,
         }
     }
@@ -338,6 +344,10 @@ impl LookFlags {
                     new_flags.time_display = TimeDisplayType::Absolute;
                 }
 
+                "all" => {
+                    new_flags.channel_id = Selection::All;
+                }
+
                 param => {
                     if let Ok(val) = param.parse::<u16>() {
                         new_flags.limit = val;
@@ -346,7 +356,8 @@ impl LookFlags {
                             .captures(&args)
                             .map(|cap| cap.get(1))
                             .flatten()
-                            .map(|c| c.as_str().parse::<u64>().unwrap());
+                            .map(|c| c.as_str().parse::<u64>().unwrap())
+                            .map_or(Selection::None, Selection::Single);
                     }
                 }
             }
@@ -392,13 +403,16 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
     let enabled = if flags.show_disabled { "0,1" } else { "1" };
 
     let reminders = if let Some(guild_id) = msg.guild_id.map(|f| f.as_u64().to_owned()) {
-        let channel_id = flags
-            .channel_id
-            .unwrap_or_else(|| msg.channel_id.as_u64().to_owned());
+        let channel_id_opt = match flags.channel_id {
+            Selection::None => Some(msg.channel_id.as_u64().to_owned()),
+            Selection::Single(id) => Some(id),
+            Selection::All => None,
+        };
 
-        sqlx::query_as!(
-            LookReminder,
-            "
+        if let Some(channel_id) = channel_id_opt {
+            sqlx::query_as!(
+                LookReminder,
+                "
 SELECT
     reminders.id, reminders.time, channels.channel, messages.content, embeds.description
 FROM
@@ -424,13 +438,48 @@ ORDER BY
 LIMIT
     ?
             ",
-            guild_id,
-            channel_id,
-            enabled,
-            flags.limit
-        )
-        .fetch_all(&pool)
-        .await
+                guild_id,
+                channel_id,
+                enabled,
+                flags.limit
+            )
+            .fetch_all(&pool)
+            .await
+        } else {
+            sqlx::query_as!(
+                LookReminder,
+                "
+SELECT
+    reminders.id, reminders.time, channels.channel, messages.content, embeds.description
+FROM
+    reminders
+INNER JOIN
+    channels
+ON
+    reminders.channel_id = channels.id
+INNER JOIN
+    messages
+ON
+    messages.id = reminders.message_id
+LEFT JOIN
+    embeds
+ON
+    embeds.id = messages.embed_id
+WHERE
+    channels.guild_id = (SELECT id FROM guilds WHERE guild = ?) AND
+    FIND_IN_SET(reminders.enabled, ?)
+ORDER BY
+    reminders.time
+LIMIT
+    ?
+            ",
+                guild_id,
+                enabled,
+                flags.limit
+            )
+            .fetch_all(&pool)
+            .await
+        }
     } else {
         sqlx::query_as!(
             LookReminder,
@@ -1253,7 +1302,15 @@ async fn create_reminder<T: TryInto<i64>, S: ToString + Type<MySql> + Encode<MyS
     interval: Option<i64>,
     content: S,
 ) -> Result<(), ReminderError> {
-    let content_string = content.to_string();
+    let mut content_string = content.to_string();
+
+    // substitution filters
+    content_string = content_string.replace("<<everyone>>", "@everyone");
+    content_string = content_string.replace("<<here>>", "@here");
+    content_string = REGEX_CONTENT_SUBSTITUTION
+        .replace(&content_string, "<@$1>")
+        .to_string();
+
     let mut nudge = 0;
 
     let db_channel_id = match scope_id {
@@ -1319,7 +1376,7 @@ async fn create_reminder<T: TryInto<i64>, S: ToString + Type<MySql> + Encode<MyS
                             "
 INSERT INTO messages (content) VALUES (?)
                             ",
-                            content
+                            content_string
                         )
                         .execute(&pool.clone())
                         .await
@@ -1334,7 +1391,7 @@ INSERT INTO reminders (uid, message_id, channel_id, time, `interval`, method, se
     (SELECT id FROM users WHERE user = ? LIMIT 1))
                             ",
                             generate_uid(),
-                            content,
+                            content_string,
                             db_channel_id,
                             time as u32,
                             interval,
