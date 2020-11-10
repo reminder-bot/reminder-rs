@@ -152,15 +152,26 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
 
         match pause_until {
             Ok(timestamp) => {
+                let dt = NaiveDateTime::from_timestamp(timestamp, 0);
+
                 channel.paused = true;
-                channel.paused_until = Some(NaiveDateTime::from_timestamp(timestamp, 0));
+                channel.paused_until = Some(dt);
 
                 channel.commit_changes(&pool).await;
 
-                let _ = msg
-                    .channel_id
-                    .say(&ctx, user_data.response(&pool, "pause/paused_until").await)
-                    .await;
+                let content = user_data
+                    .response(&pool, "pause/paused_until")
+                    .await
+                    .replace(
+                        "{}",
+                        &user_data
+                            .timezone()
+                            .timestamp(timestamp, 0)
+                            .format("%Y-%m-%d %H:%M:%S")
+                            .to_string(),
+                    );
+
+                let _ = msg.channel_id.say(&ctx, content).await;
             }
 
             Err(_) => {
@@ -530,7 +541,7 @@ LIMIT
                 TimeDisplayType::Absolute => user_data
                     .timezone()
                     .timestamp(reminder.time as i64, 0)
-                    .format("%Y-%m-%D %H:%M:%S")
+                    .format("%Y-%m-%d %H:%M:%S")
                     .to_string(),
                 TimeDisplayType::Relative => {
                     let now = SystemTime::now()
