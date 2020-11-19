@@ -118,15 +118,6 @@ pub struct ChannelData {
 }
 
 impl ChannelData {
-    pub async fn from_id(channel_id: u64, pool: &MySqlPool) -> Option<Self> {
-        sqlx::query_as_unchecked!(Self,
-            "
-SELECT id, name, nudge, blacklisted, webhook_id, webhook_token, paused, paused_until FROM channels WHERE channel = ?
-            ", channel_id)
-            .fetch_one(pool)
-            .await.ok()
-    }
-
     pub async fn from_channel(
         channel: Channel,
         pool: &MySqlPool,

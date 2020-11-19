@@ -19,6 +19,7 @@ use crate::{
     FrameworkCtx, SQLPool,
 };
 
+use serenity::model::id::ChannelId;
 use std::iter;
 
 #[command]
@@ -34,28 +35,61 @@ async fn blacklist(ctx: &Context, msg: &Message, args: String) {
         .cloned()
         .expect("Could not get SQLPool from data");
 
+    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+
     let capture_opt = REGEX_CHANNEL
         .captures(&args)
         .map(|cap| cap.get(1))
         .flatten();
 
-    let mut channel = match capture_opt {
-        Some(capture) => ChannelData::from_id(capture.as_str().parse::<u64>().unwrap(), &pool)
-            .await
-            .unwrap(),
+    let (channel, local) = match capture_opt {
+        Some(capture) => (
+            ChannelId(capture.as_str().parse::<u64>().unwrap())
+                .to_channel_cached(&ctx)
+                .await,
+            false,
+        ),
 
-        None => ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool)
-            .await
-            .unwrap(),
+        None => (msg.channel(&ctx).await, true),
     };
 
-    channel.blacklisted = !channel.blacklisted;
-    channel.commit_changes(&pool).await;
+    let mut channel_data = ChannelData::from_channel(channel.unwrap(), &pool)
+        .await
+        .unwrap();
 
-    if channel.blacklisted {
-        let _ = msg.channel_id.say(&ctx, "Blacklisted").await;
+    channel_data.blacklisted = !channel_data.blacklisted;
+    channel_data.commit_changes(&pool).await;
+
+    if channel_data.blacklisted {
+        if local {
+            let _ = msg
+                .channel_id
+                .say(&ctx, user_data.response(&pool, "blacklist/added").await)
+                .await;
+        } else {
+            let _ = msg
+                .channel_id
+                .say(
+                    &ctx,
+                    user_data.response(&pool, "blacklist/added_from").await,
+                )
+                .await;
+        }
     } else {
-        let _ = msg.channel_id.say(&ctx, "Unblacklisted").await;
+        if local {
+            let _ = msg
+                .channel_id
+                .say(&ctx, user_data.response(&pool, "blacklist/removed").await)
+                .await;
+        } else {
+            let _ = msg
+                .channel_id
+                .say(
+                    &ctx,
+                    user_data.response(&pool, "blacklist/removed_from").await,
+                )
+                .await;
+        }
     }
 }
 
