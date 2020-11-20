@@ -492,7 +492,7 @@ LIMIT
             .await
         }
     } else {
-        sqlx::query_as!(
+        sqlx::query_as_unchecked!(
             LookReminder,
             "
 SELECT
@@ -584,7 +584,7 @@ async fn delete(ctx: &Context, msg: &Message, _args: String) {
         .await;
 
     let reminders = if let Some(guild_id) = msg.guild_id.map(|f| f.as_u64().to_owned()) {
-        sqlx::query_as!(
+        sqlx::query_as_unchecked!(
             LookReminder,
             "
 SELECT
@@ -1303,7 +1303,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
     }
 }
 
-async fn create_reminder<T: TryInto<i64>, S: ToString + Type<MySql> + Encode<MySql>>(
+async fn create_reminder<'a, T: TryInto<i64>, S: ToString + Type<MySql> + Encode<'a, MySql>>(
     ctx: impl CacheHttp,
     pool: &MySqlPool,
     user_id: u64,

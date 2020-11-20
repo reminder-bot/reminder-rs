@@ -3,14 +3,14 @@ use serenity::{
     model::{channel::Channel, guild::Guild, id::GuildId, user::User},
 };
 
-use sqlx::{Cursor, MySqlPool, Row};
+use sqlx::MySqlPool;
 
 use chrono::NaiveDateTime;
 use chrono_tz::Tz;
 
 use log::error;
 
-use crate::consts::{DEFAULT_PREFIX, LOCAL_LANGUAGE, LOCAL_TIMEZONE, STRINGS_TABLE};
+use crate::consts::{DEFAULT_PREFIX, LOCAL_LANGUAGE, LOCAL_TIMEZONE};
 
 pub struct GuildData {
     pub id: u32,
@@ -267,27 +267,24 @@ UPDATE users SET name = ?, language = ?, timezone = ? WHERE id = ?
     }
 
     pub async fn response(&self, pool: &MySqlPool, name: &str) -> String {
-        let query_str = &format!(
+        struct StringRow {
+            value: String,
+        }
+
+        sqlx::query_as!(
+            StringRow,
             "
-SELECT value FROM {} WHERE (language = ? OR language = ?) AND name = ? ORDER BY language = ?
+SELECT value FROM strings WHERE (language = ? OR language = ?) AND name = ? ORDER BY language = ?
             ",
-            *STRINGS_TABLE
-        );
-
-        let mut query = sqlx::query(&query_str)
-            .bind(&self.language)
-            .bind(&*LOCAL_LANGUAGE)
-            .bind(name)
-            .bind(&*LOCAL_LANGUAGE)
-            .fetch(pool);
-
-        let row = query
-            .next()
-            .await
-            .unwrap_or_else(|e| panic!("Database error: {:?}", e))
-            .unwrap_or_else(|| panic!("No string with that name: {}", name));
-
-        row.get::<String, &str>("value").clone()
+            self.language,
+            &*LOCAL_LANGUAGE,
+            name,
+            &*LOCAL_LANGUAGE
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap()
+        .value
     }
 
     pub fn timezone(&self) -> Tz {

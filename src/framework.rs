@@ -289,9 +289,9 @@ impl RegexFramework {
 }
 
 enum PermissionCheck {
-    None,  // No permissions
-    Basic, // Send + Embed permissions (sufficient to reply)
-    All,   // Above + Manage Webhooks (sufficient to operate)
+    None,              // No permissions
+    Basic(bool, bool), // Send + Embed permissions (sufficient to reply)
+    All,               // Above + Manage Webhooks (sufficient to operate)
 }
 
 #[async_trait]
@@ -305,15 +305,18 @@ impl Framework for RegexFramework {
             let user_id = ctx.cache.current_user_id().await;
 
             let guild_perms = guild.member_permissions(&ctx, user_id).await?;
-            let perms = channel.permissions_for_user(ctx, user_id).await?;
+            let channel_perms = channel.permissions_for_user(ctx, user_id).await?;
 
-            let basic_perms = perms.send_messages();
+            let basic_perms = channel_perms.send_messages();
 
             Ok(
-                if basic_perms && guild_perms.manage_webhooks() && perms.embed_links() {
+                if basic_perms && guild_perms.manage_webhooks() && channel_perms.embed_links() {
                     PermissionCheck::All
                 } else if basic_perms {
-                    PermissionCheck::Basic
+                    PermissionCheck::Basic(
+                        guild_perms.manage_webhooks(),
+                        channel_perms.embed_links(),
+                    )
                 } else {
                     PermissionCheck::None
                 },
@@ -424,11 +427,20 @@ impl Framework for RegexFramework {
                                 }
                             }
 
-                            PermissionCheck::Basic => {
-                                let _ = msg
-                                    .channel_id
-                                    .say(&ctx, user_data.response(&pool, "no_perms_general").await)
-                                    .await;
+                            PermissionCheck::Basic(manage_webhooks, embed_links) => {
+                                let response = user_data
+                                    .response(&pool, "no_perms_general")
+                                    .await
+                                    .replace(
+                                        "{manage_webhooks}",
+                                        if manage_webhooks { "✅" } else { "❌" },
+                                    )
+                                    .replace(
+                                        "{embed_links}",
+                                        if embed_links { "✅" } else { "❌" },
+                                    );
+
+                                let _ = msg.channel_id.say(&ctx, response).await;
                             }
 
                             PermissionCheck::None => {

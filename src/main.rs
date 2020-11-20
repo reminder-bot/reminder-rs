@@ -23,10 +23,7 @@ use serenity::{
     utils::shard_id,
 };
 
-use sqlx::{
-    mysql::{MySqlConnection, MySqlPool},
-    Pool,
-};
+use sqlx::mysql::MySqlPool;
 
 use dotenv::dotenv;
 
@@ -45,7 +42,7 @@ use log::info;
 struct SQLPool;
 
 impl TypeMapKey for SQLPool {
-    type Value = Pool<MySqlConnection>;
+    type Value = MySqlPool;
 }
 
 struct ReqwestClient;
@@ -226,7 +223,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .expect("Error occurred creating client");
 
     {
-        let pool = MySqlPool::new(
+        let pool = MySqlPool::connect(
             &env::var("DATABASE_URL").expect("Missing DATABASE_URL from environment"),
         )
         .await
