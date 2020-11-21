@@ -191,6 +191,25 @@ pub struct UserData {
 }
 
 impl UserData {
+    pub async fn language_of(user: &User, ctx: impl CacheHttp, pool: &MySqlPool) -> String {
+        let user_id = user.id.as_u64().to_owned();
+
+        match sqlx::query!(
+            "
+SELECT IF(language IS NULL, ?, language) AS language FROM users WHERE user = ?
+            ",
+            *LOCAL_LANGUAGE,
+            user_id
+        )
+        .fetch_one(pool)
+        .await
+        {
+            Ok(r) => r.language.unwrap(),
+
+            Err(_) => LOCAL_LANGUAGE.clone(),
+        }
+    }
+
     pub async fn from_user(
         user: &User,
         ctx: impl CacheHttp,
@@ -266,25 +285,8 @@ UPDATE users SET name = ?, language = ?, timezone = ? WHERE id = ?
         .unwrap();
     }
 
-    pub async fn response(&self, pool: &MySqlPool, name: &str) -> String {
-        struct StringRow {
-            value: String,
-        }
-
-        sqlx::query_as!(
-            StringRow,
-            "
-SELECT value FROM strings WHERE (language = ? OR language = ?) AND name = ? ORDER BY language = ?
-            ",
-            self.language,
-            &*LOCAL_LANGUAGE,
-            name,
-            &*LOCAL_LANGUAGE
-        )
-        .fetch_one(pool)
-        .await
-        .unwrap()
-        .value
+    pub async fn response(&self, _pool: &MySqlPool, _name: &str) -> String {
+        unimplemented!()
     }
 
     pub fn timezone(&self) -> Tz {

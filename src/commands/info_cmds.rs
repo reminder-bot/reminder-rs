@@ -10,6 +10,7 @@ use crate::{
     SQLPool, THEME_COLOR,
 };
 
+use crate::language_manager::LanguageManager;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[command]
@@ -31,16 +32,18 @@ async fn ping(ctx: &Context, msg: &Message, _args: String) {
 #[command]
 #[can_blacklist(false)]
 async fn help(ctx: &Context, msg: &Message, _args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
+    let data = ctx.data.read().await;
+
+    let pool = data
         .get::<SQLPool>()
         .cloned()
         .expect("Could not get SQLPool from data");
 
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
-    let desc = user_data.response(&pool, "help").await;
+    let lm = data.get::<LanguageManager>().unwrap();
+
+    let language = UserData::language_of(&msg.author, &ctx, &pool).await;
+
+    let desc = lm.get(&language, "help");
 
     let _ = msg
         .channel_id
@@ -63,22 +66,22 @@ async fn help(ctx: &Context, msg: &Message, _args: String) {
 
 #[command]
 async fn info(ctx: &Context, msg: &Message, _args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
+    let data = ctx.data.read().await;
+
+    let pool = data
         .get::<SQLPool>()
         .cloned()
         .expect("Could not get SQLPool from data");
 
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    let lm = data.get::<LanguageManager>().unwrap();
+
+    let language = UserData::language_of(&msg.author, &ctx, &pool).await;
     let guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool)
         .await
         .unwrap();
 
-    let desc = user_data
-        .response(&pool, "info")
-        .await
+    let desc = lm
+        .get(&language, "info")
         .replacen("{user}", &ctx.cache.current_user().await.name, 1)
         .replace("{default_prefix}", &*DEFAULT_PREFIX)
         .replace("{prefix}", &guild_data.prefix);
@@ -104,16 +107,17 @@ async fn info(ctx: &Context, msg: &Message, _args: String) {
 
 #[command]
 async fn donate(ctx: &Context, msg: &Message, _args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
+    let data = ctx.data.read().await;
+
+    let pool = data
         .get::<SQLPool>()
         .cloned()
         .expect("Could not get SQLPool from data");
 
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
-    let desc = user_data.response(&pool, "donate").await;
+    let lm = data.get::<LanguageManager>().unwrap();
+
+    let language = UserData::language_of(&msg.author, &ctx, &pool).await;
+    let desc = lm.get(&language, "donate");
 
     let _ = msg
         .channel_id

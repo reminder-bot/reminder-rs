@@ -3,3 +3,4 @@
 /venv
 .cargo
 assets
+out.json

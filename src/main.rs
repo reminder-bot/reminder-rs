@@ -4,6 +4,7 @@ extern crate lazy_static;
 mod commands;
 mod consts;
 mod framework;
+mod language_manager;
 mod models;
 mod time_parser;
 
@@ -33,6 +34,7 @@ use crate::{
     commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
     consts::{CNC_GUILD, DEFAULT_PREFIX, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
+    language_manager::LanguageManager,
 };
 
 use serenity::futures::TryFutureExt;
@@ -229,11 +231,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .await
         .unwrap();
 
+        let language_manager = LanguageManager::from_compiled("out.json")?;
+
         let mut data = client.data.write().await;
 
         data.insert::<SQLPool>(pool);
         data.insert::<ReqwestClient>(Arc::new(reqwest::Client::new()));
         data.insert::<FrameworkCtx>(framework_arc);
+        data.insert::<LanguageManager>(language_manager)
     }
 
     if let Ok((Some(lower), Some(upper))) = env::var("SHARD_RANGE").map(|sr| {
