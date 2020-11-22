@@ -3,24 +3,25 @@ use regex_command_attr::command;
 use serenity::{
     client::Context,
     framework::Framework,
-    model::{channel::Message, id::RoleId},
+    model::{channel::Message, id::ChannelId, id::RoleId},
 };
 
-use chrono_tz::Tz;
+use chrono_tz::{Tz, TZ_VARIANTS};
 
 use chrono::offset::Utc;
 
 use inflector::Inflector;
 
+use levenshtein::levenshtein;
+
 use crate::{
-    consts::{REGEX_ALIAS, REGEX_CHANNEL, REGEX_COMMANDS, REGEX_ROLE},
+    consts::{REGEX_ALIAS, REGEX_CHANNEL, REGEX_COMMANDS, REGEX_ROLE, THEME_COLOR},
     framework::SendIterator,
+    language_manager::LanguageManager,
     models::{ChannelData, GuildData, UserData},
     FrameworkCtx, SQLPool,
 };
 
-use crate::language_manager::LanguageManager;
-use serenity::model::id::ChannelId;
 use std::iter;
 
 #[command]
@@ -112,6 +113,12 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
 
     let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
+    let footer_text = lm.get(&user_data.language, "timezone/footer").replacen(
+        "{timezone}",
+        &user_data.timezone,
+        1,
+    );
+
     if !args.is_empty() {
         match args.parse::<Tz>() {
             Ok(_) => {
@@ -129,22 +136,77 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
             }
 
             Err(_) => {
+                let filtered_tz = TZ_VARIANTS
+                    .iter()
+                    .map(|tz| (tz, tz.to_string(), levenshtein(&tz.to_string(), &args)))
+                    .filter(|(_, tz, dist)| args.contains(tz) || tz.contains(&args) || dist < &4)
+                    .take(25)
+                    .map(|(tz, tz_s, _)| {
+                        (
+                            tz_s,
+                            format!(
+                                "🕗 `{}`",
+                                Utc::now().with_timezone(tz).format("%H:%M").to_string()
+                            ),
+                            true,
+                        )
+                    });
+
                 let _ = msg
                     .channel_id
-                    .say(&ctx, lm.get(&user_data.language, "timezone/no_timezone"))
+                    .send_message(&ctx, |m| {
+                        m.embed(|e| {
+                            e.title(lm.get(&user_data.language, "timezone/no_timezone_title"))
+                                .description(lm.get(&user_data.language, "timezone/no_timezone"))
+                                .color(*THEME_COLOR)
+                                .fields(filtered_tz)
+                                .footer(|f| f.text(footer_text))
+                                .url("https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee")
+                        })
+                    })
                     .await;
             }
         }
     } else {
-        let content = lm
-            .get(&user_data.language, "timezone/no_argument")
-            .replace(
-                "{prefix}",
-                &GuildData::prefix_from_id(msg.guild_id, &pool).await,
-            )
-            .replacen("{timezone}", &user_data.timezone, 1);
+        let content = lm.get(&user_data.language, "timezone/no_argument").replace(
+            "{prefix}",
+            &GuildData::prefix_from_id(msg.guild_id, &pool).await,
+        );
 
-        let _ = msg.channel_id.say(&ctx, content).await;
+        let popular_timezones = sqlx::query!(
+            "SELECT timezone FROM users GROUP BY timezone ORDER BY COUNT(timezone) DESC LIMIT 20"
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+        let popular_timezones_iter = popular_timezones.iter().map(|t| {
+            (
+                t.timezone.clone(),
+                format!(
+                    "🕗 `{}`",
+                    Utc::now()
+                        .with_timezone(&t.timezone.parse::<Tz>().unwrap())
+                        .format("%H:%M")
+                        .to_string()
+                ),
+                false,
+            )
+        });
+
+        let _ = msg
+            .channel_id
+            .send_message(&ctx, |m| {
+                m.embed(|e| {
+                    e.title(lm.get(&user_data.language, "timezone/no_argument_title"))
+                        .description(content)
+                        .color(*THEME_COLOR)
+                        .fields(popular_timezones_iter)
+                        .footer(|f| f.text(footer_text))
+                        .url("https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee")
+                })
+            })
+            .await;
     }
 }
 
