@@ -158,19 +158,6 @@ SELECT id, name, nudge, blacklisted, webhook_id, webhook_token, paused, paused_u
         }
     }
 
-    pub async fn update_guild_id(&self, id: u32, pool: &MySqlPool) {
-        sqlx::query!(
-            "
-UPDATE channels SET guild_id = ? WHERE id = ?
-            ",
-            id,
-            self.id
-        )
-        .execute(pool)
-        .await
-        .unwrap();
-    }
-
     pub async fn commit_changes(&self, pool: &MySqlPool) {
         sqlx::query!(
             "
@@ -191,7 +178,7 @@ pub struct UserData {
 }
 
 impl UserData {
-    pub async fn language_of(user: &User, ctx: impl CacheHttp, pool: &MySqlPool) -> String {
+    pub async fn language_of(user: &User, pool: &MySqlPool) -> String {
         let user_id = user.id.as_u64().to_owned();
 
         match sqlx::query!(
@@ -283,10 +270,6 @@ UPDATE users SET name = ?, language = ?, timezone = ? WHERE id = ?
         .execute(pool)
         .await
         .unwrap();
-    }
-
-    pub async fn response(&self, _pool: &MySqlPool, _name: &str) -> String {
-        unimplemented!()
     }
 
     pub fn timezone(&self) -> Tz {

@@ -41,7 +41,7 @@ async fn help(ctx: &Context, msg: &Message, _args: String) {
 
     let lm = data.get::<LanguageManager>().unwrap();
 
-    let language = UserData::language_of(&msg.author, &ctx, &pool).await;
+    let language = UserData::language_of(&msg.author, &pool).await;
 
     let desc = lm.get(&language, "help");
 
@@ -75,7 +75,7 @@ async fn info(ctx: &Context, msg: &Message, _args: String) {
 
     let lm = data.get::<LanguageManager>().unwrap();
 
-    let language = UserData::language_of(&msg.author, &ctx, &pool).await;
+    let language = UserData::language_of(&msg.author, &pool).await;
     let guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool)
         .await
         .unwrap();
@@ -116,7 +116,7 @@ async fn donate(ctx: &Context, msg: &Message, _args: String) {
 
     let lm = data.get::<LanguageManager>().unwrap();
 
-    let language = UserData::language_of(&msg.author, &ctx, &pool).await;
+    let language = UserData::language_of(&msg.author, &pool).await;
     let desc = lm.get(&language, "donate");
 
     let _ = msg
@@ -161,28 +161,26 @@ async fn dashboard(ctx: &Context, msg: &Message, _args: String) {
 
 #[command]
 async fn clock(ctx: &Context, msg: &Message, args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
+    let data = ctx.data.read().await;
+
+    let pool = data
         .get::<SQLPool>()
         .cloned()
         .expect("Could not get SQLPool from data");
 
+    let lm = data.get::<LanguageManager>().unwrap();
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
     let now = Utc::now().with_timezone(&user_data.timezone());
+
+    let clock_display = lm.get(&user_data.language, "clock/time");
 
     if args == "12" {
         let _ = msg
             .channel_id
             .say(
                 &ctx,
-                user_data.response(&pool, "clock/time").await.replacen(
-                    "{}",
-                    &now.format("%I:%M:%S %p").to_string(),
-                    1,
-                ),
+                clock_display.replacen("{}", &now.format("%I:%M:%S %p").to_string(), 1),
             )
             .await;
     } else {
@@ -190,11 +188,7 @@ async fn clock(ctx: &Context, msg: &Message, args: String) {
             .channel_id
             .say(
                 &ctx,
-                user_data.response(&pool, "clock/time").await.replacen(
-                    "{}",
-                    &now.format("%H:%M:%S").to_string(),
-                    1,
-                ),
+                clock_display.replacen("{}", &now.format("%H:%M:%S").to_string(), 1),
             )
             .await;
     }

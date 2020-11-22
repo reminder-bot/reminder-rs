@@ -19,6 +19,7 @@ use crate::{
     FrameworkCtx, SQLPool,
 };
 
+use crate::language_manager::LanguageManager;
 use serenity::model::id::ChannelId;
 use std::iter;
 
@@ -27,13 +28,19 @@ use std::iter;
 #[permission_level(Restricted)]
 #[can_blacklist(false)]
 async fn blacklist(ctx: &Context, msg: &Message, args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
@@ -64,30 +71,24 @@ async fn blacklist(ctx: &Context, msg: &Message, args: String) {
         if local {
             let _ = msg
                 .channel_id
-                .say(&ctx, user_data.response(&pool, "blacklist/added").await)
+                .say(&ctx, lm.get(&user_data.language, "blacklist/added"))
                 .await;
         } else {
             let _ = msg
                 .channel_id
-                .say(
-                    &ctx,
-                    user_data.response(&pool, "blacklist/added_from").await,
-                )
+                .say(&ctx, lm.get(&user_data.language, "blacklist/added_from"))
                 .await;
         }
     } else {
         if local {
             let _ = msg
                 .channel_id
-                .say(&ctx, user_data.response(&pool, "blacklist/removed").await)
+                .say(&ctx, lm.get(&user_data.language, "blacklist/removed"))
                 .await;
         } else {
             let _ = msg
                 .channel_id
-                .say(
-                    &ctx,
-                    user_data.response(&pool, "blacklist/removed_from").await,
-                )
+                .say(&ctx, lm.get(&user_data.language, "blacklist/removed_from"))
                 .await;
         }
     }
@@ -95,13 +96,19 @@ async fn blacklist(ctx: &Context, msg: &Message, args: String) {
 
 #[command]
 async fn timezone(ctx: &Context, msg: &Message, args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
@@ -113,9 +120,8 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
 
                 let now = Utc::now().with_timezone(&user_data.timezone());
 
-                let content = user_data
-                    .response(&pool, "timezone/set_p")
-                    .await
+                let content = lm
+                    .get(&user_data.language, "timezone/set_p")
                     .replacen("{timezone}", &user_data.timezone, 1)
                     .replacen("{time}", &now.format("%H:%M").to_string(), 1);
 
@@ -125,17 +131,13 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
             Err(_) => {
                 let _ = msg
                     .channel_id
-                    .say(
-                        &ctx,
-                        user_data.response(&pool, "timezone/no_timezone").await,
-                    )
+                    .say(&ctx, lm.get(&user_data.language, "timezone/no_timezone"))
                     .await;
             }
         }
     } else {
-        let content = user_data
-            .response(&pool, "timezone/no_argument")
-            .await
+        let content = lm
+            .get(&user_data.language, "timezone/no_argument")
             .replace(
                 "{prefix}",
                 &GuildData::prefix_from_id(msg.guild_id, &pool).await,
@@ -148,57 +150,43 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
 
 #[command]
 async fn language(ctx: &Context, msg: &Message, args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
-    match sqlx::query!(
-        "
-SELECT code FROM languages WHERE code = ? OR name = ?
-        ",
-        args,
-        args
-    )
-    .fetch_one(&pool)
-    .await
-    {
-        Ok(row) => {
-            user_data.language = row.code;
+    match lm.get_language(&args) {
+        Some(row) => {
+            user_data.language = row.to_string();
 
             user_data.commit_changes(&pool).await;
 
             let _ = msg
                 .channel_id
-                .say(&ctx, user_data.response(&pool, "lang/set_p").await)
+                .say(&ctx, lm.get(&user_data.language, "lang/set_p"))
                 .await;
         }
 
-        Err(_) => {
-            let language_codes = sqlx::query!("SELECT name, code FROM languages")
-                .fetch_all(&pool)
-                .await
-                .unwrap()
-                .iter()
-                .map(|language| {
-                    format!(
-                        "{} ({})",
-                        language.name.to_title_case(),
-                        language.code.to_uppercase()
-                    )
-                })
+        None => {
+            let language_codes = lm
+                .all_languages()
+                .map(|(k, v)| format!("{} ({})", v.to_title_case(), k.to_uppercase()))
                 .collect::<Vec<String>>()
                 .join("\n");
 
             let content =
-                user_data
-                    .response(&pool, "lang/invalid")
-                    .await
+                lm.get(&user_data.language, "lang/invalid")
                     .replacen("{}", &language_codes, 1);
 
             let _ = msg.channel_id.say(&ctx, content).await;
@@ -210,13 +198,19 @@ SELECT code FROM languages WHERE code = ? OR name = ?
 #[supports_dm(false)]
 #[permission_level(Restricted)]
 async fn prefix(ctx: &Context, msg: &Message, args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let mut guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool)
         .await
@@ -226,18 +220,18 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) {
     if args.len() > 5 {
         let _ = msg
             .channel_id
-            .say(&ctx, user_data.response(&pool, "prefix/too_long").await)
+            .say(&ctx, lm.get(&user_data.language, "prefix/too_long"))
             .await;
     } else if args.is_empty() {
         let _ = msg
             .channel_id
-            .say(&ctx, user_data.response(&pool, "prefix/no_argument").await)
+            .say(&ctx, lm.get(&user_data.language, "prefix/no_argument"))
             .await;
     } else {
         guild_data.prefix = args;
         guild_data.commit_changes(&pool).await;
 
-        let content = user_data.response(&pool, "prefix/success").await.replacen(
+        let content = lm.get(&user_data.language, "prefix/success").replacen(
             "{prefix}",
             &guild_data.prefix,
             1,
@@ -251,13 +245,19 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) {
 #[supports_dm(false)]
 #[permission_level(Restricted)]
 async fn restrict(ctx: &Context, msg: &Message, args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool)
@@ -292,7 +292,7 @@ DELETE FROM command_restrictions WHERE role_id = (SELECT id FROM roles WHERE rol
             if commands.is_empty() {
                 let _ = msg
                     .channel_id
-                    .say(&ctx, user_data.response(&pool, "restrict/disabled").await)
+                    .say(&ctx, lm.get(&user_data.language, "restrict/disabled"))
                     .await;
             } else {
                 let _ = sqlx::query!(
@@ -317,10 +317,11 @@ INSERT INTO command_restrictions (role_id, command) VALUES ((SELECT id FROM role
                     if res.is_err() {
                         println!("{:?}", res);
 
-                        let content = user_data
-                            .response(&pool, "restrict/failure")
-                            .await
-                            .replacen("{command}", &command, 1);
+                        let content = lm.get(&user_data.language, "restrict/failure").replacen(
+                            "{command}",
+                            &command,
+                            1,
+                        );
 
                         let _ = msg.channel_id.say(&ctx, content).await;
                     }
@@ -328,7 +329,7 @@ INSERT INTO command_restrictions (role_id, command) VALUES ((SELECT id FROM role
 
                 let _ = msg
                     .channel_id
-                    .say(&ctx, user_data.response(&pool, "restrict/enabled").await)
+                    .say(&ctx, lm.get(&user_data.language, "restrict/enabled"))
                     .await;
             }
         }
@@ -359,16 +360,15 @@ WHERE
             .map(|row| format!("<@&{}> can use {}", row.role, row.command))
             .collect::<Vec<String>>()
             .join("\n");
-        let display = user_data
-            .response(&pool, "restrict/allowed")
-            .await
-            .replacen("{}", &display_inner, 1);
+        let display =
+            lm.get(&user_data.language, "restrict/allowed")
+                .replacen("{}", &display_inner, 1);
 
         let _ = msg.channel_id.say(&ctx, display).await;
     } else {
         let _ = msg
             .channel_id
-            .say(&ctx, user_data.response(&pool, "restrict/help").await)
+            .say(&ctx, lm.get(&user_data.language, "restrict/help"))
             .await;
     }
 }
@@ -377,13 +377,19 @@ WHERE
 #[supports_dm(false)]
 #[permission_level(Managed)]
 async fn alias(ctx: &Context, msg: &Message, args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
@@ -437,16 +443,15 @@ DELETE FROM command_aliases WHERE name = ? AND guild_id = (SELECT id FROM guilds
                     .await
                     .unwrap();
 
-                    let content = user_data
-                        .response(&pool, "alias/removed")
-                        .await
+                    let content = lm
+                        .get(&user_data.language, "alias/removed")
                         .replace("{count}", &deleted_count.count.to_string());
 
                     let _ = msg.channel_id.say(&ctx, content).await;
                 } else {
                     let _ = msg
                         .channel_id
-                        .say(&ctx, user_data.response(&pool, "alias/help").await)
+                        .say(&ctx, lm.get(&user_data.language, "alias/help"))
                         .await;
                 }
             }
@@ -470,9 +475,8 @@ UPDATE command_aliases SET command = ? WHERE guild_id = (SELECT id FROM guilds W
                             .unwrap();
                     }
 
-                    let content = user_data
-                        .response(&pool, "alias/created")
-                        .await
+                    let content = lm
+                        .get(&user_data.language, "alias/created")
                         .replace("{name}", name);
 
                     let _ = msg.channel_id.say(&ctx, content).await;
@@ -495,7 +499,7 @@ SELECT command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHER
                         },
 
                         Err(_) => {
-                            let content = user_data.response(&pool, "alias/not_found").await.replace("{name}", name);
+                            let content = lm.get(&user_data.language, "alias/not_found").replace("{name}", name);
 
                             let _ = msg.channel_id.say(&ctx, content).await;
                         },
@@ -505,9 +509,8 @@ SELECT command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHER
         }
     } else {
         let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
-        let content = user_data
-            .response(&pool, "alias/help")
-            .await
+        let content = lm
+            .get(&user_data.language, "alias/help")
             .replace("{prefix}", &prefix);
 
         let _ = msg.channel_id.say(&ctx, content).await;

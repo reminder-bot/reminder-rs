@@ -18,6 +18,7 @@ use crate::{
 use sqlx::MySqlPool;
 use std::convert::TryFrom;
 
+use crate::language_manager::LanguageManager;
 use async_trait::async_trait;
 
 #[derive(Debug)]
@@ -235,13 +236,19 @@ DELETE FROM todos WHERE user_id = (SELECT id FROM users WHERE user = ?) AND guil
     }
 
     async fn execute(&self, ctx: &Context, msg: &Message, subcommand: SubCommand, extra: String) {
-        let pool = ctx
-            .data
-            .read()
-            .await
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
+        let pool;
+        let lm;
+
+        {
+            let data = ctx.data.read().await;
+
+            pool = data
+                .get::<SQLPool>()
+                .cloned()
+                .expect("Could not get SQLPool from data");
+
+            lm = data.get::<LanguageManager>().cloned().unwrap();
+        }
 
         let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
         let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
@@ -279,9 +286,8 @@ DELETE FROM todos WHERE user_id = (SELECT id FROM users WHERE user = ?) AND guil
             }
 
             SubCommand::Add => {
-                let content = user_data
-                    .response(&pool, "todo/added")
-                    .await
+                let content = lm
+                    .get(&user_data.language, "todo/added")
                     .replacen("{name}", &extra, 1);
 
                 self.add(extra, pool).await.unwrap();
@@ -290,35 +296,35 @@ DELETE FROM todos WHERE user_id = (SELECT id FROM users WHERE user = ?) AND guil
             }
 
             SubCommand::Remove => {
-                let _ = if let Ok(num) = extra.parse::<usize>() {
+                if let Ok(num) = extra.parse::<usize>() {
                     if let Ok(todo) = self.remove(num - 1, &pool).await {
-                        let content = user_data.response(&pool, "todo/removed").await.replacen(
+                        let content = lm.get(&user_data.language, "todo/removed").replacen(
                             "{}",
                             &todo.value,
                             1,
                         );
 
-                        msg.channel_id.say(&ctx, content)
+                        let _ = msg.channel_id.say(&ctx, content).await;
                     } else {
-                        msg.channel_id
-                            .say(&ctx, user_data.response(&pool, "todo/error_index").await)
+                        let _ = msg
+                            .channel_id
+                            .say(&ctx, lm.get(&user_data.language, "todo/error_index"))
+                            .await;
                     }
                 } else {
-                    let content = user_data
-                        .response(&pool, "todo/error_value")
-                        .await
+                    let content = lm
+                        .get(&user_data.language, "todo/error_value")
                         .replacen("{prefix}", &prefix, 1)
                         .replacen("{command}", &self.command(Some(subcommand)), 1);
 
-                    msg.channel_id.say(&ctx, content)
+                    let _ = msg.channel_id.say(&ctx, content).await;
                 }
-                .await;
             }
 
             SubCommand::Clear => {
                 self.clear(&pool).await.unwrap();
 
-                let content = user_data.response(&pool, "todo/cleared").await;
+                let content = lm.get(&user_data.language, "todo/cleared");
 
                 let _ = msg.channel_id.say(&ctx, content).await;
             }
@@ -435,20 +441,25 @@ async fn todo_guild(ctx: &Context, msg: &Message, args: String) {
 }
 
 async fn show_help(ctx: &Context, msg: &Message, target: Option<TodoTarget>) {
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
 
-    let content = user_data
-        .response(&pool, "todo/help")
-        .await
+    let content = lm
+        .get(&user_data.language, "todo/help")
         .replace("{prefix}", &prefix)
         .replace(
             "{command}",

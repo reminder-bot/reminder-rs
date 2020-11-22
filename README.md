@@ -16,7 +16,9 @@ Reminder Bot can be built by running `cargo build --release` in the top level di
 
 #### Compilation environment variables
 These environment variables must be provided when compiling the bot
+* `DATABASE_URL` - the URL of your MySQL database (`mysql://user[:password]@domain/database`)
 * `WEBHOOK_AVATAR` - accepts the name of an image file located in `$CARGO_MANIFEST_DIR/assets/` to be used as the avatar when creating webhooks. **IMPORTANT: image file must be 128x128 or smaller in size**
+* `STRINGS_FILE` - accepts the name of a compiled strings file located in `$CARGO_MANIFEST_DIR/assets/` to be used for creating messages. Compiled string files can be generated with `compile.py` at https://github.com/reminder-bot/languages
 
 ### Setting up Python
 Reminder Bot by default looks for a venv within it's working directory to run Python out of. To set up a venv, install `python3-venv` and run `python3 -m venv venv`. Then, run `source venv/bin/activate` to activate the venv, and do `pip install dateparser` to install the required library

@@ -1,12 +1,10 @@
-use std::collections::HashMap;
-
 use serde::Deserialize;
-use serde_json::from_reader;
+use serde_json::from_str;
 use serenity::prelude::TypeMapKey;
-use std::error::Error;
-use std::fs::File;
-use std::io::BufReader;
-use std::path::Path;
+
+use std::{collections::HashMap, error::Error, sync::Arc};
+
+use crate::consts::LOCAL_LANGUAGE;
 
 #[derive(Deserialize)]
 pub struct LanguageManager {
@@ -15,34 +13,41 @@ pub struct LanguageManager {
 }
 
 impl LanguageManager {
-    pub(crate) fn from_compiled<P>(path: P) -> Result<Self, Box<dyn Error + Send + Sync>>
-    where
-        P: AsRef<Path>,
-    {
-        let file = File::open(path)?;
-        let reader = BufReader::new(file);
-
-        let new: Self = from_reader(reader)?;
+    pub fn from_compiled(content: &'static str) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        let new: Self = from_str(content.as_ref())?;
 
         Ok(new)
     }
 
-    pub(crate) fn get(&self, language: &str, name: &'static str) -> &str {
+    pub fn get(&self, language: &str, name: &str) -> &str {
         self.strings
             .get(language)
             .map(|sm| sm.get(name))
             .expect(&format!(r#"Language does not exist: "{}""#, language))
-            .expect(&format!(r#"String does not exist: "{}""#, name))
+            .unwrap_or_else(|| {
+                self.strings
+                    .get(&*LOCAL_LANGUAGE)
+                    .map(|sm| {
+                        sm.get(name)
+                            .expect(&format!(r#"String does not exist: "{}""#, name))
+                    })
+                    .expect("LOCAL_LANGUAGE is not available")
+            })
     }
 
-    fn all_languages(&self) -> Vec<(&str, &str)> {
+    pub fn get_language(&self, language: &str) -> Option<&str> {
         self.languages
             .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect()
+            .filter(|(k, v)| k.to_lowercase() == language || v.to_lowercase() == language)
+            .map(|(k, _)| k.as_str())
+            .next()
+    }
+
+    pub fn all_languages(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.languages.iter().map(|(k, v)| (k.as_str(), v.as_str()))
     }
 }
 
 impl TypeMapKey for LanguageManager {
-    type Value = Self;
+    type Value = Arc<Self>;
 }

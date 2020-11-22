@@ -231,14 +231,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .await
         .unwrap();
 
-        let language_manager = LanguageManager::from_compiled("out.json")?;
+        let language_manager = LanguageManager::from_compiled(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/",
+            env!("STRINGS_FILE")
+        )))?;
 
         let mut data = client.data.write().await;
 
         data.insert::<SQLPool>(pool);
         data.insert::<ReqwestClient>(Arc::new(reqwest::Client::new()));
         data.insert::<FrameworkCtx>(framework_arc);
-        data.insert::<LanguageManager>(language_manager)
+        data.insert::<LanguageManager>(Arc::new(language_manager))
     }
 
     if let Ok((Some(lower), Some(upper))) = env::var("SHARD_RANGE").map(|sr| {

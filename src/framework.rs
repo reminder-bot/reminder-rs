@@ -20,6 +20,7 @@ use regex::{Match, Regex, RegexBuilder};
 
 use std::{collections::HashMap, fmt};
 
+use crate::language_manager::LanguageManager;
 use crate::models::{GuildData, UserData};
 use crate::{models::ChannelData, SQLPool};
 
@@ -354,16 +355,16 @@ impl Framework for RegexFramework {
         {
             if let Some(full_match) = self.command_matcher.captures(&msg.content) {
                 if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
-                    let pool = ctx
-                        .data
-                        .read()
-                        .await
+                    let data = ctx.data.read().await;
+
+                    let pool = data
                         .get::<SQLPool>()
                         .cloned()
                         .expect("Could not get SQLPool from data");
 
-                    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
-                    let guild_data = GuildData::from_guild(guild.clone(), &pool).await.unwrap();
+                    let lm = data.get::<LanguageManager>().unwrap();
+
+                    let language = UserData::language_of(&msg.author, &pool).await;
 
                     match check_self_permissions(&ctx, &guild, &channel).await {
                         Ok(perms) => match perms {
@@ -380,9 +381,6 @@ impl Framework for RegexFramework {
                                 .await
                                 .unwrap();
 
-                                // required due to a small bug resulting in some channels being detached from their guild ids
-                                channel_data.update_guild_id(guild_data.id, &pool).await;
-
                                 if !command.can_blacklist || !channel_data.blacklisted {
                                     let args = full_match
                                         .name("args")
@@ -398,29 +396,18 @@ impl Framework for RegexFramework {
                                     {
                                         let _ = msg
                                             .channel_id
-                                            .say(
-                                                &ctx,
-                                                user_data
-                                                    .response(&pool, "no_perms_restricted")
-                                                    .await,
-                                            )
+                                            .say(&ctx, lm.get(&language, "no_perms_restricted"))
                                             .await;
                                     } else if command.required_perms == PermissionLevel::Managed {
                                         let _ = msg
                                             .channel_id
                                             .say(
                                                 &ctx,
-                                                user_data
-                                                    .response(&pool, "no_perms_managed")
-                                                    .await
-                                                    .replace(
-                                                        "{prefix}",
-                                                        &GuildData::prefix_from_id(
-                                                            msg.guild_id,
-                                                            &pool,
-                                                        )
+                                                lm.get(&language, "no_perms_managed").replace(
+                                                    "{prefix}",
+                                                    &GuildData::prefix_from_id(msg.guild_id, &pool)
                                                         .await,
-                                                    ),
+                                                ),
                                             )
                                             .await;
                                     }
@@ -428,9 +415,8 @@ impl Framework for RegexFramework {
                             }
 
                             PermissionCheck::Basic(manage_webhooks, embed_links) => {
-                                let response = user_data
-                                    .response(&pool, "no_perms_general")
-                                    .await
+                                let response = lm
+                                    .get(&language, "no_perms_general")
                                     .replace(
                                         "{manage_webhooks}",
                                         if manage_webhooks { "✅" } else { "❌" },

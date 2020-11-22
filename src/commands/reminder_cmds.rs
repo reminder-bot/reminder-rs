@@ -50,6 +50,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use crate::language_manager::LanguageManager;
 use regex::RegexBuilder;
 
 fn shorthand_displacement(seconds: u64) -> String {
@@ -113,13 +114,19 @@ async fn create_webhook(
 #[supports_dm(false)]
 #[permission_level(Restricted)]
 async fn pause(ctx: &Context, msg: &Message, args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let mut channel = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool)
@@ -135,19 +142,16 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
         if channel.paused {
             let _ = msg
                 .channel_id
-                .say(
-                    &ctx,
-                    user_data.response(&pool, "pause/paused_indefinite").await,
-                )
+                .say(&ctx, lm.get(&user_data.language, "pause/paused_indefinite"))
                 .await;
         } else {
             let _ = msg
                 .channel_id
-                .say(&ctx, user_data.response(&pool, "pause/unpaused").await)
+                .say(&ctx, lm.get(&user_data.language, "pause/unpaused"))
                 .await;
         }
     } else {
-        let parser = TimeParser::new(args, user_data.timezone.parse().unwrap());
+        let parser = TimeParser::new(args, user_data.timezone());
         let pause_until = parser.timestamp();
 
         match pause_until {
@@ -159,17 +163,14 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
 
                 channel.commit_changes(&pool).await;
 
-                let content = user_data
-                    .response(&pool, "pause/paused_until")
-                    .await
-                    .replace(
-                        "{}",
-                        &user_data
-                            .timezone()
-                            .timestamp(timestamp, 0)
-                            .format("%Y-%m-%d %H:%M:%S")
-                            .to_string(),
-                    );
+                let content = lm.get(&user_data.language, "pause/paused_until").replace(
+                    "{}",
+                    &user_data
+                        .timezone()
+                        .timestamp(timestamp, 0)
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
+                );
 
                 let _ = msg.channel_id.say(&ctx, content).await;
             }
@@ -177,7 +178,7 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
             Err(_) => {
                 let _ = msg
                     .channel_id
-                    .say(&ctx, user_data.response(&pool, "pause/invalid_time").await)
+                    .say(&ctx, lm.get(&user_data.language, "pause/invalid_time"))
                     .await;
             }
         }
@@ -187,20 +188,26 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
 #[command]
 #[permission_level(Restricted)]
 async fn offset(ctx: &Context, msg: &Message, args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
     if args.is_empty() {
         let _ = msg
             .channel_id
-            .say(&ctx, user_data.response(&pool, "offset/help").await)
+            .say(&ctx, lm.get(&user_data.language, "offset/help"))
             .await;
     } else {
         let parser = TimeParser::new(args, user_data.timezone());
@@ -237,7 +244,7 @@ UPDATE reminders SET `time` = `time` + ? WHERE reminders.channel_id = ?
                 .unwrap();
             }
 
-            let response = user_data.response(&pool, "offset/success").await.replacen(
+            let response = lm.get(&user_data.language, "offset/success").replacen(
                 "{}",
                 &displacement.to_string(),
                 1,
@@ -247,7 +254,7 @@ UPDATE reminders SET `time` = `time` + ? WHERE reminders.channel_id = ?
         } else {
             let _ = msg
                 .channel_id
-                .say(&ctx, user_data.response(&pool, "offset/invalid_time").await)
+                .say(&ctx, lm.get(&user_data.language, "offset/invalid_time"))
                 .await;
         }
     }
@@ -256,13 +263,19 @@ UPDATE reminders SET `time` = `time` + ? WHERE reminders.channel_id = ?
 #[command]
 #[permission_level(Restricted)]
 async fn nudge(ctx: &Context, msg: &Message, args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let mut channel = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool)
@@ -270,9 +283,8 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) {
         .unwrap();
 
     if args.is_empty() {
-        let content = user_data
-            .response(&pool, "nudge/no_argument")
-            .await
+        let content = lm
+            .get(&user_data.language, "nudge/no_argument")
             .replace("{nudge}", &format!("{}s", &channel.nudge.to_string()));
 
         let _ = msg.channel_id.say(&ctx, content).await;
@@ -285,14 +297,14 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) {
                 if displacement < i16::MIN as i64 || displacement > i16::MAX as i64 {
                     let _ = msg
                         .channel_id
-                        .say(&ctx, user_data.response(&pool, "nudge/invalid_time").await)
+                        .say(&ctx, lm.get(&user_data.language, "nudge/invalid_time"))
                         .await;
                 } else {
                     channel.nudge = displacement as i16;
 
                     channel.commit_changes(&pool).await;
 
-                    let response = user_data.response(&pool, "nudge/success").await.replacen(
+                    let response = lm.get(&user_data.language, "nudge/success").replacen(
                         "{}",
                         &displacement.to_string(),
                         1,
@@ -305,7 +317,7 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) {
             Err(_) => {
                 let _ = msg
                     .channel_id
-                    .say(&ctx, user_data.response(&pool, "nudge/invalid_time").await)
+                    .say(&ctx, lm.get(&user_data.language, "nudge/invalid_time"))
                     .await;
             }
         }
@@ -399,13 +411,19 @@ impl LookReminder {
 #[command("look")]
 #[permission_level(Managed)]
 async fn look(ctx: &Context, msg: &Message, args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
@@ -531,10 +549,10 @@ LIMIT
     if reminders.is_empty() {
         let _ = msg
             .channel_id
-            .say(&ctx, user_data.response(&pool, "look/no_reminders").await)
+            .say(&ctx, lm.get(&user_data.language, "look/no_reminders"))
             .await;
     } else {
-        let inter = user_data.response(&pool, "look/inter").await;
+        let inter = lm.get(&user_data.language, "look/inter");
 
         let display = reminders.iter().map(|reminder| {
             let time_display = match flags.time_display {
@@ -568,19 +586,25 @@ LIMIT
 #[command("del")]
 #[permission_level(Managed)]
 async fn delete(ctx: &Context, msg: &Message, _args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
     let _ = msg
         .channel_id
-        .say(&ctx, user_data.response(&pool, "del/listing").await)
+        .say(&ctx, lm.get(&user_data.language, "del/listing"))
         .await;
 
     let reminders = if let Some(guild_id) = msg.guild_id.map(|f| f.as_u64().to_owned()) {
@@ -658,7 +682,7 @@ WHERE
     let _ = msg.channel_id.say_lines(&ctx, enumerated_reminders).await;
     let _ = msg
         .channel_id
-        .say(&ctx, user_data.response(&pool, "del/listed").await)
+        .say(&ctx, lm.get(&user_data.language, "del/listed"))
         .await;
 
     let reply = msg
@@ -721,7 +745,7 @@ INSERT INTO events (event_name, bulk_count, guild_id, user_id) VALUES ('delete',
                 .await;
             }
 
-            let content = user_data.response(&pool, "del/count").await.replacen(
+            let content = lm.get(&user_data.language, "del/count").replacen(
                 "{}",
                 &count_row.count.to_string(),
                 1,
@@ -729,9 +753,8 @@ INSERT INTO events (event_name, bulk_count, guild_id, user_id) VALUES ('delete',
 
             let _ = msg.channel_id.say(&ctx, content).await;
         } else {
-            let content = user_data
-                .response(&pool, "del/count")
-                .await
+            let content = lm
+                .get(&user_data.language, "del/count")
                 .replacen("{}", "0", 1);
 
             let _ = msg.channel_id.say(&ctx, content).await;
@@ -757,15 +780,21 @@ async fn timer(ctx: &Context, msg: &Message, args: String) {
         format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
     }
 
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
 
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
+
+    let language = UserData::language_of(&msg.author, &pool).await;
 
     let mut args_iter = args.splitn(2, ' ');
 
@@ -796,7 +825,7 @@ async fn timer(ctx: &Context, msg: &Message, args: String) {
             if count >= 25 {
                 let _ = msg
                     .channel_id
-                    .say(&ctx, user_data.response(&pool, "timer/limit").await)
+                    .say(&ctx, lm.get(&language, "timer/limit"))
                     .await;
             } else {
                 let name = args_iter
@@ -808,7 +837,7 @@ async fn timer(ctx: &Context, msg: &Message, args: String) {
 
                 let _ = msg
                     .channel_id
-                    .say(&ctx, user_data.response(&pool, "timer/success").await)
+                    .say(&ctx, lm.get(&language, "timer/success"))
                     .await;
             }
         }
@@ -839,18 +868,18 @@ DELETE FROM timers WHERE owner = ? AND name = ?
 
                     let _ = msg
                         .channel_id
-                        .say(&ctx, user_data.response(&pool, "timer/deleted").await)
+                        .say(&ctx, lm.get(&language, "timer/deleted"))
                         .await;
                 } else {
                     let _ = msg
                         .channel_id
-                        .say(&ctx, user_data.response(&pool, "timer/not_found").await)
+                        .say(&ctx, lm.get(&language, "timer/not_found"))
                         .await;
                 }
             } else {
                 let _ = msg
                     .channel_id
-                    .say(&ctx, user_data.response(&pool, "timer/help").await)
+                    .say(&ctx, lm.get(&language, "timer/help"))
                     .await;
             }
         }
@@ -858,7 +887,7 @@ DELETE FROM timers WHERE owner = ? AND name = ?
         _ => {
             let _ = msg
                 .channel_id
-                .say(&ctx, user_data.response(&pool, "timer/help").await)
+                .say(&ctx, lm.get(&language, "timer/help"))
                 .await;
         }
     }
@@ -1026,13 +1055,19 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
         }
     }
 
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
@@ -1092,9 +1127,8 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
         .flatten()
         .unwrap_or(0) as u64;
 
-    let str_response = user_data
-        .response(&pool, &response.to_response())
-        .await
+    let str_response = lm
+        .get(&user_data.language, &response.to_response())
         .replace(
             "{prefix}",
             &GuildData::prefix_from_id(msg.guild_id, &pool).await,
@@ -1110,13 +1144,19 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
 #[command("natural")]
 #[permission_level(Managed)]
 async fn natural(ctx: &Context, msg: &Message, args: String) {
-    let pool = ctx
-        .data
-        .read()
-        .await
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
 
     let now = SystemTime::now();
     let since_epoch = now
@@ -1125,9 +1165,9 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
-    let send_str = user_data.response(&pool, "natural/send").await;
-    let to_str = user_data.response(&pool, "natural/to").await;
-    let every_str = user_data.response(&pool, "natural/every").await;
+    let send_str = lm.get(&user_data.language, "natural/send");
+    let to_str = lm.get(&user_data.language, "natural/to");
+    let every_str = lm.get(&user_data.language, "natural/every");
 
     let mut args_iter = args.splitn(2, &send_str);
 
@@ -1241,9 +1281,8 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
 
                 let offset = timestamp as u64 - since_epoch.as_secs();
 
-                let str_response = user_data
-                    .response(&pool, &res.to_response_natural())
-                    .await
+                let str_response = lm
+                    .get(&user_data.language, &res.to_response_natural())
                     .replace(
                         "{prefix}",
                         &GuildData::prefix_from_id(msg.guild_id, &pool).await,
@@ -1275,9 +1314,8 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                     }
                 }
 
-                let content = user_data
-                    .response(&pool, "natural/bulk_set")
-                    .await
+                let content = lm
+                    .get(&user_data.language, "natural/bulk_set")
                     .replace("{}", &ok_count.to_string());
 
                 let _ = msg.channel_id.say(&ctx, content).await;
@@ -1291,9 +1329,8 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
     } else {
         let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
 
-        let resp = user_data
-            .response(&pool, "natural/no_argument")
-            .await
+        let resp = lm
+            .get(&user_data.language, "natural/no_argument")
             .replace("{prefix}", &prefix);
 
         let _ = msg
