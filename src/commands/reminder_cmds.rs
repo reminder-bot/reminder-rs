@@ -128,7 +128,9 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
         lm = data.get::<LanguageManager>().cloned().unwrap();
     }
 
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    let language = UserData::language_of(&msg.author, &pool).await;
+    let timezone = UserData::timezone_of(&msg.author, &pool).await;
+
     let mut channel = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool)
         .await
         .unwrap();
@@ -142,16 +144,16 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
         if channel.paused {
             let _ = msg
                 .channel_id
-                .say(&ctx, lm.get(&user_data.language, "pause/paused_indefinite"))
+                .say(&ctx, lm.get(&language, "pause/paused_indefinite"))
                 .await;
         } else {
             let _ = msg
                 .channel_id
-                .say(&ctx, lm.get(&user_data.language, "pause/unpaused"))
+                .say(&ctx, lm.get(&language, "pause/unpaused"))
                 .await;
         }
     } else {
-        let parser = TimeParser::new(args, user_data.timezone());
+        let parser = TimeParser::new(args, timezone);
         let pause_until = parser.timestamp();
 
         match pause_until {
@@ -163,10 +165,9 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
 
                 channel.commit_changes(&pool).await;
 
-                let content = lm.get(&user_data.language, "pause/paused_until").replace(
+                let content = lm.get(&language, "pause/paused_until").replace(
                     "{}",
-                    &user_data
-                        .timezone()
+                    &timezone
                         .timestamp(timestamp, 0)
                         .format("%Y-%m-%d %H:%M:%S")
                         .to_string(),
@@ -178,7 +179,7 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
             Err(_) => {
                 let _ = msg
                     .channel_id
-                    .say(&ctx, lm.get(&user_data.language, "pause/invalid_time"))
+                    .say(&ctx, lm.get(&language, "pause/invalid_time"))
                     .await;
             }
         }
@@ -277,19 +278,21 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) {
         lm = data.get::<LanguageManager>().cloned().unwrap();
     }
 
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    let language = UserData::language_of(&msg.author, &pool).await;
+    let timezone = UserData::timezone_of(&msg.author, &pool).await;
+
     let mut channel = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool)
         .await
         .unwrap();
 
     if args.is_empty() {
         let content = lm
-            .get(&user_data.language, "nudge/no_argument")
+            .get(&language, "nudge/no_argument")
             .replace("{nudge}", &format!("{}s", &channel.nudge.to_string()));
 
         let _ = msg.channel_id.say(&ctx, content).await;
     } else {
-        let parser = TimeParser::new(args, user_data.timezone.parse().unwrap());
+        let parser = TimeParser::new(args, timezone);
         let nudge_time = parser.displacement();
 
         match nudge_time {
@@ -297,14 +300,14 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) {
                 if displacement < i16::MIN as i64 || displacement > i16::MAX as i64 {
                     let _ = msg
                         .channel_id
-                        .say(&ctx, lm.get(&user_data.language, "nudge/invalid_time"))
+                        .say(&ctx, lm.get(&language, "nudge/invalid_time"))
                         .await;
                 } else {
                     channel.nudge = displacement as i16;
 
                     channel.commit_changes(&pool).await;
 
-                    let response = lm.get(&user_data.language, "nudge/success").replacen(
+                    let response = lm.get(&language, "nudge/success").replacen(
                         "{}",
                         &displacement.to_string(),
                         1,
@@ -317,7 +320,7 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) {
             Err(_) => {
                 let _ = msg
                     .channel_id
-                    .say(&ctx, lm.get(&user_data.language, "nudge/invalid_time"))
+                    .say(&ctx, lm.get(&language, "nudge/invalid_time"))
                     .await;
             }
         }
@@ -425,7 +428,8 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
         lm = data.get::<LanguageManager>().cloned().unwrap();
     }
 
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    let language = UserData::language_of(&msg.author, &pool).await;
+    let timezone = UserData::timezone_of(&msg.author, &pool).await;
 
     let flags = LookFlags::from_string(&args);
 
@@ -549,15 +553,14 @@ LIMIT
     if reminders.is_empty() {
         let _ = msg
             .channel_id
-            .say(&ctx, lm.get(&user_data.language, "look/no_reminders"))
+            .say(&ctx, lm.get(&language, "look/no_reminders"))
             .await;
     } else {
-        let inter = lm.get(&user_data.language, "look/inter");
+        let inter = lm.get(&language, "look/inter");
 
         let display = reminders.iter().map(|reminder| {
             let time_display = match flags.time_display {
-                TimeDisplayType::Absolute => user_data
-                    .timezone()
+                TimeDisplayType::Absolute => timezone
                     .timestamp(reminder.time as i64, 0)
                     .format("%Y-%m-%d %H:%M:%S")
                     .to_string(),
@@ -703,6 +706,7 @@ WHERE
             .filter_map(|i| {
                 i.parse::<usize>()
                     .ok()
+                    .filter(|val| val > &0)
                     .map(|val| reminder_ids.get(val - 1))
                     .flatten()
             })

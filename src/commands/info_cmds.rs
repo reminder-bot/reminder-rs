@@ -169,11 +169,13 @@ async fn clock(ctx: &Context, msg: &Message, args: String) {
         .expect("Could not get SQLPool from data");
 
     let lm = data.get::<LanguageManager>().unwrap();
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
-    let now = Utc::now().with_timezone(&user_data.timezone());
+    let language = UserData::language_of(&msg.author, &pool).await;
+    let timezone = UserData::timezone_of(&msg.author, &pool).await;
 
-    let clock_display = lm.get(&user_data.language, "clock/time");
+    let now = Utc::now().with_timezone(&timezone);
+
+    let clock_display = lm.get(&language, "clock/time");
 
     if args == "12" {
         let _ = msg

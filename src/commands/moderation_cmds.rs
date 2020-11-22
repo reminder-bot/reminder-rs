@@ -42,7 +42,7 @@ async fn blacklist(ctx: &Context, msg: &Message, args: String) {
         lm = data.get::<LanguageManager>().cloned().unwrap();
     }
 
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    let language = UserData::language_of(&msg.author, &pool).await;
 
     let capture_opt = REGEX_CHANNEL
         .captures(&args)
@@ -71,24 +71,24 @@ async fn blacklist(ctx: &Context, msg: &Message, args: String) {
         if local {
             let _ = msg
                 .channel_id
-                .say(&ctx, lm.get(&user_data.language, "blacklist/added"))
+                .say(&ctx, lm.get(&language, "blacklist/added"))
                 .await;
         } else {
             let _ = msg
                 .channel_id
-                .say(&ctx, lm.get(&user_data.language, "blacklist/added_from"))
+                .say(&ctx, lm.get(&language, "blacklist/added_from"))
                 .await;
         }
     } else {
         if local {
             let _ = msg
                 .channel_id
-                .say(&ctx, lm.get(&user_data.language, "blacklist/removed"))
+                .say(&ctx, lm.get(&language, "blacklist/removed"))
                 .await;
         } else {
             let _ = msg
                 .channel_id
-                .say(&ctx, lm.get(&user_data.language, "blacklist/removed_from"))
+                .say(&ctx, lm.get(&language, "blacklist/removed_from"))
                 .await;
         }
     }
@@ -215,27 +215,25 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) {
     let mut guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool)
         .await
         .unwrap();
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    let language = UserData::language_of(&msg.author, &pool).await;
 
     if args.len() > 5 {
         let _ = msg
             .channel_id
-            .say(&ctx, lm.get(&user_data.language, "prefix/too_long"))
+            .say(&ctx, lm.get(&language, "prefix/too_long"))
             .await;
     } else if args.is_empty() {
         let _ = msg
             .channel_id
-            .say(&ctx, lm.get(&user_data.language, "prefix/no_argument"))
+            .say(&ctx, lm.get(&language, "prefix/no_argument"))
             .await;
     } else {
         guild_data.prefix = args;
         guild_data.commit_changes(&pool).await;
 
-        let content = lm.get(&user_data.language, "prefix/success").replacen(
-            "{prefix}",
-            &guild_data.prefix,
-            1,
-        );
+        let content =
+            lm.get(&language, "prefix/success")
+                .replacen("{prefix}", &guild_data.prefix, 1);
 
         let _ = msg.channel_id.say(&ctx, content).await;
     }
@@ -259,7 +257,7 @@ async fn restrict(ctx: &Context, msg: &Message, args: String) {
         lm = data.get::<LanguageManager>().cloned().unwrap();
     }
 
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    let language = UserData::language_of(&msg.author, &pool).await;
     let guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool)
         .await
         .unwrap();
@@ -292,7 +290,7 @@ DELETE FROM command_restrictions WHERE role_id = (SELECT id FROM roles WHERE rol
             if commands.is_empty() {
                 let _ = msg
                     .channel_id
-                    .say(&ctx, lm.get(&user_data.language, "restrict/disabled"))
+                    .say(&ctx, lm.get(&language, "restrict/disabled"))
                     .await;
             } else {
                 let _ = sqlx::query!(
@@ -317,7 +315,7 @@ INSERT INTO command_restrictions (role_id, command) VALUES ((SELECT id FROM role
                     if res.is_err() {
                         println!("{:?}", res);
 
-                        let content = lm.get(&user_data.language, "restrict/failure").replacen(
+                        let content = lm.get(&language, "restrict/failure").replacen(
                             "{command}",
                             &command,
                             1,
@@ -329,7 +327,7 @@ INSERT INTO command_restrictions (role_id, command) VALUES ((SELECT id FROM role
 
                 let _ = msg
                     .channel_id
-                    .say(&ctx, lm.get(&user_data.language, "restrict/enabled"))
+                    .say(&ctx, lm.get(&language, "restrict/enabled"))
                     .await;
             }
         }
@@ -360,15 +358,15 @@ WHERE
             .map(|row| format!("<@&{}> can use {}", row.role, row.command))
             .collect::<Vec<String>>()
             .join("\n");
-        let display =
-            lm.get(&user_data.language, "restrict/allowed")
-                .replacen("{}", &display_inner, 1);
+        let display = lm
+            .get(&language, "restrict/allowed")
+            .replacen("{}", &display_inner, 1);
 
         let _ = msg.channel_id.say(&ctx, display).await;
     } else {
         let _ = msg
             .channel_id
-            .say(&ctx, lm.get(&user_data.language, "restrict/help"))
+            .say(&ctx, lm.get(&language, "restrict/help"))
             .await;
     }
 }
@@ -391,7 +389,7 @@ async fn alias(ctx: &Context, msg: &Message, args: String) {
         lm = data.get::<LanguageManager>().cloned().unwrap();
     }
 
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    let language = UserData::language_of(&msg.author, &pool).await;
 
     let guild_id = msg.guild_id.unwrap().as_u64().to_owned();
 
@@ -444,14 +442,14 @@ DELETE FROM command_aliases WHERE name = ? AND guild_id = (SELECT id FROM guilds
                     .unwrap();
 
                     let content = lm
-                        .get(&user_data.language, "alias/removed")
+                        .get(&language, "alias/removed")
                         .replace("{count}", &deleted_count.count.to_string());
 
                     let _ = msg.channel_id.say(&ctx, content).await;
                 } else {
                     let _ = msg
                         .channel_id
-                        .say(&ctx, lm.get(&user_data.language, "alias/help"))
+                        .say(&ctx, lm.get(&language, "alias/help"))
                         .await;
                 }
             }
@@ -475,9 +473,7 @@ UPDATE command_aliases SET command = ? WHERE guild_id = (SELECT id FROM guilds W
                             .unwrap();
                     }
 
-                    let content = lm
-                        .get(&user_data.language, "alias/created")
-                        .replace("{name}", name);
+                    let content = lm.get(&language, "alias/created").replace("{name}", name);
 
                     let _ = msg.channel_id.say(&ctx, content).await;
                 } else {
@@ -499,7 +495,7 @@ SELECT command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHER
                         },
 
                         Err(_) => {
-                            let content = lm.get(&user_data.language, "alias/not_found").replace("{name}", name);
+                            let content = lm.get(&language, "alias/not_found").replace("{name}", name);
 
                             let _ = msg.channel_id.say(&ctx, content).await;
                         },
@@ -509,9 +505,7 @@ SELECT command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHER
         }
     } else {
         let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
-        let content = lm
-            .get(&user_data.language, "alias/help")
-            .replace("{prefix}", &prefix);
+        let content = lm.get(&language, "alias/help").replace("{prefix}", &prefix);
 
         let _ = msg.channel_id.say(&ctx, content).await;
     }

@@ -36,9 +36,13 @@ impl LanguageManager {
     }
 
     pub fn get_language(&self, language: &str) -> Option<&str> {
+        let language_normal = language.to_lowercase();
+
         self.languages
             .iter()
-            .filter(|(k, v)| k.to_lowercase() == language || v.to_lowercase() == language)
+            .filter(|(k, v)| {
+                k.to_lowercase() == language_normal || v.to_lowercase() == language_normal
+            })
             .map(|(k, _)| k.as_str())
             .next()
     }

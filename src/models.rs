@@ -1,6 +1,11 @@
 use serenity::{
     http::CacheHttp,
-    model::{channel::Channel, guild::Guild, id::GuildId, user::User},
+    model::{
+        channel::Channel,
+        guild::Guild,
+        id::{GuildId, UserId},
+        user::User,
+    },
 };
 
 use sqlx::MySqlPool;
@@ -178,23 +183,48 @@ pub struct UserData {
 }
 
 impl UserData {
-    pub async fn language_of(user: &User, pool: &MySqlPool) -> String {
-        let user_id = user.id.as_u64().to_owned();
+    pub async fn language_of<U>(user: U, pool: &MySqlPool) -> String
+    where
+        U: Into<UserId>,
+    {
+        let user_id = user.into().as_u64().to_owned();
 
         match sqlx::query!(
             "
-SELECT IF(language IS NULL, ?, language) AS language FROM users WHERE user = ?
+SELECT language FROM users WHERE user = ?
             ",
-            *LOCAL_LANGUAGE,
             user_id
         )
         .fetch_one(pool)
         .await
         {
-            Ok(r) => r.language.unwrap(),
+            Ok(r) => r.language,
 
             Err(_) => LOCAL_LANGUAGE.clone(),
         }
+    }
+
+    pub async fn timezone_of<U>(user: U, pool: &MySqlPool) -> Tz
+    where
+        U: Into<UserId>,
+    {
+        let user_id = user.into().as_u64().to_owned();
+
+        match sqlx::query!(
+            "
+SELECT timezone FROM users WHERE user = ?
+            ",
+            user_id
+        )
+        .fetch_one(pool)
+        .await
+        {
+            Ok(r) => r.timezone,
+
+            Err(_) => LOCAL_TIMEZONE.clone(),
+        }
+        .parse()
+        .unwrap()
     }
 
     pub async fn from_user(
