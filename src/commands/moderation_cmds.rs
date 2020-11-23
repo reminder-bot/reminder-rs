@@ -132,7 +132,22 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
                     .replacen("{timezone}", &user_data.timezone, 1)
                     .replacen("{time}", &now.format("%H:%M").to_string(), 1);
 
-                let _ = msg.channel_id.say(&ctx, content).await;
+                let _ =
+                    msg.channel_id
+                        .send_message(&ctx, |m| {
+                            m.embed(|e| {
+                                e.title(lm.get(&user_data.language, "timezone/set_p_title"))
+                                    .description(content)
+                                    .color(*THEME_COLOR)
+                                    .footer(|f| {
+                                        f.text(
+                                            lm.get(&user_data.language, "timezone/footer")
+                                                .replacen("{timezone}", &user_data.timezone, 1),
+                                        )
+                                    })
+                            })
+                        })
+                        .await;
             }
 
             Err(_) => {
