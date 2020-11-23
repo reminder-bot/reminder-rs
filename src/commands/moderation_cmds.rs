@@ -297,6 +297,14 @@ async fn language(ctx: &Context, msg: &Message, args: String) {
             .all_languages()
             .map(|(k, _)| ReactionType::Unicode(lm.get(k, "flag").to_string()));
 
+        let can_react = if let Some(guild) = msg.guild(&ctx).await {
+            guild
+                .user_permissions_in(msg.channel_id, ctx.cache.current_user().await)
+                .add_reactions()
+        } else {
+            true
+        };
+
         let reactor = msg
             .channel_id
             .send_message(&ctx, |m| {
@@ -305,8 +313,13 @@ async fn language(ctx: &Context, msg: &Message, args: String) {
                         .color(*THEME_COLOR)
                         .description(lm.get(&user_data.language, "lang/select"))
                         .fields(language_codes)
-                })
-                .reactions(flags)
+                });
+
+                if can_react {
+                    m.reactions(flags);
+                }
+
+                m
             })
             .await;
 
@@ -339,7 +352,14 @@ async fn language(ctx: &Context, msg: &Message, args: String) {
                 }
             }
 
-            let _ = sent_msg.delete_reactions(&ctx).await;
+            if let Some(guild) = msg.guild(&ctx).await {
+                let perms =
+                    guild.user_permissions_in(msg.channel_id, ctx.cache.current_user().await);
+
+                if perms.manage_messages() {
+                    let _ = sent_msg.delete_reactions(&ctx).await;
+                }
+            }
         }
     }
 }
