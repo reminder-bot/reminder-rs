@@ -217,7 +217,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .intents(
             GatewayIntents::GUILD_MESSAGES
                 | GatewayIntents::GUILDS
-                | GatewayIntents::DIRECT_MESSAGES,
+                | GatewayIntents::GUILD_MESSAGE_REACTIONS
+                | GatewayIntents::DIRECT_MESSAGES
+                | GatewayIntents::DIRECT_MESSAGE_REACTIONS,
         )
         .event_handler(Handler)
         .framework_arc(framework_arc.clone())

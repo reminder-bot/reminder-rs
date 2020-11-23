@@ -47,6 +47,14 @@ impl LanguageManager {
             .next()
     }
 
+    pub fn get_language_by_flag(&self, flag: &str) -> Option<&str> {
+        self.languages
+            .iter()
+            .filter(|(k, _)| self.get(k, "flag") == flag)
+            .map(|(k, _)| k.as_str())
+            .next()
+    }
+
     pub fn all_languages(&self) -> impl Iterator<Item = (&str, &str)> {
         self.languages.iter().map(|(k, v)| (k.as_str(), v.as_str()))
     }

@@ -3,7 +3,7 @@ use regex_command_attr::command;
 use serenity::{
     client::Context,
     framework::Framework,
-    model::{channel::Message, id::ChannelId, id::RoleId},
+    model::{channel::Message, channel::ReactionType, id::ChannelId, id::RoleId},
 };
 
 use chrono_tz::{Tz, TZ_VARIANTS};
@@ -22,7 +22,7 @@ use crate::{
     FrameworkCtx, SQLPool,
 };
 
-use std::iter;
+use std::{iter, time::Duration};
 
 #[command]
 #[supports_dm(false)]
@@ -205,7 +205,7 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
                         .format("%H:%M")
                         .to_string()
                 ),
-                false,
+                true,
             )
         });
 
@@ -243,30 +243,103 @@ async fn language(ctx: &Context, msg: &Message, args: String) {
 
     let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
-    match lm.get_language(&args) {
-        Some(row) => {
-            user_data.language = row.to_string();
+    if !args.is_empty() {
+        match lm.get_language(&args) {
+            Some(lang) => {
+                user_data.language = lang.to_string();
 
-            user_data.commit_changes(&pool).await;
+                user_data.commit_changes(&pool).await;
 
-            let _ = msg
-                .channel_id
-                .say(&ctx, lm.get(&user_data.language, "lang/set_p"))
-                .await;
+                let _ = msg
+                    .channel_id
+                    .send_message(&ctx, |m| {
+                        m.embed(|e| {
+                            e.title(lm.get(&user_data.language, "lang/set_p_title"))
+                                .color(*THEME_COLOR)
+                                .description(lm.get(&user_data.language, "lang/set_p"))
+                        })
+                    })
+                    .await;
+            }
+
+            None => {
+                let language_codes = lm.all_languages().map(|(k, v)| {
+                    (
+                        format!("{} {}", lm.get(k, "flag"), v.to_title_case()),
+                        format!("`$lang {}`", k.to_uppercase()),
+                        true,
+                    )
+                });
+
+                let _ = msg
+                    .channel_id
+                    .send_message(&ctx, |m| {
+                        m.embed(|e| {
+                            e.title(lm.get(&user_data.language, "lang/invalid_title"))
+                                .color(*THEME_COLOR)
+                                .description(lm.get(&user_data.language, "lang/invalid"))
+                                .fields(language_codes)
+                        })
+                    })
+                    .await;
+            }
         }
+    } else {
+        let language_codes = lm.all_languages().map(|(k, v)| {
+            (
+                format!("{} {}", lm.get(k, "flag"), v.to_title_case()),
+                format!("`$lang {}`", k.to_uppercase()),
+                true,
+            )
+        });
 
-        None => {
-            let language_codes = lm
-                .all_languages()
-                .map(|(k, v)| format!("{} ({})", v.to_title_case(), k.to_uppercase()))
-                .collect::<Vec<String>>()
-                .join("\n");
+        let flags = lm
+            .all_languages()
+            .map(|(k, _)| ReactionType::Unicode(lm.get(k, "flag").to_string()));
 
-            let content =
-                lm.get(&user_data.language, "lang/invalid")
-                    .replacen("{}", &language_codes, 1);
+        let reactor = msg
+            .channel_id
+            .send_message(&ctx, |m| {
+                m.embed(|e| {
+                    e.title(lm.get(&user_data.language, "lang/select_title"))
+                        .color(*THEME_COLOR)
+                        .description(lm.get(&user_data.language, "lang/select"))
+                        .fields(language_codes)
+                })
+                .reactions(flags)
+            })
+            .await;
 
-            let _ = msg.channel_id.say(&ctx, content).await;
+        if let Ok(sent_msg) = reactor {
+            let reaction_reply = sent_msg
+                .await_reaction(&ctx)
+                .timeout(Duration::from_secs(45))
+                .await;
+
+            if let Some(reaction_action) = reaction_reply {
+                if reaction_action.is_added() {
+                    if let ReactionType::Unicode(emoji) = &reaction_action.as_inner_ref().emoji {
+                        if let Some(lang) = lm.get_language_by_flag(emoji) {
+                            user_data.language = lang.to_string();
+
+                            user_data.commit_changes(&pool).await;
+
+                            let _ = msg
+                                .channel_id
+                                .send_message(&ctx, |m| {
+                                    m.embed(|e| {
+                                        e.title(lm.get(&user_data.language, "lang/set_p_title"))
+                                            .color(*THEME_COLOR)
+                                            .description(lm.get(&user_data.language, "lang/set_p"))
+                                    })
+                                })
+                                .await;
+                        }
+                    }
+                }
+            }
+
+            let _ = sent_msg.delete_reactions(&ctx).await;
         }
     }
 }
