@@ -1,5 +1,3 @@
-use custom_error::custom_error;
-
 use regex_command_attr::command;
 
 use serenity::{
@@ -22,9 +20,10 @@ use crate::{
     consts::{
         CHARACTERS, DAY, HOUR, LOCAL_TIMEZONE, MAX_TIME, MINUTE, MIN_INTERVAL, PYTHON_LOCATION,
         REGEX_CHANNEL, REGEX_CHANNEL_USER, REGEX_CONTENT_SUBSTITUTION, REGEX_INTERVAL_COMMAND,
-        REGEX_REMIND_COMMAND,
+        REGEX_REMIND_COMMAND, THEME_COLOR,
     },
     framework::SendIterator,
+    language_manager::LanguageManager,
     models::{ChannelData, GuildData, Timer, UserData},
     time_parser::TimeParser,
     SQLPool,
@@ -41,6 +40,7 @@ use std::str::from_utf8;
 use num_integer::Integer;
 
 use std::{
+    collections::HashSet,
     convert::TryInto,
     default::Default,
     fmt::Display,
@@ -48,7 +48,6 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::language_manager::LanguageManager;
 use regex::RegexBuilder;
 
 fn shorthand_displacement(seconds: u64) -> String {
@@ -919,26 +918,35 @@ impl Mentionable for ReminderScope {
     }
 }
 
-custom_error! {ReminderError
-    LongTime = "Time too long",
-    LongInterval = "Interval too long",
-    PastTime = "Time has already passed",
-    ShortInterval = "Interval too short",
-    InvalidTag = "Invalid reminder scope",
-    NotEnoughArgs = "Not enough args",
-    InvalidTime = "Invalid time provided",
-    NeedSubscription = "Subscription required and not found",
-    DiscordError = "Bad response received from Discord"
+#[derive(PartialEq, Eq, Hash, Debug)]
+enum ReminderError {
+    LongTime,
+    LongInterval,
+    PastTime,
+    ShortInterval,
+    InvalidTag,
+    NotEnoughArgs,
+    InvalidTime,
+    NeedSubscription,
+    DiscordError,
 }
 
-trait ToResponse {
-    fn to_response(&self) -> String;
+impl std::fmt::Display for ReminderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_response())
+    }
+}
 
-    fn to_response_natural(&self) -> String;
+impl std::error::Error for ReminderError {}
+
+trait ToResponse {
+    fn to_response(&self) -> &'static str;
+
+    fn to_response_natural(&self) -> &'static str;
 }
 
 impl ToResponse for ReminderError {
-    fn to_response(&self) -> String {
+    fn to_response(&self) -> &'static str {
         match self {
             Self::LongTime => "remind/long_time",
             Self::LongInterval => "interval/long_interval",
@@ -950,30 +958,29 @@ impl ToResponse for ReminderError {
             Self::NeedSubscription => "interval/donor",
             Self::DiscordError => "remind/no_webhook",
         }
-        .to_string()
     }
 
-    fn to_response_natural(&self) -> String {
+    fn to_response_natural(&self) -> &'static str {
         match self {
-            Self::LongTime => "natural/long_time".to_string(),
-            Self::InvalidTime => "natural/invalid_time".to_string(),
+            Self::LongTime => "natural/long_time",
+            Self::InvalidTime => "natural/invalid_time",
             _ => self.to_response(),
         }
     }
 }
 
 impl<T> ToResponse for Result<T, ReminderError> {
-    fn to_response(&self) -> String {
+    fn to_response(&self) -> &'static str {
         match self {
-            Ok(_) => "remind/success".to_string(),
+            Ok(_) => "remind/success",
 
             Err(reminder_error) => reminder_error.to_response(),
         }
     }
 
-    fn to_response_natural(&self) -> String {
+    fn to_response_natural(&self) -> &'static str {
         match self {
-            Ok(_) => "remind/success".to_string(),
+            Ok(_) => "remind/success",
 
             Err(reminder_error) => reminder_error.to_response_natural(),
         }
@@ -1053,10 +1060,12 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
 
     match captures {
         Some(captures) => {
-            let scopes = if let Some(mentions) = captures.name("mentions") {
-                parse_mention_list(mentions.as_str())
-            } else {
+            let parsed = parse_mention_list(captures.name("mentions").unwrap().as_str());
+
+            let scopes = if parsed.len() == 0 {
                 vec![ReminderScope::Channel(msg.channel_id.into())]
+            } else {
+                parsed
             };
 
             let time_parser = TimeParser::new(
@@ -1072,8 +1081,12 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
 
             let content = captures.name("content").map(|mat| mat.as_str()).unwrap();
 
+            let mut ok_locations = vec![];
+            let mut err_locations = vec![];
+            let mut err_types = HashSet::new();
+
             for scope in scopes {
-                create_reminder(
+                let res = create_reminder(
                     &ctx,
                     &pool,
                     msg.author.id,
@@ -1084,13 +1097,86 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                     content,
                 )
                 .await;
+
+                if let Err(e) = res {
+                    err_locations.push(scope);
+                    err_types.insert(e);
+                } else {
+                    ok_locations.push(scope);
+                }
             }
+
+            let success_part = match ok_locations.len() {
+                0 => "".to_string(),
+                1 => lm
+                    .get(&user_data.language, "remind/success")
+                    .replace("{location}", &ok_locations[0].mention())
+                    .replace(
+                        "{offset}",
+                        &shorthand_displacement(time_parser.displacement().unwrap() as u64),
+                    ),
+                n => lm
+                    .get(&user_data.language, "remind/success_bulk")
+                    .replace("{number}", &n.to_string())
+                    .replace(
+                        "{location}",
+                        &ok_locations
+                            .iter()
+                            .map(|l| l.mention())
+                            .collect::<Vec<String>>()
+                            .join(", "),
+                    )
+                    .replace(
+                        "{offset}",
+                        &shorthand_displacement(time_parser.displacement().unwrap() as u64),
+                    ),
+            };
+
+            let error_part = format!(
+                "{}\n{}",
+                match err_locations.len() {
+                    0 => "".to_string(),
+                    1 => lm
+                        .get(&user_data.language, "remind/issue")
+                        .replace("{location}", &err_locations[0].mention()),
+                    n => lm
+                        .get(&user_data.language, "remind/issue_bulk")
+                        .replace("{number}", &n.to_string())
+                        .replace(
+                            "{location}",
+                            &err_locations
+                                .iter()
+                                .map(|l| l.mention())
+                                .collect::<Vec<String>>()
+                                .join(", "),
+                        ),
+                },
+                err_types
+                    .iter()
+                    .map(|err| lm.get(&user_data.language, err.to_response()))
+                    .collect::<Vec<&str>>()
+                    .join("\n")
+            );
+
+            let _ = msg
+                .channel_id
+                .send_message(&ctx, |m| {
+                    m.embed(|e| {
+                        e.title(
+                            lm.get(&user_data.language, "remind/title")
+                                .replace("{number}", &ok_locations.len().to_string()),
+                        )
+                        .description(format!("{}\n\n{}", success_part, error_part))
+                        .color(*THEME_COLOR)
+                    })
+                })
+                .await;
         }
 
         None => {
             let _ = msg
                 .channel_id
-                .say(&ctx, lm.get(&user_data.language, "remind/invalid"))
+                .say(&ctx, lm.get(&user_data.language, "remind/no_argument"))
                 .await;
         }
     }
