@@ -11,6 +11,27 @@ use std::{collections::HashSet, env, iter::FromIterator};
 use regex::Regex;
 
 lazy_static! {
+    pub static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
+
+    pub static ref REGEX_ROLE: Regex = Regex::new(r#"<@&(\d+)>"#).unwrap();
+
+    pub static ref REGEX_COMMANDS: Regex = Regex::new(r#"([a-z]+)"#).unwrap();
+
+    pub static ref REGEX_ALIAS: Regex =
+        Regex::new(r#"(?P<name>[\S]{1,12})(?:(?: (?P<cmd>.*)$)|$)"#).unwrap();
+
+    pub static ref REGEX_CONTENT_SUBSTITUTION: Regex = Regex::new(r#"<<(\d+)>>"#).unwrap();
+
+    pub static ref REGEX_CHANNEL_USER: Regex = Regex::new(r#"\s*<(#|@)(?:!)?(\d+)>\s*"#).unwrap();
+
+    pub static ref REGEX_REMIND_COMMAND: Regex = Regex::new(
+    r#"(?P<mentions>(?:<@\d+>\s|<@!\d+>\s|<#\d+>\s)*)(?P<time>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+|()) (?P<content>.*)"#)
+            .unwrap();
+
+    pub static ref REGEX_INTERVAL_COMMAND: Regex = Regex::new(
+    r#"(?P<mentions>(?:<@\d+>\s|<@!\d+>\s|<#\d+>\s)*)(?P<time>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+) (?P<interval>(?:(?:\d+)(?:s|m|h|d|))+) (?P<content>.*)"#)
+            .unwrap();
+
     pub static ref SUBSCRIPTION_ROLES: HashSet<u64> = HashSet::from_iter(
         env::var("SUBSCRIPTION_ROLES")
             .map(|var| var
@@ -23,31 +44,31 @@ lazy_static! {
         .map(|var| var.parse::<u64>().ok())
         .ok()
         .flatten();
-    pub static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
-    pub static ref REGEX_ROLE: Regex = Regex::new(r#"<@&([0-9]+)>"#).unwrap();
-    pub static ref REGEX_COMMANDS: Regex = Regex::new(r#"([a-z]+)"#).unwrap();
-    pub static ref REGEX_ALIAS: Regex =
-        Regex::new(r#"(?P<name>[\S]{1,12})(?:(?: (?P<cmd>.*)$)|$)"#).unwrap();
-    pub static ref REGEX_CONTENT_SUBSTITUTION: Regex = Regex::new(r#"<<(\d+)>>"#).unwrap();
-    pub static ref REGEX_CHANNEL_USER: Regex = Regex::new(r#"\s*<(#|@)(?:!)?(\d+)>\s*"#).unwrap();
+
     pub static ref MIN_INTERVAL: i64 = env::var("MIN_INTERVAL")
         .ok()
         .map(|inner| inner.parse::<i64>().ok())
         .flatten()
         .unwrap_or(600);
+
     pub static ref MAX_TIME: i64 = env::var("MAX_TIME")
         .ok()
         .map(|inner| inner.parse::<i64>().ok())
         .flatten()
         .unwrap_or(60 * 60 * 24 * 365 * 50);
+
     pub static ref LOCAL_TIMEZONE: String =
         env::var("LOCAL_TIMEZONE").unwrap_or_else(|_| "UTC".to_string());
+
     pub static ref LOCAL_LANGUAGE: String =
         env::var("LOCAL_LANGUAGE").unwrap_or_else(|_| "EN".to_string());
+
     pub static ref PYTHON_LOCATION: String =
         env::var("PYTHON_LOCATION").unwrap_or_else(|_| "venv/bin/python3".to_string());
+
     pub static ref DEFAULT_PREFIX: String =
         env::var("DEFAULT_PREFIX").unwrap_or_else(|_| "$".to_string());
+
     pub static ref THEME_COLOR: u32 = env::var("THEME_COLOR").map_or(
         THEME_COLOR_FALLBACK,
         |inner| u32::from_str_radix(&inner, 16).unwrap_or(THEME_COLOR_FALLBACK)

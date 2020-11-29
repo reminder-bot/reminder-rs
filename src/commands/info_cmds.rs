@@ -49,7 +49,7 @@ async fn help(ctx: &Context, msg: &Message, _args: String) {
         .channel_id
         .send_message(ctx, |m| {
             m.embed(move |e| {
-                e.title("Help")
+                e.title("Help Menu")
                     .description(desc)
                     .footer(|f| {
                         f.text(concat!(

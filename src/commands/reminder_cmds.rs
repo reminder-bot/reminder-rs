@@ -3,7 +3,6 @@ use custom_error::custom_error;
 use regex_command_attr::command;
 
 use serenity::{
-    cache::Cache,
     client::Context,
     http::CacheHttp,
     model::{
@@ -22,7 +21,8 @@ use crate::{
     check_subscription_on_message,
     consts::{
         CHARACTERS, DAY, HOUR, LOCAL_TIMEZONE, MAX_TIME, MINUTE, MIN_INTERVAL, PYTHON_LOCATION,
-        REGEX_CHANNEL, REGEX_CHANNEL_USER, REGEX_CONTENT_SUBSTITUTION,
+        REGEX_CHANNEL, REGEX_CHANNEL_USER, REGEX_CONTENT_SUBSTITUTION, REGEX_INTERVAL_COMMAND,
+        REGEX_REMIND_COMMAND,
     },
     framework::SendIterator,
     models::{ChannelData, GuildData, Timer, UserData},
@@ -31,8 +31,6 @@ use crate::{
 };
 
 use chrono::{offset::TimeZone, NaiveDateTime};
-
-use chrono_tz::Etc::UTC;
 
 use rand::{rngs::OsRng, seq::IteratorRandom};
 
@@ -153,7 +151,7 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
                 .await;
         }
     } else {
-        let parser = TimeParser::new(args, timezone);
+        let parser = TimeParser::new(&args, timezone);
         let pause_until = parser.timestamp();
 
         match pause_until {
@@ -211,7 +209,7 @@ async fn offset(ctx: &Context, msg: &Message, args: String) {
             .say(&ctx, lm.get(&user_data.language, "offset/help"))
             .await;
     } else {
-        let parser = TimeParser::new(args, user_data.timezone());
+        let parser = TimeParser::new(&args, user_data.timezone());
 
         if let Ok(displacement) = parser.displacement() {
             if let Some(guild) = msg.guild(&ctx).await {
@@ -292,7 +290,7 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) {
 
         let _ = msg.channel_id.say(&ctx, content).await;
     } else {
-        let parser = TimeParser::new(args, timezone);
+        let parser = TimeParser::new(&args, timezone);
         let nudge_time = parser.displacement();
 
         match nudge_time {
@@ -811,16 +809,20 @@ async fn timer(ctx: &Context, msg: &Message, args: String) {
         Some("list") => {
             let timers = Timer::from_owner(owner, &pool).await;
 
-            let _ =
-                msg.channel_id
-                    .send_message(&ctx, |m| {
-                        m.embed(|e| {
-                            e.fields(timers.iter().map(|timer| {
-                                (&timer.name, time_difference(timer.start_time), false)
-                            }))
-                        })
+            let _ = msg
+                .channel_id
+                .send_message(&ctx, |m| {
+                    m.embed(|e| {
+                        e.fields(timers.iter().map(|timer| {
+                            (
+                                &timer.name,
+                                format!("⏳ `{}`", time_difference(timer.start_time)),
+                                false,
+                            )
+                        }))
                     })
-                    .await;
+                })
+                .await;
         }
 
         Some("start") => {
@@ -1003,60 +1005,28 @@ async fn remind(ctx: &Context, msg: &Message, args: String) {
 #[command("interval")]
 #[permission_level(Managed)]
 async fn interval(ctx: &Context, msg: &Message, args: String) {
-    remind_command(ctx, msg, args, RemindCommand::Interval).await;
+    if check_subscription_on_message(&ctx, msg).await {
+        remind_command(ctx, msg, args, RemindCommand::Interval).await;
+    } else {
+        let _ = msg.channel_id.say(&ctx, "interval/donor").await;
+    }
 }
 
 async fn remind_command(ctx: &Context, msg: &Message, args: String, command: RemindCommand) {
-    async fn check_interval(
-        ctx: impl CacheHttp + AsRef<Cache>,
-        msg: &Message,
-        mut args_iter: impl Iterator<Item = &str>,
-        scope_id: &ReminderScope,
-        time_parser: &TimeParser,
-        command: RemindCommand,
-        pool: &MySqlPool,
-    ) -> Result<(), ReminderError> {
-        if command == RemindCommand::Interval && check_subscription_on_message(&ctx, &msg).await {
-            if let Some(interval_arg) = args_iter.next() {
-                let interval = TimeParser::new(interval_arg.to_string(), UTC);
+    fn parse_mention_list(mentions: &str) -> Vec<ReminderScope> {
+        REGEX_CHANNEL_USER
+            .captures_iter(mentions)
+            .map(|i| {
+                let pref = i.get(1).unwrap().as_str();
+                let id = i.get(2).unwrap().as_str().parse::<u64>().unwrap();
 
-                if let Ok(interval_seconds) = interval.displacement() {
-                    let content = args_iter.collect::<Vec<&str>>().join(" ");
-
-                    create_reminder(
-                        ctx,
-                        pool,
-                        msg.author.id.as_u64().to_owned(),
-                        msg.guild_id,
-                        scope_id,
-                        time_parser,
-                        Some(interval_seconds),
-                        content,
-                    )
-                    .await
+                if pref == "#" {
+                    ReminderScope::Channel(id)
                 } else {
-                    Err(ReminderError::InvalidTime)
+                    ReminderScope::User(id)
                 }
-            } else {
-                Err(ReminderError::NotEnoughArgs)
-            }
-        } else if command == RemindCommand::Interval {
-            Err(ReminderError::NeedSubscription)
-        } else {
-            let content = args_iter.collect::<Vec<&str>>().join(" ");
-
-            create_reminder(
-                ctx,
-                pool,
-                msg.author.id.as_u64().to_owned(),
-                msg.guild_id,
-                scope_id,
-                time_parser,
-                None,
-                content,
-            )
-            .await
-        }
+            })
+            .collect::<Vec<ReminderScope>>()
     }
 
     let pool;
@@ -1075,74 +1045,55 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
-    let mut args_iter = args.split(' ').filter(|s| !s.is_empty());
+    let captures = match command {
+        RemindCommand::Remind => REGEX_REMIND_COMMAND.captures(&args),
 
-    let mut time_parser = None;
-    let mut scope_id = ReminderScope::Channel(msg.channel_id.as_u64().to_owned());
-
-    // todo reimplement using next_if and Peekable
-    let response = if let Some(first_arg) = args_iter.next().map(|s| s.to_string()) {
-        if let Some((Some(scope_match), Some(id_match))) = REGEX_CHANNEL_USER
-            .captures(&first_arg)
-            .map(|cap| (cap.get(1), cap.get(2)))
-        {
-            if scope_match.as_str() == "@" {
-                scope_id = ReminderScope::User(id_match.as_str().parse::<u64>().unwrap());
-            } else {
-                scope_id = ReminderScope::Channel(id_match.as_str().parse::<u64>().unwrap());
-            }
-
-            if let Some(next) = args_iter.next().map(|inner| inner.to_string()) {
-                time_parser = Some(TimeParser::new(next, user_data.timezone.parse().unwrap()));
-
-                check_interval(
-                    &ctx,
-                    msg,
-                    args_iter,
-                    &scope_id,
-                    &time_parser.as_ref().unwrap(),
-                    command,
-                    &pool,
-                )
-                .await
-            } else {
-                Err(ReminderError::NotEnoughArgs)
-            }
-        } else {
-            time_parser = Some(TimeParser::new(first_arg, user_data.timezone()));
-
-            check_interval(
-                &ctx,
-                msg,
-                args_iter,
-                &scope_id,
-                &time_parser.as_ref().unwrap(),
-                command,
-                &pool,
-            )
-            .await
-        }
-    } else {
-        Err(ReminderError::NotEnoughArgs)
+        RemindCommand::Interval => REGEX_INTERVAL_COMMAND.captures(&args),
     };
 
-    let offset = time_parser
-        .map(|tp| tp.displacement().ok())
-        .flatten()
-        .unwrap_or(0) as u64;
+    match captures {
+        Some(captures) => {
+            let scopes = if let Some(mentions) = captures.name("mentions") {
+                parse_mention_list(mentions.as_str())
+            } else {
+                vec![ReminderScope::Channel(msg.channel_id.into())]
+            };
 
-    let str_response = lm
-        .get(&user_data.language, &response.to_response())
-        .replace(
-            "{prefix}",
-            &GuildData::prefix_from_id(msg.guild_id, &pool).await,
-        )
-        .replacen("{location}", &scope_id.mention(), 1)
-        .replacen("{offset}", &shorthand_displacement(offset), 1)
-        .replacen("{min_interval}", &MIN_INTERVAL.to_string(), 1)
-        .replacen("{max_time}", &MAX_TIME.to_string(), 1);
+            let time_parser = TimeParser::new(
+                captures.name("time").unwrap().as_str(),
+                user_data.timezone(),
+            );
 
-    let _ = msg.channel_id.say(&ctx, &str_response).await;
+            let interval_parser = captures
+                .name("interval")
+                .map(|mat| TimeParser::new(mat.as_str(), user_data.timezone()))
+                // todo remove unwrap below
+                .map(|parser| parser.displacement().unwrap());
+
+            let content = captures.name("content").map(|mat| mat.as_str()).unwrap();
+
+            for scope in scopes {
+                create_reminder(
+                    &ctx,
+                    &pool,
+                    msg.author.id,
+                    msg.guild_id,
+                    &scope,
+                    &time_parser,
+                    interval_parser,
+                    content,
+                )
+                .await;
+            }
+        }
+
+        None => {
+            let _ = msg
+                .channel_id
+                .say(&ctx, lm.get(&user_data.language, "remind/invalid"))
+                .await;
+        }
+    }
 }
 
 #[command("natural")]
@@ -1274,7 +1225,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                 let res = create_reminder(
                     &ctx,
                     &pool,
-                    msg.author.id.as_u64().to_owned(),
+                    msg.author.id,
                     msg.guild_id,
                     &location_id,
                     timestamp,
@@ -1304,7 +1255,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                     let res = create_reminder(
                         &ctx,
                         &pool,
-                        msg.author.id.as_u64().to_owned(),
+                        msg.author.id,
                         msg.guild_id,
                         &location,
                         timestamp,
@@ -1344,16 +1295,23 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
     }
 }
 
-async fn create_reminder<'a, T: TryInto<i64>, S: ToString + Type<MySql> + Encode<'a, MySql>>(
+async fn create_reminder<
+    'a,
+    U: Into<u64>,
+    T: TryInto<i64>,
+    S: ToString + Type<MySql> + Encode<'a, MySql>,
+>(
     ctx: impl CacheHttp,
     pool: &MySqlPool,
-    user_id: u64,
+    user_id: U,
     guild_id: Option<GuildId>,
     scope_id: &ReminderScope,
     time_parser: T,
     interval: Option<i64>,
     content: S,
 ) -> Result<(), ReminderError> {
+    let user_id = user_id.into();
+
     let mut content_string = content.to_string();
 
     // substitution filters
