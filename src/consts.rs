@@ -1,7 +1,7 @@
 pub const DAY: u64 = 86_400;
 pub const HOUR: u64 = 3_600;
 pub const MINUTE: u64 = 60;
-pub const HELP_STRINGS: [&'static str; 21] = [
+pub const HELP_STRINGS: [&'static str; 22] = [
     "help/lang",
     "help/timezone",
     "help/prefix",
@@ -23,6 +23,7 @@ pub const HELP_STRINGS: [&'static str; 21] = [
     "help/todo",
     "help/todos",
     "help/todoc",
+    "help/timer",
 ];
 
 pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";

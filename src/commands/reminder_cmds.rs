@@ -203,9 +203,18 @@ async fn offset(ctx: &Context, msg: &Message, args: String) {
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
     if args.is_empty() {
+        let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+        let desc = lm.get(&user_data.language, "help/offset");
+
         let _ = msg
             .channel_id
-            .say(&ctx, lm.get(&user_data.language, "offset/help"))
+            .send_message(ctx, |m| {
+                m.embed(move |e| {
+                    e.title("Offset Help")
+                        .description(desc.replace("{prefix}", &prefix))
+                        .color(*THEME_COLOR)
+                })
+            })
             .await;
     } else {
         let parser = TimeParser::new(&args, user_data.timezone());
@@ -890,9 +899,18 @@ DELETE FROM timers WHERE owner = ? AND name = ?
         }
 
         _ => {
+            let desc = lm.get(&language, "help/timer");
+            let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+
             let _ = msg
                 .channel_id
-                .say(&ctx, lm.get(&language, "timer/help"))
+                .send_message(ctx, |m| {
+                    m.embed(move |e| {
+                        e.title("Timer Help")
+                            .description(desc.replace("{prefix}", &prefix))
+                            .color(*THEME_COLOR)
+                    })
+                })
                 .await;
         }
     }
@@ -1174,9 +1192,31 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
         }
 
         None => {
+            let desc = lm.get(
+                &user_data.language,
+                match command {
+                    RemindCommand::Remind => "help/remind",
+
+                    RemindCommand::Interval => "help/interval",
+                },
+            );
+
+            let title = match command {
+                RemindCommand::Remind => "Remind Help",
+                RemindCommand::Interval => "Interval Help",
+            };
+
+            let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+
             let _ = msg
                 .channel_id
-                .say(&ctx, lm.get(&user_data.language, "remind/no_argument"))
+                .send_message(ctx, |m| {
+                    m.embed(move |e| {
+                        e.title(title)
+                            .description(desc.replace("{prefix}", &prefix))
+                            .color(*THEME_COLOR)
+                    })
+                })
                 .await;
         }
     }

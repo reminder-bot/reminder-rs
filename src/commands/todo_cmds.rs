@@ -12,6 +12,7 @@ use serenity::{
 use std::fmt;
 
 use crate::{
+    consts::THEME_COLOR,
     models::{GuildData, UserData},
     SQLPool,
 };
@@ -458,15 +459,29 @@ async fn show_help(ctx: &Context, msg: &Message, target: Option<TodoTarget>) {
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
 
-    let content = lm
-        .get(&user_data.language, "todo/help")
-        .replace("{prefix}", &prefix)
-        .replace(
-            "{command}",
-            target
-                .map_or_else(|| "todo user".to_string(), |t| t.command(None))
-                .as_str(),
-        );
+    let command = match target {
+        None => "help/todo",
+        Some(t) => {
+            if t.channel.is_some() {
+                "help/todoc"
+            } else if t.guild.is_some() {
+                "help/todos"
+            } else {
+                "help/todo"
+            }
+        }
+    };
 
-    let _ = msg.channel_id.say(&ctx, content).await;
+    let desc = lm.get(&user_data.language, command);
+
+    let _ = msg
+        .channel_id
+        .send_message(ctx, |m| {
+            m.embed(move |e| {
+                e.title("Todo Help")
+                    .description(desc.replace("{prefix}", &prefix))
+                    .color(*THEME_COLOR)
+            })
+        })
+        .await;
 }

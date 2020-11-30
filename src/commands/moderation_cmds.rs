@@ -534,9 +534,18 @@ WHERE
 
         let _ = msg.channel_id.say(&ctx, display).await;
     } else {
+        let desc = lm.get(&language, "help/restrict");
+        let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+
         let _ = msg
             .channel_id
-            .say(&ctx, lm.get(&language, "restrict/help"))
+            .send_message(ctx, |m| {
+                m.embed(move |e| {
+                    e.title("Restrict Help")
+                        .description(desc.replace("{prefix}", &prefix))
+                        .color(*THEME_COLOR)
+                })
+            })
             .await;
     }
 }
@@ -675,8 +684,17 @@ SELECT command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHER
         }
     } else {
         let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
-        let content = lm.get(&language, "alias/help").replace("{prefix}", &prefix);
+        let desc = lm.get(&language, "help/alias");
 
-        let _ = msg.channel_id.say(&ctx, content).await;
+        let _ = msg
+            .channel_id
+            .send_message(ctx, |m| {
+                m.embed(move |e| {
+                    e.title("Alias Help")
+                        .description(desc.replace("{prefix}", &prefix))
+                        .color(*THEME_COLOR)
+                })
+            })
+            .await;
     }
 }
