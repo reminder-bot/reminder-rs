@@ -5,12 +5,15 @@ use serenity::{client::Context, model::channel::Message};
 use chrono::offset::Utc;
 
 use crate::{
-    consts::DEFAULT_PREFIX,
+    consts::{DEFAULT_PREFIX, HELP_STRINGS},
+    language_manager::LanguageManager,
     models::{GuildData, UserData},
     SQLPool, THEME_COLOR,
 };
 
-use crate::language_manager::LanguageManager;
+use levenshtein::levenshtein;
+
+use inflector::Inflector;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[command]
@@ -31,7 +34,66 @@ async fn ping(ctx: &Context, msg: &Message, _args: String) {
 
 #[command]
 #[can_blacklist(false)]
-async fn help(ctx: &Context, msg: &Message, _args: String) {
+async fn help(ctx: &Context, msg: &Message, args: String) {
+    async fn default_help(
+        ctx: &Context,
+        msg: &Message,
+        lm: &LanguageManager,
+        prefix: &str,
+        language: &str,
+    ) {
+        let desc = lm.get(language, "help/desc").replace("{prefix}", prefix);
+
+        let _ = msg
+            .channel_id
+            .send_message(ctx, |m| {
+                m.embed(move |e| {
+                    e.title("Help Menu")
+                        .description(desc)
+                        .field(
+                            lm.get(language, "help/setup_title"),
+                            "`lang` `timezone`",
+                            true,
+                        )
+                        .field(
+                            lm.get(language, "help/mod_title"),
+                            "`prefix` `blacklist` `restrict` `alias`",
+                            true,
+                        )
+                        .field(
+                            lm.get(language, "help/reminder_title"),
+                            "`remind` `interval` `natural` `look`",
+                            true,
+                        )
+                        .field(
+                            lm.get(language, "help/reminder_mod_title"),
+                            "`del` `offset` `pause` `nudge`",
+                            true,
+                        )
+                        .field(
+                            lm.get(language, "help/info_title"),
+                            "`help` `info` `donate` `clock`",
+                            true,
+                        )
+                        .field(
+                            lm.get(language, "help/todo_title"),
+                            "`todo` `todos` `todoc`",
+                            true,
+                        )
+                        .field(lm.get(language, "help/other_title"), "`timer`", true)
+                        .footer(|f| {
+                            f.text(concat!(
+                                env!("CARGO_PKG_NAME"),
+                                " ver ",
+                                env!("CARGO_PKG_VERSION")
+                            ))
+                        })
+                        .color(*THEME_COLOR)
+                })
+            })
+            .await;
+    }
+
     let data = ctx.data.read().await;
 
     let pool = data
@@ -42,26 +104,43 @@ async fn help(ctx: &Context, msg: &Message, _args: String) {
     let lm = data.get::<LanguageManager>().unwrap();
 
     let language = UserData::language_of(&msg.author, &pool).await;
+    let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
 
-    let desc = lm.get(&language, "help");
+    if !args.is_empty() {
+        let closest_match = HELP_STRINGS
+            .iter()
+            .map(|h| (levenshtein(h.split_at(5).1, &args), h))
+            .filter(|(dist, _)| dist < &3)
+            .min_by(|(dist_a, _), (dist_b, _)| dist_a.cmp(dist_b))
+            .map(|(_, string)| string);
 
-    let _ = msg
-        .channel_id
-        .send_message(ctx, |m| {
-            m.embed(move |e| {
-                e.title("Help Menu")
-                    .description(desc)
-                    .footer(|f| {
-                        f.text(concat!(
-                            env!("CARGO_PKG_NAME"),
-                            " ver ",
-                            env!("CARGO_PKG_VERSION")
-                        ))
+        if let Some(help_str) = closest_match {
+            let desc = lm.get(&language, help_str);
+            let command_name = help_str.split_at(5).1;
+
+            let _ = msg
+                .channel_id
+                .send_message(ctx, |m| {
+                    m.embed(move |e| {
+                        e.title(format!("{} Help", command_name.to_title_case()))
+                            .description(desc.replace("{prefix}", &prefix))
+                            .footer(|f| {
+                                f.text(concat!(
+                                    env!("CARGO_PKG_NAME"),
+                                    " ver ",
+                                    env!("CARGO_PKG_VERSION")
+                                ))
+                            })
+                            .color(*THEME_COLOR)
                     })
-                    .color(*THEME_COLOR)
-            })
-        })
-        .await;
+                })
+                .await;
+        } else {
+            default_help(ctx, msg, lm, &prefix, &language).await;
+        }
+    } else {
+        default_help(ctx, msg, lm, &prefix, &language).await;
+    }
 }
 
 #[command]

@@ -1,6 +1,29 @@
 pub const DAY: u64 = 86_400;
 pub const HOUR: u64 = 3_600;
 pub const MINUTE: u64 = 60;
+pub const HELP_STRINGS: [&'static str; 21] = [
+    "help/lang",
+    "help/timezone",
+    "help/prefix",
+    "help/blacklist",
+    "help/restrict",
+    "help/alias",
+    "help/remind",
+    "help/interval",
+    "help/natural",
+    "help/look",
+    "help/del",
+    "help/offset",
+    "help/pause",
+    "help/nudge",
+    "help/info",
+    "help/help",
+    "help/donate",
+    "help/clock",
+    "help/todo",
+    "help/todos",
+    "help/todoc",
+];
 
 pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
 
@@ -26,11 +49,11 @@ lazy_static! {
 
     pub static ref REGEX_REMIND_COMMAND: Regex = Regex::new(
     r#"(?P<mentions>(?:<@\d+>\s|<@!\d+>\s|<#\d+>\s)*)(?P<time>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+|()) (?P<content>.*)"#)
-            .unwrap();
+        .unwrap();
 
     pub static ref REGEX_INTERVAL_COMMAND: Regex = Regex::new(
     r#"(?P<mentions>(?:<@\d+>\s|<@!\d+>\s|<#\d+>\s)*)(?P<time>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+) (?P<interval>(?:(?:\d+)(?:s|m|h|d|))+) (?P<content>.*)"#)
-            .unwrap();
+        .unwrap();
 
     pub static ref SUBSCRIPTION_ROLES: HashSet<u64> = HashSet::from_iter(
         env::var("SUBSCRIPTION_ROLES")
@@ -40,6 +63,7 @@ lazy_static! {
                 .collect::<Vec<u64>>())
             .unwrap_or_else(|_| vec![])
     );
+
     pub static ref CNC_GUILD: Option<u64> = env::var("CNC_GUILD")
         .map(|var| var.parse::<u64>().ok())
         .ok()
