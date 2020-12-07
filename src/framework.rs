@@ -239,7 +239,7 @@ impl RegexFramework {
             info!("Command names: {}", command_names);
 
             {
-                let match_string = r#"^(?:(?:<@ID>\s+)|(?:<@!ID>\s+)|(?P<prefix>\S{1,5}?))(?P<cmd>COMMANDS)(?:$|\s+(?P<args>.*))$"#
+                let match_string = r#"^(?:(?:<@ID>\s*)|(?:<@!ID>\s*)|(?P<prefix>\S{1,5}?))(?P<cmd>COMMANDS)(?:$|\s+(?P<args>.*))$"#
                     .replace("COMMANDS", command_names.as_str())
                     .replace("ID", self.client_id.to_string().as_str());
 
