@@ -338,16 +338,10 @@ enum TimeDisplayType {
     Relative,
 }
 
-enum Selection<T> {
-    None,
-    Single(T),
-    All,
-}
-
 struct LookFlags {
     pub limit: u16,
     pub show_disabled: bool,
-    pub channel_id: Selection<u64>,
+    pub channel_id: Option<u64>,
     time_display: TimeDisplayType,
 }
 
@@ -356,7 +350,7 @@ impl Default for LookFlags {
         Self {
             limit: u16::MAX,
             show_disabled: true,
-            channel_id: Selection::None,
+            channel_id: None,
             time_display: TimeDisplayType::Relative,
         }
     }
@@ -376,20 +370,18 @@ impl LookFlags {
                     new_flags.time_display = TimeDisplayType::Absolute;
                 }
 
-                "all" => {
-                    new_flags.channel_id = Selection::All;
-                }
-
                 param => {
                     if let Ok(val) = param.parse::<u16>() {
                         new_flags.limit = val;
                     } else {
-                        new_flags.channel_id = REGEX_CHANNEL
-                            .captures(&args)
+                        if let Some(channel) = REGEX_CHANNEL
+                            .captures(&arg)
                             .map(|cap| cap.get(1))
                             .flatten()
                             .map(|c| c.as_str().parse::<u64>().unwrap())
-                            .map_or(Selection::None, Selection::Single);
+                        {
+                            new_flags.channel_id = Some(channel);
+                        }
                     }
                 }
             }
@@ -442,16 +434,13 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
     let enabled = if flags.show_disabled { "0,1" } else { "1" };
 
     let reminders = if let Some(guild_id) = msg.guild_id.map(|f| f.as_u64().to_owned()) {
-        let channel_id_opt = match flags.channel_id {
-            Selection::None => Some(msg.channel_id.as_u64().to_owned()),
-            Selection::Single(id) => Some(id),
-            Selection::All => None,
-        };
+        let channel_id = flags
+            .channel_id
+            .unwrap_or_else(|| msg.channel_id.as_u64().to_owned());
 
-        if let Some(channel_id) = channel_id_opt {
-            sqlx::query_as!(
-                LookReminder,
-                "
+        sqlx::query_as!(
+            LookReminder,
+            "
 SELECT
     reminders.id, reminders.time, channels.channel, messages.content, embeds.description
 FROM
@@ -477,48 +466,13 @@ ORDER BY
 LIMIT
     ?
             ",
-                guild_id,
-                channel_id,
-                enabled,
-                flags.limit
-            )
-            .fetch_all(&pool)
-            .await
-        } else {
-            sqlx::query_as!(
-                LookReminder,
-                "
-SELECT
-    reminders.id, reminders.time, channels.channel, messages.content, embeds.description
-FROM
-    reminders
-INNER JOIN
-    channels
-ON
-    reminders.channel_id = channels.id
-INNER JOIN
-    messages
-ON
-    messages.id = reminders.message_id
-LEFT JOIN
-    embeds
-ON
-    embeds.id = messages.embed_id
-WHERE
-    channels.guild_id = (SELECT id FROM guilds WHERE guild = ?) AND
-    FIND_IN_SET(reminders.enabled, ?)
-ORDER BY
-    reminders.time
-LIMIT
-    ?
-            ",
-                guild_id,
-                enabled,
-                flags.limit
-            )
-            .fetch_all(&pool)
-            .await
-        }
+            guild_id,
+            channel_id,
+            enabled,
+            flags.limit
+        )
+        .fetch_all(&pool)
+        .await
     } else {
         sqlx::query_as_unchecked!(
             LookReminder,
@@ -570,6 +524,7 @@ LIMIT
                     .timestamp(reminder.time as i64, 0)
                     .format("%Y-%m-%d %H:%M:%S")
                     .to_string(),
+
                 TimeDisplayType::Relative => {
                     let now = SystemTime::now()
                         .duration_since(UNIX_EPOCH)
