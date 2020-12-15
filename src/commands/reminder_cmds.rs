@@ -33,7 +33,7 @@ use chrono::{offset::TimeZone, NaiveDateTime};
 
 use rand::{rngs::OsRng, seq::IteratorRandom};
 
-use sqlx::{encode::Encode, MySql, MySqlPool, Type};
+use sqlx::MySqlPool;
 
 use std::str::from_utf8;
 
@@ -48,7 +48,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use regex::RegexBuilder;
+use regex::{Captures, RegexBuilder};
+use serenity::cache::Cache;
+use serenity::model::guild::Guild;
 
 fn shorthand_displacement(seconds: u64) -> String {
     let (days, seconds) = seconds.div_rem(&DAY);
@@ -1397,31 +1399,47 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
     }
 }
 
-async fn create_reminder<
-    'a,
-    U: Into<u64>,
-    T: TryInto<i64>,
-    S: ToString + Type<MySql> + Encode<'a, MySql>,
->(
-    ctx: impl CacheHttp,
+fn substitute_content(guild: Option<Guild>, content: &str) -> String {
+    if let Some(guild) = guild {
+        REGEX_CONTENT_SUBSTITUTION
+            .replace(content, |caps: &Captures| {
+                if let Some(user) = caps.name("user") {
+                    format!("<@{}>", user.as_str())
+                } else if let Some(role_name) = caps.name("role") {
+                    if let Some(role) = guild.role_by_name(role_name.as_str()) {
+                        role.mention()
+                    } else {
+                        role_name.as_str().to_string()
+                    }
+                } else {
+                    String::new()
+                }
+            })
+            .to_string()
+    } else {
+        content.to_string()
+    }
+    .replace("<<everyone>>", "@everyone")
+    .replace("<<here>>", "@here")
+}
+
+async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
+    ctx: impl CacheHttp + AsRef<Cache>,
     pool: &MySqlPool,
     user_id: U,
     guild_id: Option<GuildId>,
     scope_id: &ReminderScope,
     time_parser: T,
     interval: Option<i64>,
-    content: S,
+    content: &str,
 ) -> Result<(), ReminderError> {
     let user_id = user_id.into();
 
-    let mut content_string = content.to_string();
-
-    // substitution filters
-    content_string = content_string.replace("<<everyone>>", "@everyone");
-    content_string = content_string.replace("<<here>>", "@here");
-    content_string = REGEX_CONTENT_SUBSTITUTION
-        .replace(&content_string, "<@$1>")
-        .to_string();
+    let content_string = if let Some(g_id) = guild_id {
+        substitute_content(g_id.to_guild_cached(&ctx).await, content)
+    } else {
+        content.to_string()
+    };
 
     let mut nudge = 0;
 

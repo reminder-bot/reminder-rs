@@ -44,7 +44,7 @@ lazy_static! {
     pub static ref REGEX_ALIAS: Regex =
         Regex::new(r#"(?P<name>[\S]{1,12})(?:(?: (?P<cmd>.*)$)|$)"#).unwrap();
 
-    pub static ref REGEX_CONTENT_SUBSTITUTION: Regex = Regex::new(r#"<<(\d+)>>"#).unwrap();
+    pub static ref REGEX_CONTENT_SUBSTITUTION: Regex = Regex::new(r#"<<((?P<user>\d+)|(?P<role>.{1,100}))>>"#).unwrap();
 
     pub static ref REGEX_CHANNEL_USER: Regex = Regex::new(r#"\s*<(#|@)(?:!)?(\d+)>\s*"#).unwrap();
 
