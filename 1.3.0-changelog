@@ -5,32 +5,30 @@
   + The help command has separate pages for different commands with examples, and detailed information on arguments
 
 - `timezone` command reworked:
-  + Timezone was a notoriously annoying and confusing command to use, so these changes will hopefully improve its usability
+  + Timezone was a notoriously annoying command to use, so these changes will hopefully improve its usability
   + Typing `$timezone` will now show you a list of the most popular timezones and the time in those timezones, to make it easy for many users to select their timezones
   + If a timezone is not recognised, the bot will show you a list of 'similar' timezones by name, and the times in these timezones
   + Outputs are more descriptive
 
 - `language` command reworked:
-  + Language has been made to look somewhat nicer and you can now use reactions to respond with what language you wish to switch to
+  + Language has been made to look somewhat nicer and you can now use reactions to switch language
 
 - `timer` visual improvements:
-  + Some emojis have been added to the timer command to make it look nicer
+  + Some emojis have been added to the timer command
 
 - `look` fixes:
-  + `$look all` has been removed again, as some users pointed out that this was flawed and allowed random users to check reminders in private channels
-  + Fixed a bug where channels would be ignored if other switches were provided to the command
+  + `$look all` has been removed, as this allowed users to check reminders in private channels
+  + Fixed a bug where channels would be ignored if other switches were provided
 
 - `remind` command reworked:
-  + Backend of this command completely reworked to be much cleaner code
-  + Fixed providing times in exact format sometimes not working if a day was provided but not a month/year
-  + This command can now be used to bulk-set reminders to multiple locations
+  + Backend of this command completely reworked
+  + Fixed providing times in exact format not working if a day was provided but not a month/year
+  + This command supports bulk-setting reminders to multiple locations
 
 - General changes:
   + More command outputs use embeds to look nicer
   + Commands that fail provide help outputs that are the same as the help command
   + Remind commands now provide output that is more detailed. This includes showing the exact errors that occurred for each reminder that couldn't be set, if bulk-setting reminders
-  + Translations are now loaded from a JSON file included within the executable, which should be faster
+  + Translations are now loaded from a JSON file included within the executable
   + Reduced user caching by individually querying some attributes like language and timezone
-  + Simplified some types and tried to remove some copying
   + Roles can now be silently mentioned with <<Role name>>
-
