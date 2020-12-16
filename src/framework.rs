@@ -345,11 +345,7 @@ impl Framework for RegexFramework {
         }
 
         // gate to prevent analysing messages unnecessarily
-        if (msg.author.bot && self.ignore_bots)
-            || msg.tts
-            || msg.content.is_empty()
-            || !msg.attachments.is_empty()
-        {
+        if (msg.author.bot && self.ignore_bots) || msg.content.is_empty() {
         }
         // Guild Command
         else if let (Some(guild), Some(Channel::Guild(channel))) =
