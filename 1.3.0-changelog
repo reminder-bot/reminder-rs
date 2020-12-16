@@ -25,11 +25,15 @@
   + Fixed providing times in exact format not working if a day was provided but not a month/year
   + This command supports bulk-setting reminders to multiple locations
 
+- `meridian`: new command:
+  + Allows you to change time displays between 12 hour format and 24 hour format
+  + Hence, `$clock 12` has been removed
+
 - General changes:
   + More command outputs use embeds to look nicer
-  + Commands that fail provide help outputs that are the same as the help command
+  + More standard help outputs
   + Remind commands now provide output that is more detailed
   + Translations are now loaded from a JSON file included within the executable
-  + Reduced user caching by individually querying some attributes like language and timezone
+  + Reduced user caching by individually querying some attributes
   + Roles can now be silently mentioned with <<Role name>>
   + The number of days will show even if zero to improve clarity
