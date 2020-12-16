@@ -1,8 +1,9 @@
 pub const DAY: u64 = 86_400;
 pub const HOUR: u64 = 3_600;
 pub const MINUTE: u64 = 60;
-pub const HELP_STRINGS: [&'static str; 22] = [
+pub const HELP_STRINGS: [&'static str; 23] = [
     "help/lang",
+    "help/meridian",
     "help/timezone",
     "help/prefix",
     "help/blacklist",

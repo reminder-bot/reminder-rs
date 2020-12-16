@@ -28,7 +28,8 @@
 - General changes:
   + More command outputs use embeds to look nicer
   + Commands that fail provide help outputs that are the same as the help command
-  + Remind commands now provide output that is more detailed. This includes showing the exact errors that occurred for each reminder that couldn't be set, if bulk-setting reminders
+  + Remind commands now provide output that is more detailed
   + Translations are now loaded from a JSON file included within the executable
   + Reduced user caching by individually querying some attributes like language and timezone
   + Roles can now be silently mentioned with <<Role name>>
+  + The number of days will show even if zero to improve clarity

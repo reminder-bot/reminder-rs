@@ -239,7 +239,7 @@ async fn dashboard(ctx: &Context, msg: &Message, _args: String) {
 }
 
 #[command]
-async fn clock(ctx: &Context, msg: &Message, args: String) {
+async fn clock(ctx: &Context, msg: &Message, _args: String) {
     let data = ctx.data.read().await;
 
     let pool = data
@@ -251,26 +251,17 @@ async fn clock(ctx: &Context, msg: &Message, args: String) {
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let timezone = UserData::timezone_of(&msg.author, &pool).await;
+    let meridian = UserData::meridian_of(&msg.author, &pool).await;
 
     let now = Utc::now().with_timezone(&timezone);
 
     let clock_display = lm.get(&language, "clock/time");
 
-    if args == "12" {
-        let _ = msg
-            .channel_id
-            .say(
-                &ctx,
-                clock_display.replacen("{}", &now.format("%I:%M:%S %p").to_string(), 1),
-            )
-            .await;
-    } else {
-        let _ = msg
-            .channel_id
-            .say(
-                &ctx,
-                clock_display.replacen("{}", &now.format("%H:%M:%S").to_string(), 1),
-            )
-            .await;
-    }
+    let _ = msg
+        .channel_id
+        .say(
+            &ctx,
+            clock_display.replacen("{}", &now.format(meridian.fmt_str()).to_string(), 1),
+        )
+        .await;
 }

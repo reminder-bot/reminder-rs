@@ -180,6 +180,19 @@ pub struct UserData {
     pub dm_channel: u32,
     pub language: String,
     pub timezone: String,
+    pub meridian_time: bool,
+}
+
+pub struct MeridianType(bool);
+
+impl MeridianType {
+    pub fn fmt_str(&self) -> &str {
+        if self.0 {
+            "%Y-%m-%d %I:%M:%S %p"
+        } else {
+            "%Y-%m-%d %H:%M:%S"
+        }
+    }
 }
 
 impl UserData {
@@ -227,6 +240,27 @@ SELECT timezone FROM users WHERE user = ?
         .unwrap()
     }
 
+    pub async fn meridian_of<U>(user: U, pool: &MySqlPool) -> MeridianType
+    where
+        U: Into<UserId>,
+    {
+        let user_id = user.into().as_u64().to_owned();
+
+        match sqlx::query!(
+            "
+SELECT meridian_time FROM users WHERE user = ?
+            ",
+            user_id
+        )
+        .fetch_one(pool)
+        .await
+        {
+            Ok(r) => MeridianType(r.meridian_time != 0),
+
+            Err(_) => MeridianType(false),
+        }
+    }
+
     pub async fn from_user(
         user: &User,
         ctx: impl CacheHttp,
@@ -237,7 +271,7 @@ SELECT timezone FROM users WHERE user = ?
         match sqlx::query_as_unchecked!(
             Self,
             "
-SELECT id, user, name, dm_channel, IF(language IS NULL, ?, language) AS language, IF(timezone IS NULL, ?, timezone) AS timezone FROM users WHERE user = ?
+SELECT id, user, name, dm_channel, IF(language IS NULL, ?, language) AS language, IF(timezone IS NULL, ?, timezone) AS timezone, meridian_time FROM users WHERE user = ?
             ",
             *LOCAL_LANGUAGE, *LOCAL_TIMEZONE, user_id
         )
@@ -271,7 +305,7 @@ INSERT INTO users (user, name, dm_channel, language, timezone) VALUES (?, ?, (SE
                 Ok(sqlx::query_as_unchecked!(
                     Self,
                     "
-SELECT id, user, name, dm_channel, language, timezone FROM users WHERE user = ?
+SELECT id, user, name, dm_channel, language, timezone, meridian_time FROM users WHERE user = ?
                     ",
                     user_id
                 )
@@ -290,11 +324,12 @@ SELECT id, user, name, dm_channel, language, timezone FROM users WHERE user = ?
     pub async fn commit_changes(&self, pool: &MySqlPool) {
         sqlx::query!(
             "
-UPDATE users SET name = ?, language = ?, timezone = ? WHERE id = ?
+UPDATE users SET name = ?, language = ?, timezone = ?, meridian_time = ? WHERE id = ?
             ",
             self.name,
             self.language,
             self.timezone,
+            self.meridian_time,
             self.id
         )
         .execute(pool)
@@ -304,6 +339,10 @@ UPDATE users SET name = ?, language = ?, timezone = ? WHERE id = ?
 
     pub fn timezone(&self) -> Tz {
         self.timezone.parse().unwrap()
+    }
+
+    pub fn meridian(&self) -> MeridianType {
+        MeridianType(self.meridian_time)
     }
 }
 

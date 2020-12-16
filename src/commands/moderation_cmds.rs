@@ -226,6 +226,68 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
 }
 
 #[command]
+async fn change_meridian(ctx: &Context, msg: &Message, args: String) {
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool from data");
+
+        lm = data.get::<LanguageManager>().cloned().unwrap();
+    }
+
+    let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+
+    if &args == "12" {
+        user_data.meridian_time = true;
+
+        user_data.commit_changes(&pool).await;
+
+        let _ = msg
+            .channel_id
+            .send_message(&ctx, |m| {
+                m.embed(|e| {
+                    e.title(lm.get(&user_data.language, "meridian/title"))
+                        .color(*THEME_COLOR)
+                        .description(lm.get(&user_data.language, "meridian/12"))
+                })
+            })
+            .await;
+    } else if &args == "24" {
+        user_data.meridian_time = false;
+
+        user_data.commit_changes(&pool).await;
+
+        let _ = msg
+            .channel_id
+            .send_message(&ctx, |m| {
+                m.embed(|e| {
+                    e.title(lm.get(&user_data.language, "meridian/title"))
+                        .color(*THEME_COLOR)
+                        .description(lm.get(&user_data.language, "meridian/24"))
+                })
+            })
+            .await;
+    } else {
+        let _ = msg
+            .channel_id
+            .send_message(&ctx, |m| {
+                m.embed(|e| {
+                    e.title("Meridian Help")
+                        .color(*THEME_COLOR)
+                        .description(lm.get(&user_data.language, "help/meridian"))
+                })
+            })
+            .await;
+    }
+}
+
+#[command]
 async fn language(ctx: &Context, msg: &Message, args: String) {
     let pool;
     let lm;

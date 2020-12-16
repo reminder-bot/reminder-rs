@@ -59,11 +59,7 @@ fn shorthand_displacement(seconds: u64) -> String {
 
     let time_repr = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
 
-    if days > 0 {
-        format!("{} days, {}", days, time_repr)
-    } else {
-        time_repr
-    }
+    format!("{} days, {}", days, time_repr)
 }
 
 fn longhand_displacement(seconds: u64) -> String {
@@ -129,6 +125,7 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let timezone = UserData::timezone_of(&msg.author, &pool).await;
+    let meridian = UserData::meridian_of(&msg.author, &pool).await;
 
     let mut channel = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool)
         .await
@@ -168,7 +165,7 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
                     "{}",
                     &timezone
                         .timestamp(timestamp, 0)
-                        .format("%Y-%m-%d %H:%M:%S")
+                        .format(meridian.fmt_str())
                         .to_string(),
                 );
 
@@ -430,6 +427,7 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let timezone = UserData::timezone_of(&msg.author, &pool).await;
+    let meridian = UserData::meridian_of(&msg.author, &pool).await;
 
     let flags = LookFlags::from_string(&args);
 
@@ -524,7 +522,7 @@ LIMIT
             let time_display = match flags.time_display {
                 TimeDisplayType::Absolute => timezone
                     .timestamp(reminder.time as i64, 0)
-                    .format("%Y-%m-%d %H:%M:%S")
+                    .format(meridian.fmt_str())
                     .to_string(),
 
                 TimeDisplayType::Relative => {
@@ -641,7 +639,7 @@ WHERE
             count + 1,
             reminder.display_content(),
             reminder.channel,
-            time.format("%Y-%m-%d %H:%M:%S")
+            time.format(user_data.meridian().fmt_str())
         )
     });
 

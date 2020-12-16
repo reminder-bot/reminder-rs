@@ -50,9 +50,11 @@ CREATE TABLE reminders.users (
 
     language VARCHAR(2) DEFAULT 'EN' NOT NULL,
     timezone VARCHAR(32) DEFAULT 'UTC' NOT NULL,
+    meridian_time BOOLEAN DEFAULT 0 NOT NULL,
+
     allowed_dm BOOLEAN DEFAULT 1 NOT NULL,
 
-    patreon BOOL NOT NULL DEFAULT 0,
+    patreon BOOLEAN NOT NULL DEFAULT 0,
 
     PRIMARY KEY (id),
     FOREIGN KEY (dm_channel) REFERENCES reminders.channels(id) ON DELETE RESTRICT
