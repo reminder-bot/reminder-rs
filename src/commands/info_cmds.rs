@@ -52,7 +52,7 @@ async fn help(ctx: &Context, msg: &Message, args: String) {
                         .description(desc)
                         .field(
                             lm.get(language, "help/setup_title"),
-                            "`lang` `timezone`",
+                            "`lang` `timezone` `meridian`",
                             true,
                         )
                         .field(
