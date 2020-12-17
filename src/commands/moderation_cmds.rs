@@ -22,7 +22,7 @@ use crate::{
     FrameworkCtx, SQLPool,
 };
 
-use std::{iter, time::Duration};
+use std::{collections::HashMap, iter, time::Duration};
 
 #[command]
 #[supports_dm(false)]
@@ -274,13 +274,16 @@ async fn change_meridian(ctx: &Context, msg: &Message, args: String) {
             })
             .await;
     } else {
+        let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+
         let _ = msg
             .channel_id
             .send_message(&ctx, |m| {
                 m.embed(|e| {
-                    e.title("Meridian Help")
-                        .color(*THEME_COLOR)
-                        .description(lm.get(&user_data.language, "help/meridian"))
+                    e.title("Meridian Help").color(*THEME_COLOR).description(
+                        lm.get(&user_data.language, "help/meridian")
+                            .replace("{prefix}", &prefix),
+                    )
                 })
             })
             .await;
@@ -585,16 +588,28 @@ WHERE
         .await
         .unwrap();
 
-        let display_inner = rows
-            .iter()
-            .map(|row| format!("<@&{}> can use {}", row.role, row.command))
-            .collect::<Vec<String>>()
-            .join("\n");
-        let display = lm
-            .get(&language, "restrict/allowed")
-            .replacen("{}", &display_inner, 1);
+        let mut commands_roles: HashMap<&str, Vec<String>> = HashMap::new();
 
-        let _ = msg.channel_id.say(&ctx, display).await;
+        rows.iter().for_each(|row| {
+            if let Some(vec) = commands_roles.get_mut(&row.command.as_str()) {
+                vec.push(format!("<@&{}>", row.role));
+            } else {
+                commands_roles.insert(&row.command, vec![format!("<@&{}>", row.role)]);
+            }
+        });
+
+        let fields = commands_roles
+            .iter()
+            .map(|(key, value)| (key.to_title_case(), value.join("\n"), true));
+
+        let title = lm.get(&language, "restrict/title");
+
+        let _ = msg
+            .channel_id
+            .send_message(&ctx, |m| {
+                m.embed(|e| e.title(title).fields(fields).color(*THEME_COLOR))
+            })
+            .await;
     } else {
         let desc = lm.get(&language, "help/restrict");
         let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;

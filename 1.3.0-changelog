@@ -16,6 +16,9 @@
 - `timer` visual improvements:
   + Some emojis have been added to the timer command
 
+- `restrict` visual improvements:
+  + Roles grouped by command and displayed as embed fields
+
 - `look` fixes:
   + `$look all` has been removed, as this allowed users to check reminders in private channels
   + Fixed a bug where channels would be ignored if other switches were provided
@@ -35,5 +38,7 @@
   + Remind commands now provide output that is more detailed
   + Translations are now loaded from a JSON file included within the executable
   + Reduced user caching by individually querying some attributes
-  + Roles can now be silently mentioned with <<Role name>>
+  + Roles can now be silently mentioned in reminder commands with `<<Role name>>`
+  + Remind commands now support tts with `/tts`, and attachment uploading
   + The number of days will show even if zero to improve clarity
+  + Dependencies updated to latest patches
