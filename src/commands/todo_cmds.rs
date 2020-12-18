@@ -12,8 +12,7 @@ use serenity::{
 use std::fmt;
 
 use crate::{
-    consts::THEME_COLOR,
-    get_ctx_data,
+    command_help, get_ctx_data,
     models::{GuildData, UserData},
 };
 use sqlx::MySqlPool;
@@ -431,32 +430,21 @@ async fn todo_guild(ctx: &Context, msg: &Message, args: String) {
 async fn show_help(ctx: &Context, msg: &Message, target: Option<TodoTarget>) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
-    let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+    let language = UserData::language_of(&msg.author, &pool);
+    let prefix = GuildData::prefix_from_id(msg.guild_id, &pool);
 
     let command = match target {
-        None => "help/todo",
+        None => "todo",
         Some(t) => {
             if t.channel.is_some() {
-                "help/todoc"
+                "todoc"
             } else if t.guild.is_some() {
-                "help/todos"
+                "todos"
             } else {
-                "help/todo"
+                "todo"
             }
         }
     };
 
-    let desc = lm.get(&user_data.language, command);
-
-    let _ = msg
-        .channel_id
-        .send_message(ctx, |m| {
-            m.embed(move |e| {
-                e.title("Todo Help")
-                    .description(desc.replace("{prefix}", &prefix))
-                    .color(*THEME_COLOR)
-            })
-        })
-        .await;
+    command_help(ctx, msg, lm, &prefix.await, &language.await, command).await;
 }

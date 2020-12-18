@@ -16,7 +16,7 @@ use serenity::{
 use tokio::process::Command;
 
 use crate::{
-    check_subscription_on_message,
+    check_subscription_on_message, command_help,
     consts::{
         CHARACTERS, DAY, HOUR, LOCAL_TIMEZONE, MAX_TIME, MINUTE, MIN_INTERVAL, PYTHON_LOCATION,
         REGEX_CHANNEL, REGEX_CHANNEL_USER, REGEX_CONTENT_SUBSTITUTION, REGEX_INTERVAL_COMMAND,
@@ -178,18 +178,8 @@ async fn offset(ctx: &Context, msg: &Message, args: String) {
 
     if args.is_empty() {
         let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
-        let desc = lm.get(&user_data.language, "help/offset");
 
-        let _ = msg
-            .channel_id
-            .send_message(ctx, |m| {
-                m.embed(move |e| {
-                    e.title("Offset Help")
-                        .description(desc.replace("{prefix}", &prefix))
-                        .color(*THEME_COLOR)
-                })
-            })
-            .await;
+        command_help(ctx, msg, lm, &prefix, &user_data.language, "offset").await;
     } else {
         let parser = TimeParser::new(&args, user_data.timezone());
 
@@ -781,19 +771,9 @@ DELETE FROM timers WHERE owner = ? AND name = ?
         }
 
         _ => {
-            let desc = lm.get(&language, "help/timer");
             let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
 
-            let _ = msg
-                .channel_id
-                .send_message(ctx, |m| {
-                    m.embed(move |e| {
-                        e.title("Timer Help")
-                            .description(desc.replace("{prefix}", &prefix))
-                            .color(*THEME_COLOR)
-                    })
-                })
-                .await;
+            command_help(ctx, msg, lm, &prefix, &language, "timer").await;
         }
     }
 }
@@ -1199,33 +1179,17 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
         }
 
         None => {
-            let desc = lm.get(
-                &user_data.language,
-                match command {
-                    RemindCommand::Remind => "help/remind",
-
-                    RemindCommand::Interval => "help/interval",
-                },
-            );
-
-            let title = match command {
-                RemindCommand::Remind => "Remind Help",
-
-                RemindCommand::Interval => "Interval Help",
-            };
-
             let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
 
-            let _ = msg
-                .channel_id
-                .send_message(ctx, |m| {
-                    m.embed(move |e| {
-                        e.title(title)
-                            .description(desc.replace("{prefix}", &prefix))
-                            .color(*THEME_COLOR)
-                    })
-                })
-                .await;
+            match command {
+                RemindCommand::Remind => {
+                    command_help(ctx, msg, lm, &prefix, &user_data.language, "remind").await
+                }
+
+                RemindCommand::Interval => {
+                    command_help(ctx, msg, lm, &prefix, &user_data.language, "interval").await
+                }
+            }
         }
     }
 }
