@@ -39,6 +39,7 @@ use crate::{
 
 use serenity::futures::TryFutureExt;
 
+use inflector::Inflector;
 use log::info;
 
 struct SQLPool;
@@ -342,4 +343,34 @@ pub async fn get_ctx_data(ctx: &&Context) -> (MySqlPool, Arc<LanguageManager>) {
     }
 
     (pool, lm)
+}
+
+async fn command_help(
+    ctx: &Context,
+    msg: &Message,
+    lm: Arc<LanguageManager>,
+    prefix: &str,
+    language: &str,
+    command_name: &str,
+) {
+    let _ = msg
+        .channel_id
+        .send_message(ctx, |m| {
+            m.embed(move |e| {
+                e.title(format!("{} Help", command_name.to_title_case()))
+                    .description(
+                        lm.get(&language, &format!("help/{}", command_name))
+                            .replace("{prefix}", &prefix),
+                    )
+                    .footer(|f| {
+                        f.text(concat!(
+                            env!("CARGO_PKG_NAME"),
+                            " ver ",
+                            env!("CARGO_PKG_VERSION")
+                        ))
+                    })
+                    .color(*THEME_COLOR)
+            })
+        })
+        .await;
 }

@@ -24,10 +24,8 @@ use crate::{
     },
     framework::SendIterator,
     get_ctx_data,
-    language_manager::LanguageManager,
     models::{ChannelData, GuildData, Timer, UserData},
     time_parser::TimeParser,
-    SQLPool,
 };
 
 use chrono::{offset::TimeZone, NaiveDateTime};

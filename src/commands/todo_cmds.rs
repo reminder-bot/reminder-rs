@@ -15,12 +15,10 @@ use crate::{
     consts::THEME_COLOR,
     get_ctx_data,
     models::{GuildData, UserData},
-    SQLPool,
 };
 use sqlx::MySqlPool;
 use std::convert::TryFrom;
 
-use crate::language_manager::LanguageManager;
 use async_trait::async_trait;
 
 #[derive(Debug)]

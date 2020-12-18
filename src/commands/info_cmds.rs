@@ -5,16 +5,14 @@ use serenity::{client::Context, model::channel::Message};
 use chrono::offset::Utc;
 
 use crate::{
+    command_help,
     consts::{DEFAULT_PREFIX, HELP_STRINGS},
     get_ctx_data,
     language_manager::LanguageManager,
     models::{GuildData, UserData},
-    SQLPool, THEME_COLOR,
+    THEME_COLOR,
 };
 
-use levenshtein::levenshtein;
-
-use inflector::Inflector;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -98,43 +96,24 @@ async fn help(ctx: &Context, msg: &Message, args: String) {
 
     let (pool, lm) = get_ctx_data(&ctx).await;
 
-    let language = UserData::language_of(&msg.author, &pool).await;
-    let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+    let language = UserData::language_of(&msg.author, &pool);
+    let prefix = GuildData::prefix_from_id(msg.guild_id, &pool);
 
     if !args.is_empty() {
-        let closest_match = HELP_STRINGS
+        let matched = HELP_STRINGS
             .iter()
-            .map(|h| (levenshtein(h.split_at(5).1, &args), h))
-            .filter(|(dist, _)| dist < &3)
-            .min_by(|(dist_a, _), (dist_b, _)| dist_a.cmp(dist_b))
-            .map(|(_, string)| string);
+            .filter(|h| h.split_at(5).1 == args)
+            .next();
 
-        if let Some(help_str) = closest_match {
-            let desc = lm.get(&language, help_str);
+        if let Some(help_str) = matched {
             let command_name = help_str.split_at(5).1;
 
-            let _ = msg
-                .channel_id
-                .send_message(ctx, |m| {
-                    m.embed(move |e| {
-                        e.title(format!("{} Help", command_name.to_title_case()))
-                            .description(desc.replace("{prefix}", &prefix))
-                            .footer(|f| {
-                                f.text(concat!(
-                                    env!("CARGO_PKG_NAME"),
-                                    " ver ",
-                                    env!("CARGO_PKG_VERSION")
-                                ))
-                            })
-                            .color(*THEME_COLOR)
-                    })
-                })
-                .await;
+            command_help(ctx, msg, lm, &prefix.await, &language.await, command_name).await
         } else {
-            default_help(ctx, msg, lm, &prefix, &language).await;
+            default_help(ctx, msg, lm, &prefix.await, &language.await).await;
         }
     } else {
-        default_help(ctx, msg, lm, &prefix, &language).await;
+        default_help(ctx, msg, lm, &prefix.await, &language.await).await;
     }
 }
 
@@ -142,16 +121,15 @@ async fn help(ctx: &Context, msg: &Message, args: String) {
 async fn info(ctx: &Context, msg: &Message, _args: String) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
-    let language = UserData::language_of(&msg.author, &pool).await;
-    let guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool)
-        .await
-        .unwrap();
+    let language = UserData::language_of(&msg.author, &pool);
+    let prefix = GuildData::prefix_from_id(msg.guild_id, &pool);
+    let current_user = ctx.cache.current_user();
 
     let desc = lm
-        .get(&language, "info")
-        .replacen("{user}", &ctx.cache.current_user().await.name, 1)
+        .get(&language.await, "info")
+        .replacen("{user}", &current_user.await.name, 1)
         .replace("{default_prefix}", &*DEFAULT_PREFIX)
-        .replace("{prefix}", &guild_data.prefix);
+        .replace("{prefix}", &prefix.await);
 
     let _ = msg
         .channel_id

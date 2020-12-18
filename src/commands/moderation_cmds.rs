@@ -18,9 +18,8 @@ use crate::{
     consts::{REGEX_ALIAS, REGEX_CHANNEL, REGEX_COMMANDS, REGEX_ROLE, THEME_COLOR},
     framework::SendIterator,
     get_ctx_data,
-    language_manager::LanguageManager,
     models::{ChannelData, GuildData, UserData},
-    FrameworkCtx, SQLPool,
+    FrameworkCtx,
 };
 
 use std::{collections::HashMap, iter, time::Duration};
