@@ -13,6 +13,7 @@ use std::fmt;
 
 use crate::{
     consts::THEME_COLOR,
+    get_ctx_data,
     models::{GuildData, UserData},
     SQLPool,
 };
@@ -237,19 +238,7 @@ DELETE FROM todos WHERE user_id = (SELECT id FROM users WHERE user = ?) AND guil
     }
 
     async fn execute(&self, ctx: &Context, msg: &Message, subcommand: SubCommand, extra: String) {
-        let pool;
-        let lm;
-
-        {
-            let data = ctx.data.read().await;
-
-            pool = data
-                .get::<SQLPool>()
-                .cloned()
-                .expect("Could not get SQLPool from data");
-
-            lm = data.get::<LanguageManager>().cloned().unwrap();
-        }
+        let (pool, lm) = get_ctx_data(&ctx).await;
 
         let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
         let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
@@ -442,19 +431,7 @@ async fn todo_guild(ctx: &Context, msg: &Message, args: String) {
 }
 
 async fn show_help(ctx: &Context, msg: &Message, target: Option<TodoTarget>) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
     let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;

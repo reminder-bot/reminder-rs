@@ -6,6 +6,7 @@ use chrono::offset::Utc;
 
 use crate::{
     consts::{DEFAULT_PREFIX, HELP_STRINGS},
+    get_ctx_data,
     language_manager::LanguageManager,
     models::{GuildData, UserData},
     SQLPool, THEME_COLOR,
@@ -14,6 +15,7 @@ use crate::{
 use levenshtein::levenshtein;
 
 use inflector::Inflector;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[command]
@@ -38,7 +40,7 @@ async fn help(ctx: &Context, msg: &Message, args: String) {
     async fn default_help(
         ctx: &Context,
         msg: &Message,
-        lm: &LanguageManager,
+        lm: Arc<LanguageManager>,
         prefix: &str,
         language: &str,
     ) {
@@ -94,14 +96,7 @@ async fn help(ctx: &Context, msg: &Message, args: String) {
             .await;
     }
 
-    let data = ctx.data.read().await;
-
-    let pool = data
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
-
-    let lm = data.get::<LanguageManager>().unwrap();
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
@@ -145,14 +140,7 @@ async fn help(ctx: &Context, msg: &Message, args: String) {
 
 #[command]
 async fn info(ctx: &Context, msg: &Message, _args: String) {
-    let data = ctx.data.read().await;
-
-    let pool = data
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
-
-    let lm = data.get::<LanguageManager>().unwrap();
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool)
@@ -186,14 +174,7 @@ async fn info(ctx: &Context, msg: &Message, _args: String) {
 
 #[command]
 async fn donate(ctx: &Context, msg: &Message, _args: String) {
-    let data = ctx.data.read().await;
-
-    let pool = data
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
-
-    let lm = data.get::<LanguageManager>().unwrap();
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let desc = lm.get(&language, "donate");
@@ -240,14 +221,7 @@ async fn dashboard(ctx: &Context, msg: &Message, _args: String) {
 
 #[command]
 async fn clock(ctx: &Context, msg: &Message, _args: String) {
-    let data = ctx.data.read().await;
-
-    let pool = data
-        .get::<SQLPool>()
-        .cloned()
-        .expect("Could not get SQLPool from data");
-
-    let lm = data.get::<LanguageManager>().unwrap();
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let timezone = UserData::timezone_of(&msg.author, &pool).await;

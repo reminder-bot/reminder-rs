@@ -17,6 +17,7 @@ use levenshtein::levenshtein;
 use crate::{
     consts::{REGEX_ALIAS, REGEX_CHANNEL, REGEX_COMMANDS, REGEX_ROLE, THEME_COLOR},
     framework::SendIterator,
+    get_ctx_data,
     language_manager::LanguageManager,
     models::{ChannelData, GuildData, UserData},
     FrameworkCtx, SQLPool,
@@ -29,19 +30,7 @@ use std::{collections::HashMap, iter, time::Duration};
 #[permission_level(Restricted)]
 #[can_blacklist(false)]
 async fn blacklist(ctx: &Context, msg: &Message, args: String) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool).await;
 
@@ -97,19 +86,7 @@ async fn blacklist(ctx: &Context, msg: &Message, args: String) {
 
 #[command]
 async fn timezone(ctx: &Context, msg: &Message, args: String) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
@@ -227,19 +204,7 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
 
 #[command]
 async fn change_meridian(ctx: &Context, msg: &Message, args: String) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
@@ -292,19 +257,7 @@ async fn change_meridian(ctx: &Context, msg: &Message, args: String) {
 
 #[command]
 async fn language(ctx: &Context, msg: &Message, args: String) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
@@ -433,19 +386,7 @@ async fn language(ctx: &Context, msg: &Message, args: String) {
 #[supports_dm(false)]
 #[permission_level(Restricted)]
 async fn prefix(ctx: &Context, msg: &Message, args: String) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let mut guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool)
         .await
@@ -478,19 +419,7 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) {
 #[supports_dm(false)]
 #[permission_level(Restricted)]
 async fn restrict(ctx: &Context, msg: &Message, args: String) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool)
@@ -631,19 +560,7 @@ WHERE
 #[supports_dm(false)]
 #[permission_level(Managed)]
 async fn alias(ctx: &Context, msg: &Message, args: String) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool).await;
 

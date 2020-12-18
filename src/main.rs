@@ -322,3 +322,24 @@ pub async fn check_subscription_on_message(
             false
         }
 }
+
+pub async fn get_ctx_data(ctx: &&Context) -> (MySqlPool, Arc<LanguageManager>) {
+    let pool;
+    let lm;
+
+    {
+        let data = ctx.data.read().await;
+
+        pool = data
+            .get::<SQLPool>()
+            .cloned()
+            .expect("Could not get SQLPool");
+
+        lm = data
+            .get::<LanguageManager>()
+            .cloned()
+            .expect("Could not get LanguageManager");
+    }
+
+    (pool, lm)
+}

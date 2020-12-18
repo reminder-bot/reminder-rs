@@ -23,6 +23,7 @@ use crate::{
         REGEX_REMIND_COMMAND, THEME_COLOR,
     },
     framework::SendIterator,
+    get_ctx_data,
     language_manager::LanguageManager,
     models::{ChannelData, GuildData, Timer, UserData},
     time_parser::TimeParser,
@@ -109,19 +110,7 @@ async fn create_webhook(
 #[supports_dm(false)]
 #[permission_level(Restricted)]
 async fn pause(ctx: &Context, msg: &Message, args: String) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let timezone = UserData::timezone_of(&msg.author, &pool).await;
@@ -185,19 +174,7 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
 #[command]
 #[permission_level(Restricted)]
 async fn offset(ctx: &Context, msg: &Message, args: String) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
@@ -269,19 +246,7 @@ UPDATE reminders SET `time` = `time` + ? WHERE reminders.channel_id = ?
 #[command]
 #[permission_level(Restricted)]
 async fn nudge(ctx: &Context, msg: &Message, args: String) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let timezone = UserData::timezone_of(&msg.author, &pool).await;
@@ -411,19 +376,7 @@ impl LookReminder {
 #[command("look")]
 #[permission_level(Managed)]
 async fn look(ctx: &Context, msg: &Message, args: String) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let timezone = UserData::timezone_of(&msg.author, &pool).await;
@@ -550,19 +503,7 @@ LIMIT
 #[command("del")]
 #[permission_level(Managed)]
 async fn delete(ctx: &Context, msg: &Message, _args: String) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
@@ -745,19 +686,7 @@ async fn timer(ctx: &Context, msg: &Message, args: String) {
         format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
     }
 
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool).await;
 
@@ -1077,36 +1006,24 @@ async fn interval(ctx: &Context, msg: &Message, args: String) {
     }
 }
 
+fn parse_mention_list(mentions: &str) -> Vec<ReminderScope> {
+    REGEX_CHANNEL_USER
+        .captures_iter(mentions)
+        .map(|i| {
+            let pref = i.get(1).unwrap().as_str();
+            let id = i.get(2).unwrap().as_str().parse::<u64>().unwrap();
+
+            if pref == "#" {
+                ReminderScope::Channel(id)
+            } else {
+                ReminderScope::User(id)
+            }
+        })
+        .collect::<Vec<ReminderScope>>()
+}
+
 async fn remind_command(ctx: &Context, msg: &Message, args: String, command: RemindCommand) {
-    fn parse_mention_list(mentions: &str) -> Vec<ReminderScope> {
-        REGEX_CHANNEL_USER
-            .captures_iter(mentions)
-            .map(|i| {
-                let pref = i.get(1).unwrap().as_str();
-                let id = i.get(2).unwrap().as_str().parse::<u64>().unwrap();
-
-                if pref == "#" {
-                    ReminderScope::Channel(id)
-                } else {
-                    ReminderScope::User(id)
-                }
-            })
-            .collect::<Vec<ReminderScope>>()
-    }
-
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
@@ -1318,19 +1235,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
 #[command("natural")]
 #[permission_level(Managed)]
 async fn natural(ctx: &Context, msg: &Message, args: String) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        lm = data.get::<LanguageManager>().cloned().unwrap();
-    }
+    let (pool, lm) = get_ctx_data(&ctx).await;
 
     let now = SystemTime::now();
     let since_epoch = now
@@ -1384,19 +1289,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
 
                     let mentions = captures.name("mentions").unwrap().as_str();
 
-                    location_ids = REGEX_CHANNEL_USER
-                        .captures_iter(mentions)
-                        .map(|i| {
-                            let pref = i.get(1).unwrap().as_str();
-                            let id = i.get(2).unwrap().as_str().parse::<u64>().unwrap();
-
-                            if pref == "#" {
-                                ReminderScope::Channel(id)
-                            } else {
-                                ReminderScope::User(id)
-                            }
-                        })
-                        .collect::<Vec<ReminderScope>>();
+                    location_ids = parse_mention_list(mentions);
                 }
             }
 
