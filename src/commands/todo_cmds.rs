@@ -30,12 +30,8 @@ impl fmt::Display for TodoNotFound {
     }
 }
 
-#[derive(Debug)]
 struct Todo {
     id: u32,
-    user_id: Option<u32>,
-    guild_id: Option<u32>,
-    channel_id: Option<u32>,
     value: String,
 }
 
@@ -81,7 +77,7 @@ impl TodoTarget {
             sqlx::query_as!(
                 Todo,
                 "
-SELECT id, user_id, guild_id, channel_id, value FROM todos WHERE channel_id = (SELECT id FROM channels WHERE channel = ?)
+SELECT id, value FROM todos WHERE channel_id = (SELECT id FROM channels WHERE channel = ?)
                 ",
                 cid.as_u64()
             )
@@ -91,7 +87,7 @@ SELECT id, user_id, guild_id, channel_id, value FROM todos WHERE channel_id = (S
             sqlx::query_as!(
                 Todo,
                 "
-SELECT id, user_id, guild_id, channel_id, value FROM todos WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND channel_id IS NULL
+SELECT id, value FROM todos WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND channel_id IS NULL
                 ",
                 gid.as_u64()
             )
@@ -101,7 +97,7 @@ SELECT id, user_id, guild_id, channel_id, value FROM todos WHERE guild_id = (SEL
             sqlx::query_as!(
                 Todo,
                 "
-SELECT id, user_id, guild_id, channel_id, value FROM todos WHERE user_id = (SELECT id FROM users WHERE user = ?) AND guild_id IS NULL
+SELECT id, value FROM todos WHERE user_id = (SELECT id FROM users WHERE user = ?) AND guild_id IS NULL
                 ",
                 self.user.as_u64()
             )
@@ -176,7 +172,7 @@ INSERT INTO todos (user_id, value) VALUES (
             let deleting = sqlx::query_as!(
                 Todo,
                 "
-SELECT id, user_id, guild_id, channel_id, value FROM todos WHERE id = ?
+SELECT id, value FROM todos WHERE id = ?
                 ",
                 removal_todo.id
             )
