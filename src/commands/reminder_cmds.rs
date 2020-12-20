@@ -719,12 +719,23 @@ async fn timer(ctx: &Context, msg: &Message, args: String) {
                     .map(|s| s.to_string())
                     .unwrap_or(format!("New timer #{}", count + 1));
 
-                Timer::create(&name, owner, &pool).await;
+                if name.len() <= 32 {
+                    Timer::create(&name, owner, &pool).await;
 
-                let _ = msg
-                    .channel_id
-                    .say(&ctx, lm.get(&language, "timer/success"))
-                    .await;
+                    let _ = msg
+                        .channel_id
+                        .say(&ctx, lm.get(&language, "timer/success"))
+                        .await;
+                } else {
+                    let _ = msg
+                        .channel_id
+                        .say(
+                            &ctx,
+                            lm.get(&language, "timer/name_length")
+                                .replace("{}", &name.len().to_string()),
+                        )
+                        .await;
+                }
             }
         }
 
