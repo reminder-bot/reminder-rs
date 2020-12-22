@@ -351,15 +351,17 @@ impl Framework for RegexFramework {
         else if let (Some(guild), Some(Channel::Guild(channel))) =
             (msg.guild(&ctx).await, msg.channel(&ctx).await)
         {
+            let data = ctx.data.read().await;
+
+            let pool = data
+                .get::<SQLPool>()
+                .cloned()
+                .expect("Could not get SQLPool from data");
+
+            GuildData::from_guild(guild, &pool).await;
+
             if let Some(full_match) = self.command_matcher.captures(&msg.content) {
                 if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
-                    let data = ctx.data.read().await;
-
-                    let pool = data
-                        .get::<SQLPool>()
-                        .cloned()
-                        .expect("Could not get SQLPool from data");
-
                     let lm = data.get::<LanguageManager>().unwrap();
 
                     let language = UserData::language_of(&msg.author, &pool).await;
