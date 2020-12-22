@@ -357,8 +357,17 @@ impl Framework for RegexFramework {
                 .get::<SQLPool>()
                 .cloned()
                 .expect("Could not get SQLPool from data");
+            {
+                let guild = GuildData::from_guild(guild.clone(), &pool).await.unwrap();
 
-            GuildData::from_guild(guild, &pool).await;
+                let _ = sqlx::query!(
+                    "UPDATE channels SET guild_id = ? WHERE channel = ?",
+                    guild.id,
+                    msg.channel_id.as_u64(),
+                )
+                .execute(&pool)
+                .await;
+            }
 
             if let Some(full_match) = self.command_matcher.captures(&msg.content) {
                 if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
