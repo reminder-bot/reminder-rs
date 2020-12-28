@@ -988,11 +988,7 @@ async fn remind(ctx: &Context, msg: &Message, args: String) {
 #[command("interval")]
 #[permission_level(Managed)]
 async fn interval(ctx: &Context, msg: &Message, args: String) {
-    if check_subscription_on_message(&ctx, msg).await {
-        remind_command(ctx, msg, args, RemindCommand::Interval).await;
-    } else {
-        let _ = msg.channel_id.say(&ctx, "interval/donor").await;
-    }
+    remind_command(ctx, msg, args, RemindCommand::Interval).await;
 }
 
 fn parse_mention_list(mentions: &str) -> Vec<ReminderScope> {
@@ -1015,6 +1011,24 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
     let (pool, lm) = get_ctx_data(&ctx).await;
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+
+    if command == RemindCommand::Interval {
+        if !check_subscription_on_message(&ctx, msg).await {
+            // breaker
+            let _ = msg
+                .channel_id
+                .say(
+                    &ctx,
+                    lm.get(&user_data.language, "interval/donor").replace(
+                        "{prefix}",
+                        &GuildData::prefix_from_id(msg.guild_id, &pool).await,
+                    ),
+                )
+                .await;
+
+            return;
+        }
+    }
 
     let captures = match command {
         RemindCommand::Remind => REGEX_REMIND_COMMAND.captures(&args),
