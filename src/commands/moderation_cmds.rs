@@ -107,7 +107,11 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
                 let content = lm
                     .get(&user_data.language, "timezone/set_p")
                     .replacen("{timezone}", &user_data.timezone, 1)
-                    .replacen("{time}", &now.format("%H:%M").to_string(), 1);
+                    .replacen(
+                        "{time}",
+                        &now.format(user_data.meridian().fmt_str_short()).to_string(),
+                        1,
+                    );
 
                 let _ =
                     msg.channel_id
@@ -138,7 +142,10 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
                             tz_s,
                             format!(
                                 "🕗 `{}`",
-                                Utc::now().with_timezone(tz).format("%H:%M").to_string()
+                                Utc::now()
+                                    .with_timezone(tz)
+                                    .format(user_data.meridian().fmt_str_short())
+                                    .to_string()
                             ),
                             true,
                         )
@@ -179,7 +186,7 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
                     "🕗 `{}`",
                     Utc::now()
                         .with_timezone(&t.timezone.parse::<Tz>().unwrap())
-                        .format("%H:%M")
+                        .format(user_data.meridian().fmt_str_short())
                         .to_string()
                 ),
                 true,

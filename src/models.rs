@@ -193,6 +193,14 @@ impl MeridianType {
             "%Y-%m-%d %H:%M:%S"
         }
     }
+
+    pub fn fmt_str_short(&self) -> &str {
+        if self.0 {
+            "%I:%M %p"
+        } else {
+            "%H:%M"
+        }
+    }
 }
 
 impl UserData {
