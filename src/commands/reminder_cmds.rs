@@ -967,7 +967,7 @@ impl Content {
                     if let Some(role) = guild.role_by_name(role_name.as_str()) {
                         role.mention()
                     } else {
-                        role_name.as_str().to_string()
+                        format!("<<{}>>", role_name.as_str().to_string())
                     }
                 } else {
                     String::new()

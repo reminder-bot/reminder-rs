@@ -126,6 +126,7 @@ CREATE TABLE reminders.reminders (
 
     `time` INT UNSIGNED DEFAULT 0 NOT NULL,
     `interval` INT UNSIGNED DEFAULT NULL,
+    expires TIMESTAMP DEFAULT NULL,
 
     enabled BOOLEAN DEFAULT 1 NOT NULL,
 
