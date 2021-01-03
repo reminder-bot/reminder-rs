@@ -3,7 +3,12 @@ use regex_command_attr::command;
 use serenity::{
     client::Context,
     framework::Framework,
-    model::{channel::Message, channel::ReactionType, id::ChannelId, id::RoleId},
+    model::{
+        channel::ReactionType,
+        channel::{Channel, Message},
+        id::ChannelId,
+        id::RoleId,
+    },
 };
 
 use chrono_tz::{Tz, TZ_VARIANTS};
@@ -312,10 +317,12 @@ async fn language(ctx: &Context, msg: &Message, args: String) {
             .all_languages()
             .map(|(k, _)| ReactionType::Unicode(lm.get(k, "flag").to_string()));
 
-        let can_react = if let Some(guild) = msg.guild(&ctx).await {
-            guild
-                .user_permissions_in(msg.channel_id, ctx.cache.current_user().await)
-                .add_reactions()
+        let can_react = if let Some(Channel::Guild(channel)) = msg.channel(&ctx).await {
+            channel
+                .permissions_for_user(&ctx, ctx.cache.current_user().await)
+                .await
+                .map(|p| p.add_reactions())
+                .unwrap_or(false)
         } else {
             true
         };
@@ -367,11 +374,14 @@ async fn language(ctx: &Context, msg: &Message, args: String) {
                 }
             }
 
-            if let Some(guild) = msg.guild(&ctx).await {
-                let perms =
-                    guild.user_permissions_in(msg.channel_id, ctx.cache.current_user().await);
+            if let Some(Channel::Guild(channel)) = msg.channel(&ctx).await {
+                let has_perms = channel
+                    .permissions_for_user(&ctx, ctx.cache.current_user().await)
+                    .await
+                    .map(|p| p.manage_messages())
+                    .unwrap_or(false);
 
-                if perms.manage_messages() {
+                if has_perms {
                     let _ = sent_msg.delete_reactions(&ctx).await;
                 }
             }

@@ -50,11 +50,7 @@ lazy_static! {
     pub static ref REGEX_CHANNEL_USER: Regex = Regex::new(r#"\s*<(#|@)(?:!)?(\d+)>\s*"#).unwrap();
 
     pub static ref REGEX_REMIND_COMMAND: Regex = Regex::new(
-    r#"(?P<mentions>(?:<@\d+>\s|<@!\d+>\s|<#\d+>\s)*)(?P<time>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+|()) (?P<content>.*)"#)
-        .unwrap();
-
-    pub static ref REGEX_INTERVAL_COMMAND: Regex = Regex::new(
-    r#"(?P<mentions>(?:<@\d+>\s|<@!\d+>\s|<#\d+>\s)*)(?P<time>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+) (?P<interval>(?:(?:\d+)(?:s|m|h|d|))+) (?P<content>.*)"#)
+    r#"(?P<mentions>(?:<@\d+>\s|<@!\d+>\s|<#\d+>\s)*)(?P<time>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+)(?:\s+(?P<interval>(?:(?:\d+)(?:s|m|h|d|))+))?(?:\s+(?P<expires>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+))?\s+(?P<content>.*)"#)
         .unwrap();
 
     pub static ref SUBSCRIPTION_ROLES: HashSet<u64> = HashSet::from_iter(

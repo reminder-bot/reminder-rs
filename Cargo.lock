@@ -1316,7 +1316,7 @@ dependencies = [
 
 [[package]]
 name = "reminder_rs"
-version = "1.3.5"
+version = "1.4.0"
 dependencies = [
  "Inflector",
  "async-trait",
@@ -1539,8 +1539,8 @@ dependencies = [
 
 [[package]]
 name = "serenity"
-version = "0.9.0-rc.3"
-source = "git+https://github.com/jellywx/serenity?branch=jellywx-member_permissions#fc0af6a865d2cfdeeefbb02d297950bc34c0d87b"
+version = "0.9.3"
+source = "git+https://github.com/serenity-rs/serenity?branch=current#0b1fc2737efebde01f6f3b781bcdfc83a30e908e"
 dependencies = [
  "async-trait",
  "async-tungstenite",
@@ -1550,6 +1550,7 @@ dependencies = [
  "chrono",
  "flate2",
  "futures",
+ "percent-encoding",
  "reqwest",
  "serde",
  "serde_json",

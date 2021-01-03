@@ -19,8 +19,8 @@ use crate::{
     check_subscription_on_message, command_help,
     consts::{
         CHARACTERS, DAY, HOUR, LOCAL_TIMEZONE, MAX_TIME, MINUTE, MIN_INTERVAL, PYTHON_LOCATION,
-        REGEX_CHANNEL, REGEX_CHANNEL_USER, REGEX_CONTENT_SUBSTITUTION, REGEX_INTERVAL_COMMAND,
-        REGEX_REMIND_COMMAND, THEME_COLOR,
+        REGEX_CHANNEL, REGEX_CHANNEL_USER, REGEX_CONTENT_SUBSTITUTION, REGEX_REMIND_COMMAND,
+        THEME_COLOR,
     },
     framework::SendIterator,
     get_ctx_data,
@@ -818,6 +818,7 @@ enum ReminderError {
     InvalidTag,
     NotEnoughArgs,
     InvalidTime,
+    InvalidExpiration,
     NeedSubscription,
     DiscordError(String),
 }
@@ -846,6 +847,7 @@ impl ToResponse for ReminderError {
             Self::InvalidTag => "remind/invalid_tag",
             Self::NotEnoughArgs => "remind/no_argument",
             Self::InvalidTime => "remind/invalid_time",
+            Self::InvalidExpiration => "interval/invalid_expiration",
             Self::NeedSubscription => "interval/donor",
             Self::DiscordError(_) => "remind/generic_error",
         }
@@ -1010,33 +1012,10 @@ fn parse_mention_list(mentions: &str) -> Vec<ReminderScope> {
 async fn remind_command(ctx: &Context, msg: &Message, args: String, command: RemindCommand) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    let timezone = UserData::timezone_of(&msg.author, &pool).await;
+    let language = UserData::language_of(&msg.author, &pool).await;
 
-    if command == RemindCommand::Interval {
-        if !check_subscription_on_message(&ctx, msg).await {
-            // breaker
-            let _ = msg
-                .channel_id
-                .say(
-                    &ctx,
-                    lm.get(&user_data.language, "interval/donor").replace(
-                        "{prefix}",
-                        &GuildData::prefix_from_id(msg.guild_id, &pool).await,
-                    ),
-                )
-                .await;
-
-            return;
-        }
-    }
-
-    let captures = match command {
-        RemindCommand::Remind => REGEX_REMIND_COMMAND.captures(&args),
-
-        RemindCommand::Interval => REGEX_INTERVAL_COMMAND.captures(&args),
-    };
-
-    match captures {
+    match REGEX_REMIND_COMMAND.captures(&args) {
         Some(captures) => {
             let parsed = parse_mention_list(captures.name("mentions").unwrap().as_str());
 
@@ -1046,144 +1025,160 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                 parsed
             };
 
-            let time_parser = TimeParser::new(
-                captures.name("time").unwrap().as_str(),
-                user_data.timezone(),
-            );
+            let time_parser = TimeParser::new(captures.name("time").unwrap().as_str(), timezone);
+
+            let expires_parser = captures
+                .name("expires")
+                .map(|mat| TimeParser::new(mat.as_str(), timezone));
 
             let interval_parser = captures
                 .name("interval")
-                .map(|mat| TimeParser::new(mat.as_str(), user_data.timezone()))
+                .map(|mat| TimeParser::new(mat.as_str(), timezone))
                 .map(|parser| parser.displacement())
                 .transpose();
 
             if let Ok(interval) = interval_parser {
-                let content_res = Content::build(
-                    captures.name("content").map(|mat| mat.as_str()).unwrap(),
-                    msg,
-                )
-                .await;
+                if interval.is_some() && !check_subscription_on_message(&ctx, msg).await {
+                    // no patreon
+                    let _ = msg
+                        .channel_id
+                        .say(
+                            &ctx,
+                            lm.get(&language, "interval/donor").replace(
+                                "{prefix}",
+                                &GuildData::prefix_from_id(msg.guild_id, &pool).await,
+                            ),
+                        )
+                        .await;
+                } else {
+                    let content_res = Content::build(
+                        captures.name("content").map(|mat| mat.as_str()).unwrap(),
+                        msg,
+                    )
+                    .await;
 
-                match content_res {
-                    Ok(mut content) => {
-                        let mut ok_locations = vec![];
-                        let mut err_locations = vec![];
-                        let mut err_types = HashSet::new();
+                    match content_res {
+                        Ok(mut content) => {
+                            let mut ok_locations = vec![];
+                            let mut err_locations = vec![];
+                            let mut err_types = HashSet::new();
 
-                        for scope in scopes {
-                            let res = create_reminder(
-                                &ctx,
-                                &pool,
-                                msg.author.id,
-                                msg.guild_id,
-                                &scope,
-                                &time_parser,
-                                interval,
-                                &mut content,
-                            )
-                            .await;
-
-                            if let Err(e) = res {
-                                err_locations.push(scope);
-                                err_types.insert(e);
-                            } else {
-                                ok_locations.push(scope);
-                            }
-                        }
-
-                        let success_part = match ok_locations.len() {
-                            0 => "".to_string(),
-                            1 => lm
-                                .get(&user_data.language, "remind/success")
-                                .replace("{location}", &ok_locations[0].mention())
-                                .replace(
-                                    "{offset}",
-                                    &shorthand_displacement(
-                                        time_parser.displacement().unwrap() as u64
-                                    ),
-                                ),
-                            n => lm
-                                .get(&user_data.language, "remind/success_bulk")
-                                .replace("{number}", &n.to_string())
-                                .replace(
-                                    "{location}",
-                                    &ok_locations
-                                        .iter()
-                                        .map(|l| l.mention())
-                                        .collect::<Vec<String>>()
-                                        .join(", "),
+                            for scope in scopes {
+                                let res = create_reminder(
+                                    &ctx,
+                                    &pool,
+                                    msg.author.id,
+                                    msg.guild_id,
+                                    &scope,
+                                    &time_parser,
+                                    expires_parser.as_ref().clone(),
+                                    interval,
+                                    &mut content,
                                 )
-                                .replace(
-                                    "{offset}",
-                                    &shorthand_displacement(
-                                        time_parser.displacement().unwrap() as u64
-                                    ),
-                                ),
-                        };
+                                .await;
 
-                        let error_part = format!(
-                            "{}\n{}",
-                            match err_locations.len() {
+                                if let Err(e) = res {
+                                    err_locations.push(scope);
+                                    err_types.insert(e);
+                                } else {
+                                    ok_locations.push(scope);
+                                }
+                            }
+
+                            let success_part = match ok_locations.len() {
                                 0 => "".to_string(),
                                 1 => lm
-                                    .get(&user_data.language, "remind/issue")
-                                    .replace("{location}", &err_locations[0].mention()),
+                                    .get(&language, "remind/success")
+                                    .replace("{location}", &ok_locations[0].mention())
+                                    .replace(
+                                        "{offset}",
+                                        &shorthand_displacement(
+                                            time_parser.displacement().unwrap() as u64,
+                                        ),
+                                    ),
                                 n => lm
-                                    .get(&user_data.language, "remind/issue_bulk")
+                                    .get(&language, "remind/success_bulk")
                                     .replace("{number}", &n.to_string())
                                     .replace(
                                         "{location}",
-                                        &err_locations
+                                        &ok_locations
                                             .iter()
                                             .map(|l| l.mention())
                                             .collect::<Vec<String>>()
                                             .join(", "),
+                                    )
+                                    .replace(
+                                        "{offset}",
+                                        &shorthand_displacement(
+                                            time_parser.displacement().unwrap() as u64,
+                                        ),
                                     ),
-                            },
-                            err_types
-                                .iter()
-                                .map(|err| match err {
-                                    ReminderError::DiscordError(s) => lm
-                                        .get(&user_data.language, err.to_response())
-                                        .replace("{error}", &s),
+                            };
 
-                                    _ => lm.get(&user_data.language, err.to_response()).to_string(),
-                                })
-                                .collect::<Vec<String>>()
-                                .join("\n")
-                        );
+                            let error_part = format!(
+                                "{}\n{}",
+                                match err_locations.len() {
+                                    0 => "".to_string(),
+                                    1 => lm
+                                        .get(&language, "remind/issue")
+                                        .replace("{location}", &err_locations[0].mention()),
+                                    n => lm
+                                        .get(&language, "remind/issue_bulk")
+                                        .replace("{number}", &n.to_string())
+                                        .replace(
+                                            "{location}",
+                                            &err_locations
+                                                .iter()
+                                                .map(|l| l.mention())
+                                                .collect::<Vec<String>>()
+                                                .join(", "),
+                                        ),
+                                },
+                                err_types
+                                    .iter()
+                                    .map(|err| match err {
+                                        ReminderError::DiscordError(s) => lm
+                                            .get(&language, err.to_response())
+                                            .replace("{error}", &s),
 
-                        let _ = msg
-                            .channel_id
-                            .send_message(&ctx, |m| {
-                                m.embed(|e| {
-                                    e.title(
-                                        lm.get(&user_data.language, "remind/title")
-                                            .replace("{number}", &ok_locations.len().to_string()),
-                                    )
-                                    .description(format!("{}\n\n{}", success_part, error_part))
-                                    .color(*THEME_COLOR)
-                                })
-                            })
-                            .await;
-                    }
+                                        _ => lm.get(&language, err.to_response()).to_string(),
+                                    })
+                                    .collect::<Vec<String>>()
+                                    .join("\n")
+                            );
 
-                    Err(content_error) => {
-                        let _ = msg
-                            .channel_id
-                            .send_message(ctx, |m| {
-                                m.embed(move |e| {
-                                    e.title(
-                                        lm.get(&user_data.language, "remind/title")
-                                            .replace("{number}", "0"),
-                                    )
-                                    .description(
-                                        lm.get(&user_data.language, content_error.to_response()),
-                                    )
-                                    .color(*THEME_COLOR)
+                            let _ = msg
+                                .channel_id
+                                .send_message(&ctx, |m| {
+                                    m.embed(|e| {
+                                        e.title(
+                                            lm.get(&language, "remind/title").replace(
+                                                "{number}",
+                                                &ok_locations.len().to_string(),
+                                            ),
+                                        )
+                                        .description(format!("{}\n\n{}", success_part, error_part))
+                                        .color(*THEME_COLOR)
+                                    })
                                 })
-                            })
-                            .await;
+                                .await;
+                        }
+
+                        Err(content_error) => {
+                            let _ = msg
+                                .channel_id
+                                .send_message(ctx, |m| {
+                                    m.embed(move |e| {
+                                        e.title(
+                                            lm.get(&language, "remind/title")
+                                                .replace("{number}", "0"),
+                                        )
+                                        .description(lm.get(&language, content_error.to_response()))
+                                        .color(*THEME_COLOR)
+                                    })
+                                })
+                                .await;
+                        }
                     }
                 }
             } else {
@@ -1191,12 +1186,9 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                     .channel_id
                     .send_message(ctx, |m| {
                         m.embed(move |e| {
-                            e.title(
-                                lm.get(&user_data.language, "remind/title")
-                                    .replace("{number}", "0"),
-                            )
-                            .description(lm.get(&user_data.language, "interval/invalid_interval"))
-                            .color(*THEME_COLOR)
+                            e.title(lm.get(&language, "remind/title").replace("{number}", "0"))
+                                .description(lm.get(&language, "interval/invalid_interval"))
+                                .color(*THEME_COLOR)
                         })
                     })
                     .await;
@@ -1208,11 +1200,11 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
 
             match command {
                 RemindCommand::Remind => {
-                    command_help(ctx, msg, lm, &prefix, &user_data.language, "remind").await
+                    command_help(ctx, msg, lm, &prefix, &language, "remind").await
                 }
 
                 RemindCommand::Interval => {
-                    command_help(ctx, msg, lm, &prefix, &user_data.language, "interval").await
+                    command_help(ctx, msg, lm, &prefix, &language, "interval").await
                 }
             }
         }
@@ -1336,6 +1328,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                             msg.guild_id,
                             &scope,
                             timestamp,
+                            None,
                             interval,
                             &mut content,
                         )
@@ -1463,6 +1456,7 @@ async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
     guild_id: Option<GuildId>,
     scope_id: &ReminderScope,
     time_parser: T,
+    expires_parser: Option<T>,
     interval: Option<i64>,
     content: &mut Content,
 ) -> Result<(), ReminderError> {
@@ -1527,42 +1521,45 @@ async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
     } else {
         match time_parser.try_into() {
             Ok(time_pre) => {
-                let time = time_pre + nudge as i64;
+                match expires_parser.map(|t| t.try_into()).transpose() {
+                    Ok(expires) => {
+                        let time = time_pre + nudge as i64;
 
-                let unix_time = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs() as i64;
+                        let unix_time = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs() as i64;
 
-                if time >= unix_time - 10 {
-                    if time > unix_time + *MAX_TIME {
-                        Err(ReminderError::LongTime)
-                    } else {
-                        sqlx::query!(
-                            "
+                        if time >= unix_time - 10 {
+                            if time > unix_time + *MAX_TIME {
+                                Err(ReminderError::LongTime)
+                            } else {
+                                sqlx::query!(
+                                    "
 INSERT INTO messages (content, tts, attachment, attachment_name) VALUES (?, ?, ?, ?)
                             ",
-                            content.content,
-                            content.tts,
-                            content.attachment,
-                            content.attachment_name,
-                        )
-                        .execute(&pool.clone())
-                        .await
-                        .unwrap();
+                                    content.content,
+                                    content.tts,
+                                    content.attachment,
+                                    content.attachment_name,
+                                )
+                                .execute(&pool.clone())
+                                .await
+                                .unwrap();
 
-                        sqlx::query!(
+                                sqlx::query!(
                             "
-INSERT INTO reminders (uid, message_id, channel_id, time, `interval`, method, set_by) VALUES
+INSERT INTO reminders (uid, message_id, channel_id, time, expires, `interval`, method, set_by) VALUES
     (?,
     (SELECT id FROM messages WHERE content = ? ORDER BY id DESC LIMIT 1),
-    ?, ?, ?, 'remind',
+    ?, ?, ?, ?, 'remind',
     (SELECT id FROM users WHERE user = ? LIMIT 1))
                             ",
                             generate_uid(),
                             content.content,
                             db_channel_id,
                             time as u32,
+                            expires,
                             interval,
                             user_id
                         )
@@ -1570,13 +1567,17 @@ INSERT INTO reminders (uid, message_id, channel_id, time, `interval`, method, se
                         .await
                         .unwrap();
 
-                        Ok(())
+                                Ok(())
+                            }
+                        } else if time < 0 {
+                            // case required for if python returns -1
+                            Err(ReminderError::InvalidTime)
+                        } else {
+                            Err(ReminderError::PastTime)
+                        }
                     }
-                } else if time < 0 {
-                    // case required for if python returns -1
-                    Err(ReminderError::InvalidTime)
-                } else {
-                    Err(ReminderError::PastTime)
+
+                    Err(_) => Err(ReminderError::InvalidExpiration),
                 }
             }
 
