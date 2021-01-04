@@ -1141,7 +1141,9 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                                             .get(&language, err.to_response())
                                             .replace("{error}", &s),
 
-                                        _ => lm.get(&language, err.to_response()).to_string(),
+                                        _ => lm
+                                            .get(&language, err.to_response())
+                                            .replace("{min_interval}", &*MIN_INTERVAL.to_string()),
                                     })
                                     .collect::<Vec<String>>()
                                     .join("\n")
@@ -1552,7 +1554,7 @@ INSERT INTO messages (content, tts, attachment, attachment_name) VALUES (?, ?, ?
 INSERT INTO reminders (uid, message_id, channel_id, time, expires, `interval`, method, set_by) VALUES
     (?,
     (SELECT id FROM messages WHERE content = ? ORDER BY id DESC LIMIT 1),
-    ?, ?, ?, ?, 'remind',
+    ?, ?, FROM_UNIXTIME(?), ?, 'remind',
     (SELECT id FROM users WHERE user = ? LIMIT 1))
                             ",
                             generate_uid(),
