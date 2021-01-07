@@ -1,6 +1,7 @@
 use regex_command_attr::command;
 
 use serenity::{
+    async_trait,
     client::Context,
     constants::MESSAGE_CODE_LIMIT,
     model::{
@@ -17,8 +18,6 @@ use crate::{
 };
 use sqlx::MySqlPool;
 use std::convert::TryFrom;
-
-use async_trait::async_trait;
 
 #[derive(Debug)]
 struct TodoNotFound;

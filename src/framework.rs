@@ -1,6 +1,5 @@
-use async_trait::async_trait;
-
 use serenity::{
+    async_trait,
     client::Context,
     constants::MESSAGE_CODE_LIMIT,
     framework::Framework,

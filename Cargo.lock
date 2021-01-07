@@ -1319,7 +1319,6 @@ name = "reminder_rs"
 version = "1.4.0"
 dependencies = [
  "Inflector",
- "async-trait",
  "chrono",
  "chrono-tz",
  "dotenv",
