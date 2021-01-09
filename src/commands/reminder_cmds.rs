@@ -13,14 +13,11 @@ use serenity::{
     Result as SerenityResult,
 };
 
-use tokio::process::Command;
-
 use crate::{
     check_subscription_on_message, command_help,
     consts::{
-        CHARACTERS, DAY, HOUR, LOCAL_TIMEZONE, MAX_TIME, MINUTE, MIN_INTERVAL, PYTHON_LOCATION,
-        REGEX_CHANNEL, REGEX_CHANNEL_USER, REGEX_CONTENT_SUBSTITUTION, REGEX_REMIND_COMMAND,
-        THEME_COLOR,
+        CHARACTERS, DAY, HOUR, LOCAL_TIMEZONE, MAX_TIME, MINUTE, MIN_INTERVAL, REGEX_CHANNEL,
+        REGEX_CHANNEL_USER, REGEX_CONTENT_SUBSTITUTION, REGEX_REMIND_COMMAND, THEME_COLOR,
     },
     framework::SendIterator,
     get_ctx_data,
@@ -28,7 +25,7 @@ use crate::{
     time_parser::TimeParser,
 };
 
-use chrono::{offset::TimeZone, NaiveDateTime};
+use chrono::{offset::TimeZone, NaiveDateTime, Utc};
 
 use rand::{rngs::OsRng, seq::IteratorRandom};
 
@@ -47,6 +44,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use chrono_english::{parse_date_string, Dialect};
 use regex::{Captures, RegexBuilder};
 use serenity::cache::Cache;
 use serenity::model::guild::Guild;
@@ -800,7 +798,7 @@ enum ReminderScope {
     Channel(u64),
 }
 
-impl Mentionable for ReminderScope {
+impl ReminderScope {
     fn mention(&self) -> String {
         match self {
             Self::User(id) => format!("<@{}>", id),
@@ -967,7 +965,7 @@ impl Content {
                     format!("<@{}>", user.as_str())
                 } else if let Some(role_name) = caps.name("role") {
                     if let Some(role) = guild.role_by_name(role_name.as_str()) {
-                        role.mention()
+                        role.mention().to_string()
                     } else {
                         format!("<<{}>>", role_name.as_str().to_string())
                     }
@@ -1234,26 +1232,15 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
     let (time_crop_opt, msg_crop_opt) = (args_iter.next(), args_iter.next().map(|m| m.trim()));
 
     if let (Some(time_crop), Some(msg_crop)) = (time_crop_opt, msg_crop_opt) {
-        let python_call = Command::new(&*PYTHON_LOCATION)
-            .arg("-c")
-            .arg(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/dp.py")))
-            .arg(time_crop)
-            .arg(&user_data.timezone)
-            .arg(&*LOCAL_TIMEZONE)
-            .output()
-            .await;
+        let res = parse_date_string(
+            time_crop,
+            Utc::now().with_timezone(&user_data.timezone()),
+            Dialect::Uk,
+        );
 
-        if let Some(timestamp) = python_call
-            .ok()
-            .map(|inner| {
-                if inner.status.success() {
-                    Some(from_utf8(&*inner.stdout).unwrap().parse::<i64>().unwrap())
-                } else {
-                    None
-                }
-            })
-            .flatten()
-        {
+        if let Ok(datetime) = res {
+            let timestamp = datetime.timestamp();
+
             let mut location_ids = vec![ReminderScope::Channel(msg.channel_id.as_u64().to_owned())];
             let mut content = msg_crop;
             let mut interval = None;
@@ -1287,28 +1274,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
 
                     let interval_str = captures.name("interval").unwrap().as_str();
 
-                    let python_call = Command::new(&*PYTHON_LOCATION)
-                        .arg("-c")
-                        .arg(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/dp.py")))
-                        .arg(&format!("1 {}", interval_str))
-                        .arg(&*LOCAL_TIMEZONE)
-                        .arg(&*LOCAL_TIMEZONE)
-                        .output()
-                        .await;
-
-                    interval = python_call
-                        .ok()
-                        .map(|inner| {
-                            if inner.status.success() {
-                                Some(
-                                    from_utf8(&*inner.stdout).unwrap().parse::<i64>().unwrap()
-                                        - since_epoch.as_secs() as i64,
-                                )
-                            } else {
-                                None
-                            }
-                        })
-                        .flatten();
+                    // todo
                 }
             }
 

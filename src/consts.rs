@@ -85,9 +85,6 @@ lazy_static! {
     pub static ref LOCAL_LANGUAGE: String =
         env::var("LOCAL_LANGUAGE").unwrap_or_else(|_| "EN".to_string());
 
-    pub static ref PYTHON_LOCATION: String =
-        env::var("PYTHON_LOCATION").unwrap_or_else(|_| "venv/bin/python3".to_string());
-
     pub static ref DEFAULT_PREFIX: String =
         env::var("DEFAULT_PREFIX").unwrap_or_else(|_| "$".to_string());
 

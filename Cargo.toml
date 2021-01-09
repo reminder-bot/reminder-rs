@@ -6,7 +6,8 @@ edition = "2018"
 
 [dependencies]
 dotenv = "0.15"
-tokio = { version = "0.2", features = ["process"] }
+chrono-english = "0.1.4"
+tokio = "0.2"
 reqwest = { version = "0.10", features = ["rustls-tls"] }
 sqlx = { version = "0.4", default-features = false, features = ["runtime-tokio-rustls", "macros", "mysql", "bigdecimal", "chrono"] }
 regex = "1.4"
@@ -24,10 +25,9 @@ Inflector = "0.11"
 levenshtein = "1.0"
 
 [dependencies.serenity]
-git = "https://github.com/serenity-rs/serenity"
-branch = "current"
+version = "0.10.2"
 default-features = false
-features = ["builder", "client", "framework", "cache", "gateway", "http", "model", "utils", "rustls_backend", "collector"]
+features = ["builder", "client", "framework", "cache", "gateway", "http", "model", "utils", "collector", "default_tokio_0_2"]
 
 [dependencies.regex_command_attr]
 path = "./regex_command_attr"
