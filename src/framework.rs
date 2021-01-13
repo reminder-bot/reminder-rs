@@ -399,6 +399,8 @@ impl Framework for RegexFramework {
                                     let member = guild.member(&ctx, &msg.author).await.unwrap();
 
                                     if command.check_permissions(&ctx, &guild, &member).await {
+                                        dbg!(command.name);
+
                                         (command.func)(&ctx, &msg, args).await;
                                     } else if command.required_perms == PermissionLevel::Restricted
                                     {
@@ -473,6 +475,8 @@ impl Framework for RegexFramework {
                 .map(|m| m.as_str())
                 .unwrap_or("")
                 .to_string();
+
+            dbg!(command.name);
 
             (command.func)(&ctx, &msg, args).await;
         }

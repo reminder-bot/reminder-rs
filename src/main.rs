@@ -239,7 +239,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             env!("CARGO_MANIFEST_DIR"),
             "/assets/",
             env!("STRINGS_FILE")
-        )))?;
+        )))
+        .unwrap();
 
         let mut data = client.data.write().await;
 

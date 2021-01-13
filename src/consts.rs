@@ -92,4 +92,7 @@ lazy_static! {
         THEME_COLOR_FALLBACK,
         |inner| u32::from_str_radix(&inner, 16).unwrap_or(THEME_COLOR_FALLBACK)
     );
+
+    pub static ref PYTHON_LOCATION: String =
+        env::var("PYTHON_LOCATION").unwrap_or_else(|_| "venv/bin/python3".to_string());
 }
