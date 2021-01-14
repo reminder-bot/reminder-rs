@@ -1222,6 +1222,8 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
 
     match REGEX_NATURAL_COMMAND.captures(&args) {
         Some(captures) => {
+            let subscribed = check_subscription_on_message(&ctx, msg).await;
+
             let location_ids = if let Some(mentions) = captures.name("mentions").map(|m| m.as_str())
             {
                 parse_mention_list(mentions)
@@ -1230,15 +1232,23 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
             };
 
             let expires = if let Some(expires_crop) = captures.name("expires") {
-                natural_parser(expires_crop.as_str(), &user_data.timezone).await
+                if subscribed {
+                    natural_parser(expires_crop.as_str(), &user_data.timezone).await
+                } else {
+                    None
+                }
             } else {
                 None
             };
 
             let interval = if let Some(interval_crop) = captures.name("interval") {
-                natural_parser(interval_crop.as_str(), &user_data.timezone)
-                    .await
-                    .map(|i| i - since_epoch.as_secs() as i64)
+                if subscribed {
+                    natural_parser(interval_crop.as_str(), &user_data.timezone)
+                        .await
+                        .map(|i| i - since_epoch.as_secs() as i64)
+                } else {
+                    None
+                }
             } else {
                 None
             };
