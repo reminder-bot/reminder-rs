@@ -1,11 +1,13 @@
 use regex_command_attr::command;
 
 use serenity::{
+    cache::Cache,
     client::Context,
     http::CacheHttp,
     model::{
         channel::GuildChannel,
         channel::Message,
+        guild::Guild,
         id::{ChannelId, GuildId, UserId},
         misc::Mentionable,
         webhook::Webhook,
@@ -16,14 +18,13 @@ use serenity::{
 use crate::{
     check_subscription_on_message, command_help,
     consts::{
-        CHARACTERS, DAY, HOUR, LOCAL_TIMEZONE, MAX_TIME, MINUTE, MIN_INTERVAL, PYTHON_LOCATION,
-        REGEX_CHANNEL, REGEX_CHANNEL_USER, REGEX_CONTENT_SUBSTITUTION, REGEX_REMIND_COMMAND,
-        THEME_COLOR,
+        CHARACTERS, DAY, HOUR, MAX_TIME, MINUTE, MIN_INTERVAL, REGEX_CHANNEL, REGEX_CHANNEL_USER,
+        REGEX_CONTENT_SUBSTITUTION, REGEX_NATURAL_COMMAND, REGEX_REMIND_COMMAND, THEME_COLOR,
     },
     framework::SendIterator,
     get_ctx_data,
     models::{ChannelData, GuildData, Timer, UserData},
-    time_parser::TimeParser,
+    time_parser::{natural_parser, TimeParser},
 };
 
 use chrono::{offset::TimeZone, NaiveDateTime};
@@ -31,8 +32,6 @@ use chrono::{offset::TimeZone, NaiveDateTime};
 use rand::{rngs::OsRng, seq::IteratorRandom};
 
 use sqlx::MySqlPool;
-
-use std::str::from_utf8;
 
 use num_integer::Integer;
 
@@ -45,10 +44,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use regex::{Captures, RegexBuilder};
-use serenity::cache::Cache;
-use serenity::model::guild::Guild;
-use tokio::process::Command;
+use regex::Captures;
 
 fn shorthand_displacement(seconds: u64) -> String {
     let (days, seconds) = seconds.div_rem(&DAY);
@@ -1224,229 +1220,171 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
-    let send_str = lm.get(&user_data.language, "natural/send");
-    let to_str = lm.get(&user_data.language, "natural/to");
-    let every_str = lm.get(&user_data.language, "natural/every");
+    match REGEX_NATURAL_COMMAND.captures(&args) {
+        Some(captures) => {
+            let location_ids = if let Some(mentions) = captures.name("mentions").map(|m| m.as_str())
+            {
+                parse_mention_list(mentions)
+            } else {
+                vec![ReminderScope::Channel(msg.channel_id.into())]
+            };
 
-    let mut args_iter = args.splitn(2, &send_str);
+            let expires = if let Some(expires_crop) = captures.name("expires") {
+                natural_parser(expires_crop.as_str(), &user_data.timezone).await
+            } else {
+                None
+            };
 
-    let (time_crop_opt, msg_crop_opt) = (args_iter.next(), args_iter.next().map(|m| m.trim()));
+            let interval = if let Some(interval_crop) = captures.name("interval") {
+                natural_parser(interval_crop.as_str(), &user_data.timezone)
+                    .await
+                    .map(|i| i - since_epoch.as_secs() as i64)
+            } else {
+                None
+            };
 
-    if let (Some(time_crop), Some(msg_crop)) = (time_crop_opt, msg_crop_opt) {
-        let python_call = Command::new(&*PYTHON_LOCATION)
-            .arg("-c")
-            .arg(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/dp.py")))
-            .arg(time_crop)
-            .arg(&user_data.timezone)
-            .arg(&*LOCAL_TIMEZONE)
-            .output()
-            .await;
+            if let Some(timestamp) =
+                natural_parser(captures.name("time").unwrap().as_str(), &user_data.timezone).await
+            {
+                let content_res = Content::build(captures.name("msg").unwrap().as_str(), msg).await;
 
-        if let Some(timestamp) = python_call
-            .ok()
-            .map(|inner| {
-                if inner.status.success() {
-                    Some(from_utf8(&*inner.stdout).unwrap().parse::<i64>().unwrap())
-                } else {
-                    None
-                }
-            })
-            .flatten()
-        {
-            let mut location_ids = vec![ReminderScope::Channel(msg.channel_id.as_u64().to_owned())];
-            let mut content = msg_crop;
-            let mut interval = None;
+                match content_res {
+                    Ok(mut content) => {
+                        let offset = timestamp as u64 - since_epoch.as_secs();
 
-            if msg.guild_id.is_some() {
-                let re_match = RegexBuilder::new(&format!(r#"(?:\s*)(?P<msg>.*) {} (?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+)$"#, to_str))
-                    .dot_matches_new_line(true)
-                    .build()
-                    .unwrap()
-                    .captures(msg_crop);
+                        let mut ok_locations = vec![];
+                        let mut err_locations = vec![];
+                        let mut err_types = HashSet::new();
 
-                if let Some(captures) = re_match {
-                    content = captures.name("msg").unwrap().as_str();
-
-                    let mentions = captures.name("mentions").unwrap().as_str();
-
-                    location_ids = parse_mention_list(mentions);
-                }
-            }
-
-            if check_subscription_on_message(&ctx, &msg).await {
-                let re_match =
-                    RegexBuilder::new(&format!(r#"(?P<msg>.*) {} (?P<interval>.*)$"#, every_str))
-                        .dot_matches_new_line(true)
-                        .build()
-                        .unwrap()
-                        .captures(content);
-
-                if let Some(captures) = re_match {
-                    content = captures.name("msg").unwrap().as_str();
-
-                    let interval_str = captures.name("interval").unwrap().as_str();
-
-                    let python_call = Command::new(&*PYTHON_LOCATION)
-                        .arg("-c")
-                        .arg(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/dp.py")))
-                        .arg(&format!("1 {}", interval_str))
-                        .arg(&*LOCAL_TIMEZONE)
-                        .arg(&*LOCAL_TIMEZONE)
-                        .output()
-                        .await;
-
-                    interval = python_call
-                        .ok()
-                        .map(|inner| {
-                            if inner.status.success() {
-                                Some(
-                                    from_utf8(&*inner.stdout).unwrap().parse::<i64>().unwrap()
-                                        - since_epoch.as_secs() as i64,
-                                )
-                            } else {
-                                None
-                            }
-                        })
-                        .flatten();
-                }
-            }
-
-            let content_res = Content::build(&content, msg).await;
-
-            match content_res {
-                Ok(mut content) => {
-                    let offset = timestamp as u64 - since_epoch.as_secs();
-
-                    let mut ok_locations = vec![];
-                    let mut err_locations = vec![];
-                    let mut err_types = HashSet::new();
-
-                    for scope in location_ids {
-                        let res = create_reminder(
-                            &ctx,
-                            &pool,
-                            msg.author.id,
-                            msg.guild_id,
-                            &scope,
-                            timestamp,
-                            None,
-                            interval,
-                            &mut content,
-                        )
-                        .await;
-
-                        if let Err(e) = res {
-                            err_locations.push(scope);
-                            err_types.insert(e);
-                        } else {
-                            ok_locations.push(scope);
-                        }
-                    }
-
-                    let success_part = match ok_locations.len() {
-                        0 => "".to_string(),
-                        1 => lm
-                            .get(&user_data.language, "remind/success")
-                            .replace("{location}", &ok_locations[0].mention())
-                            .replace("{offset}", &shorthand_displacement(offset)),
-                        n => lm
-                            .get(&user_data.language, "remind/success_bulk")
-                            .replace("{number}", &n.to_string())
-                            .replace(
-                                "{location}",
-                                &ok_locations
-                                    .iter()
-                                    .map(|l| l.mention())
-                                    .collect::<Vec<String>>()
-                                    .join(", "),
+                        for scope in location_ids {
+                            let res = create_reminder(
+                                &ctx,
+                                &pool,
+                                msg.author.id,
+                                msg.guild_id,
+                                &scope,
+                                timestamp,
+                                expires,
+                                interval.clone(),
+                                &mut content,
                             )
-                            .replace("{offset}", &shorthand_displacement(offset)),
-                    };
+                            .await;
 
-                    let error_part = format!(
-                        "{}\n{}",
-                        match err_locations.len() {
+                            if let Err(e) = res {
+                                err_locations.push(scope);
+                                err_types.insert(e);
+                            } else {
+                                ok_locations.push(scope);
+                            }
+                        }
+
+                        let success_part = match ok_locations.len() {
                             0 => "".to_string(),
                             1 => lm
-                                .get(&user_data.language, "remind/issue")
-                                .replace("{location}", &err_locations[0].mention()),
+                                .get(&user_data.language, "remind/success")
+                                .replace("{location}", &ok_locations[0].mention())
+                                .replace("{offset}", &shorthand_displacement(offset)),
                             n => lm
-                                .get(&user_data.language, "remind/issue_bulk")
+                                .get(&user_data.language, "remind/success_bulk")
                                 .replace("{number}", &n.to_string())
                                 .replace(
                                     "{location}",
-                                    &err_locations
+                                    &ok_locations
                                         .iter()
                                         .map(|l| l.mention())
                                         .collect::<Vec<String>>()
                                         .join(", "),
-                                ),
-                        },
-                        err_types
-                            .iter()
-                            .map(|err| match err {
-                                ReminderError::DiscordError(s) => lm
-                                    .get(&user_data.language, err.to_response_natural())
-                                    .replace("{error}", &s),
-
-                                _ => lm
-                                    .get(&user_data.language, err.to_response_natural())
-                                    .to_string(),
-                            })
-                            .collect::<Vec<String>>()
-                            .join("\n")
-                    );
-
-                    let _ = msg
-                        .channel_id
-                        .send_message(&ctx, |m| {
-                            m.embed(|e| {
-                                e.title(
-                                    lm.get(&user_data.language, "remind/title")
-                                        .replace("{number}", &ok_locations.len().to_string()),
                                 )
-                                .description(format!("{}\n\n{}", success_part, error_part))
-                                .color(*THEME_COLOR)
+                                .replace("{offset}", &shorthand_displacement(offset)),
+                        };
+
+                        let error_part = format!(
+                            "{}\n{}",
+                            match err_locations.len() {
+                                0 => "".to_string(),
+                                1 => lm
+                                    .get(&user_data.language, "remind/issue")
+                                    .replace("{location}", &err_locations[0].mention()),
+                                n => lm
+                                    .get(&user_data.language, "remind/issue_bulk")
+                                    .replace("{number}", &n.to_string())
+                                    .replace(
+                                        "{location}",
+                                        &err_locations
+                                            .iter()
+                                            .map(|l| l.mention())
+                                            .collect::<Vec<String>>()
+                                            .join(", "),
+                                    ),
+                            },
+                            err_types
+                                .iter()
+                                .map(|err| match err {
+                                    ReminderError::DiscordError(s) => lm
+                                        .get(&user_data.language, err.to_response_natural())
+                                        .replace("{error}", &s),
+
+                                    _ => lm
+                                        .get(&user_data.language, err.to_response_natural())
+                                        .to_string(),
+                                })
+                                .collect::<Vec<String>>()
+                                .join("\n")
+                        );
+
+                        let _ = msg
+                            .channel_id
+                            .send_message(&ctx, |m| {
+                                m.embed(|e| {
+                                    e.title(
+                                        lm.get(&user_data.language, "remind/title")
+                                            .replace("{number}", &ok_locations.len().to_string()),
+                                    )
+                                    .description(format!("{}\n\n{}", success_part, error_part))
+                                    .color(*THEME_COLOR)
+                                })
                             })
-                        })
-                        .await;
+                            .await;
+                    }
+
+                    Err(content_error) => {
+                        let _ = msg
+                            .channel_id
+                            .send_message(ctx, |m| {
+                                m.embed(move |e| {
+                                    e.title(
+                                        lm.get(&user_data.language, "remind/title")
+                                            .replace("{number}", "0"),
+                                    )
+                                    .description(
+                                        lm.get(&user_data.language, content_error.to_response()),
+                                    )
+                                    .color(*THEME_COLOR)
+                                })
+                            })
+                            .await;
+                    }
                 }
-
-                Err(content_error) => {
-                    let _ = msg
-                        .channel_id
-                        .send_message(ctx, |m| {
-                            m.embed(move |e| {
-                                e.title(
-                                    lm.get(&user_data.language, "remind/title")
-                                        .replace("{number}", "0"),
-                                )
-                                .description(
-                                    lm.get(&user_data.language, content_error.to_response()),
-                                )
-                                .color(*THEME_COLOR)
-                            })
-                        })
-                        .await;
-                }
+            } else {
+                let _ = msg
+                    .channel_id
+                    .say(&ctx, "DEV ERROR: Failed to invoke Python")
+                    .await;
             }
-        } else {
+        }
+
+        None => {
+            let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+
+            let resp = lm
+                .get(&user_data.language, "natural/no_argument")
+                .replace("{prefix}", &prefix);
+
             let _ = msg
                 .channel_id
-                .say(&ctx, "DEV ERROR: Failed to invoke Python")
+                .send_message(&ctx, |m| m.embed(|e| e.description(resp)))
                 .await;
         }
-    } else {
-        let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
-
-        let resp = lm
-            .get(&user_data.language, "natural/no_argument")
-            .replace("{prefix}", &prefix);
-
-        let _ = msg
-            .channel_id
-            .send_message(&ctx, |m| m.embed(|e| e.description(resp)))
-            .await;
     }
 }
 

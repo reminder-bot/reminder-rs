@@ -2,9 +2,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
+use crate::consts::{LOCAL_TIMEZONE, PYTHON_LOCATION};
+
 use chrono::TimeZone;
 use chrono_tz::Tz;
 use std::convert::TryFrom;
+use std::str::from_utf8;
+use tokio::process::Command;
 
 #[derive(Debug)]
 pub enum InvalidTime {
@@ -171,4 +175,26 @@ impl TimeParser {
 
         Ok(full)
     }
+}
+
+pub(crate) async fn natural_parser(time: &str, timezone: &str) -> Option<i64> {
+    Command::new(&*PYTHON_LOCATION)
+        .arg("-c")
+        .arg(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/dp.py")))
+        .arg(time)
+        .arg(timezone)
+        .arg(&*LOCAL_TIMEZONE)
+        .output()
+        .await
+        .ok()
+        .map(|inner| {
+            if inner.status.success() {
+                Some(from_utf8(&*inner.stdout).unwrap().parse::<i64>().unwrap())
+            } else {
+                None
+            }
+        })
+        .flatten()
+        .map(|inner| if inner < 0 { None } else { Some(inner) })
+        .flatten()
 }
