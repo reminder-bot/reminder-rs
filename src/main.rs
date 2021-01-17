@@ -171,6 +171,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .default_prefix(DEFAULT_PREFIX.clone())
         .case_insensitive(env::var("CASE_INSENSITIVE").map_or(true, |var| var == "1"))
         .ignore_bots(env::var("IGNORE_BOTS").map_or(true, |var| var == "1"))
+        .dm_enabled(env::var("DM_ENABLED").map_or(true, |var| var == "1"))
         // info commands
         .add_command("ping", &info_cmds::PING_COMMAND)
         .add_command("help", &info_cmds::HELP_COMMAND)

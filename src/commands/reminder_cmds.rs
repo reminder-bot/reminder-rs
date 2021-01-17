@@ -1243,9 +1243,9 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
 
             let interval = if let Some(interval_crop) = captures.name("interval") {
                 if subscribed {
-                    natural_parser(interval_crop.as_str(), &user_data.timezone)
-                        .await
-                        .map(|i| i - since_epoch.as_secs() as i64)
+                    humantime::parse_duration(interval_crop.as_str())
+                        .map(|duration| duration.as_secs() as i64)
+                        .ok()
                 } else {
                     None
                 }

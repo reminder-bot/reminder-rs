@@ -55,7 +55,7 @@ lazy_static! {
         .unwrap();
 
     pub static ref REGEX_NATURAL_COMMAND: Regex = Regex::new(
-    r#"(?P<time>.*?) (?:send|say) (?P<msg>.*?)(?: every(?!.*every) (?P<interval>.*?)(?: (?:until|for) (?P<expires>.*?))?)?(?: to (?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+))?$"#
+    r#"(?P<time>.*?) (?:send|say) (?P<msg>.*?)(?: every (?P<interval>.*?)(?: (?:until|for) (?P<expires>.*?))?)?(?: to (?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+))?$"#
     )
         .unwrap();
 

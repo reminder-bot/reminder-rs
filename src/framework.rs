@@ -183,6 +183,7 @@ pub struct RegexFramework {
     client_id: u64,
     ignore_bots: bool,
     case_insensitive: bool,
+    dm_enabled: bool,
 }
 
 impl RegexFramework {
@@ -195,6 +196,7 @@ impl RegexFramework {
             client_id: client_id.into(),
             ignore_bots: true,
             case_insensitive: true,
+            dm_enabled: true,
         }
     }
 
@@ -212,6 +214,12 @@ impl RegexFramework {
 
     pub fn ignore_bots(mut self, ignore_bots: bool) -> Self {
         self.ignore_bots = ignore_bots;
+
+        self
+    }
+
+    pub fn dm_enabled(mut self, dm_enabled: bool) -> Self {
+        self.dm_enabled = dm_enabled;
 
         self
     }
@@ -465,20 +473,22 @@ impl Framework for RegexFramework {
             }
         }
         // DM Command
-        else if let Some(full_match) = self.dm_regex_matcher.captures(&msg.content[..]) {
-            let command = self
-                .commands
-                .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
-                .unwrap();
-            let args = full_match
-                .name("args")
-                .map(|m| m.as_str())
-                .unwrap_or("")
-                .to_string();
+        else if self.dm_enabled {
+            if let Some(full_match) = self.dm_regex_matcher.captures(&msg.content[..]) {
+                let command = self
+                    .commands
+                    .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
+                    .unwrap();
+                let args = full_match
+                    .name("args")
+                    .map(|m| m.as_str())
+                    .unwrap_or("")
+                    .to_string();
 
-            dbg!(command.name);
+                dbg!(command.name);
 
-            (command.func)(&ctx, &msg, args).await;
+                (command.func)(&ctx, &msg, args).await;
+            }
         }
     }
 }
