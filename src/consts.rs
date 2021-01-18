@@ -54,8 +54,13 @@ lazy_static! {
     )
         .unwrap();
 
-    pub static ref REGEX_NATURAL_COMMAND: Regex = Regex::new(
-    r#"(?P<time>.*?) (?:send|say) (?P<msg>.*?)(?: every (?P<interval>.*?)(?: (?:until|for) (?P<expires>.*?))?)?(?: to (?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+))?$"#
+    pub static ref REGEX_NATURAL_COMMAND_1: Regex = Regex::new(
+    r#"(?P<time>.*?) (?:send|say) (?P<msg>.*?)(?: to (?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+))?$"#
+    )
+        .unwrap();
+
+    pub static ref REGEX_NATURAL_COMMAND_2: Regex = Regex::new(
+    r#"(?P<msg>.*) every (?P<interval>.*?)(?: (?:until|for) (?P<expires>.*?))?$"#
     )
         .unwrap();
 

@@ -19,7 +19,8 @@ use crate::{
     check_subscription_on_message, command_help,
     consts::{
         CHARACTERS, DAY, HOUR, MAX_TIME, MINUTE, MIN_INTERVAL, REGEX_CHANNEL, REGEX_CHANNEL_USER,
-        REGEX_CONTENT_SUBSTITUTION, REGEX_NATURAL_COMMAND, REGEX_REMIND_COMMAND, THEME_COLOR,
+        REGEX_CONTENT_SUBSTITUTION, REGEX_NATURAL_COMMAND_1, REGEX_NATURAL_COMMAND_2,
+        REGEX_REMIND_COMMAND, THEME_COLOR,
     },
     framework::SendIterator,
     get_ctx_data,
@@ -665,8 +666,9 @@ async fn timer(ctx: &Context, msg: &Message, args: String) {
 
         let (minutes, seconds) = delta.div_rem(&60);
         let (hours, minutes) = minutes.div_rem(&60);
+        let (days, hours) = hours.div_rem(&24);
 
-        format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+        format!("{} days, {:02}:{:02}:{:02}", days, hours, minutes, seconds)
     }
 
     let (pool, lm) = get_ctx_data(&ctx).await;
@@ -1220,9 +1222,52 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
-    match REGEX_NATURAL_COMMAND.captures(&args) {
+    match REGEX_NATURAL_COMMAND_1.captures(&args) {
         Some(captures) => {
-            let subscribed = check_subscription_on_message(&ctx, msg).await;
+            let (expires, interval, string_content) =
+                if check_subscription_on_message(&ctx, msg).await {
+                    let rest_content = captures.name("msg").unwrap().as_str();
+
+                    match REGEX_NATURAL_COMMAND_2.captures(rest_content) {
+                        Some(secondary_captures) => {
+                            let expires =
+                                if let Some(expires_crop) = secondary_captures.name("expires") {
+                                    natural_parser(expires_crop.as_str(), &user_data.timezone).await
+                                } else {
+                                    None
+                                };
+
+                            let interval =
+                                if let Some(interval_crop) = secondary_captures.name("interval") {
+                                    humantime::parse_duration(interval_crop.as_str())
+                                        .or_else(|_| {
+                                            humantime::parse_duration(&format!(
+                                                "1 {}",
+                                                interval_crop.as_str()
+                                            ))
+                                        })
+                                        .map(|duration| duration.as_secs() as i64)
+                                        .ok()
+                                } else {
+                                    None
+                                };
+
+                            (
+                                expires,
+                                interval,
+                                if interval.is_some() {
+                                    secondary_captures.name("msg").unwrap().as_str()
+                                } else {
+                                    rest_content
+                                },
+                            )
+                        }
+
+                        None => (None, None, rest_content),
+                    }
+                } else {
+                    (None, None, captures.name("msg").unwrap().as_str())
+                };
 
             let location_ids = if let Some(mentions) = captures.name("mentions").map(|m| m.as_str())
             {
@@ -1231,32 +1276,10 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                 vec![ReminderScope::Channel(msg.channel_id.into())]
             };
 
-            let expires = if let Some(expires_crop) = captures.name("expires") {
-                if subscribed {
-                    natural_parser(expires_crop.as_str(), &user_data.timezone).await
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
-            let interval = if let Some(interval_crop) = captures.name("interval") {
-                if subscribed {
-                    humantime::parse_duration(interval_crop.as_str())
-                        .map(|duration| duration.as_secs() as i64)
-                        .ok()
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
             if let Some(timestamp) =
                 natural_parser(captures.name("time").unwrap().as_str(), &user_data.timezone).await
             {
-                let content_res = Content::build(captures.name("msg").unwrap().as_str(), msg).await;
+                let content_res = Content::build(string_content, msg).await;
 
                 match content_res {
                     Ok(mut content) => {
