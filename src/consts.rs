@@ -33,7 +33,7 @@ const THEME_COLOR_FALLBACK: u32 = 0x8fb677;
 
 use std::{collections::HashSet, env, iter::FromIterator};
 
-use regex::Regex;
+use regex::{Regex, RegexBuilder};
 
 lazy_static! {
     pub static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
@@ -49,19 +49,25 @@ lazy_static! {
 
     pub static ref REGEX_CHANNEL_USER: Regex = Regex::new(r#"\s*<(#|@)(?:!)?(\d+)>\s*"#).unwrap();
 
-    pub static ref REGEX_REMIND_COMMAND: Regex = Regex::new(
+    pub static ref REGEX_REMIND_COMMAND: Regex = RegexBuilder::new(
     r#"(?P<mentions>(?:<@\d+>\s|<@!\d+>\s|<#\d+>\s)*)(?P<time>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+)(?:\s+(?P<interval>(?:(?:\d+)(?:s|m|h|d|))+))?(?:\s+(?P<expires>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+))?\s+(?P<content>.*)"#
     )
+        .dot_matches_new_line(true)
+        .build()
         .unwrap();
 
-    pub static ref REGEX_NATURAL_COMMAND_1: Regex = Regex::new(
+    pub static ref REGEX_NATURAL_COMMAND_1: Regex = RegexBuilder::new(
     r#"(?P<time>.*?) (?:send|say) (?P<msg>.*?)(?: to (?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+))?$"#
     )
+        .dot_matches_new_line(true)
+        .build()
         .unwrap();
 
-    pub static ref REGEX_NATURAL_COMMAND_2: Regex = Regex::new(
+    pub static ref REGEX_NATURAL_COMMAND_2: Regex = RegexBuilder::new(
     r#"(?P<msg>.*) every (?P<interval>.*?)(?: (?:until|for) (?P<expires>.*?))?$"#
     )
+        .dot_matches_new_line(true)
+        .build()
         .unwrap();
 
     pub static ref SUBSCRIPTION_ROLES: HashSet<u64> = HashSet::from_iter(

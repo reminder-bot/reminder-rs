@@ -167,11 +167,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .map_ok(|user| user.id.as_u64().to_owned())
         .await?;
 
+    let dm_enabled = env::var("DM_ENABLED").map_or(true, |var| var == "1");
+
     let framework = RegexFramework::new(logged_in_id)
         .default_prefix(DEFAULT_PREFIX.clone())
         .case_insensitive(env::var("CASE_INSENSITIVE").map_or(true, |var| var == "1"))
         .ignore_bots(env::var("IGNORE_BOTS").map_or(true, |var| var == "1"))
-        .dm_enabled(env::var("DM_ENABLED").map_or(true, |var| var == "1"))
+        .dm_enabled(dm_enabled)
         // info commands
         .add_command("ping", &info_cmds::PING_COMMAND)
         .add_command("help", &info_cmds::HELP_COMMAND)
@@ -217,13 +219,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let framework_arc = Arc::new(Box::new(framework) as Box<dyn Framework + Send + Sync>);
 
     let mut client = Client::builder(&token)
-        .intents(
+        .intents(if dm_enabled {
             GatewayIntents::GUILD_MESSAGES
                 | GatewayIntents::GUILDS
                 | GatewayIntents::GUILD_MESSAGE_REACTIONS
                 | GatewayIntents::DIRECT_MESSAGES
-                | GatewayIntents::DIRECT_MESSAGE_REACTIONS,
-        )
+                | GatewayIntents::DIRECT_MESSAGE_REACTIONS
+        } else {
+            GatewayIntents::GUILD_MESSAGES
+                | GatewayIntents::GUILDS
+                | GatewayIntents::GUILD_MESSAGE_REACTIONS
+        })
         .event_handler(Handler)
         .framework_arc(framework_arc.clone())
         .await
