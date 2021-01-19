@@ -25,7 +25,7 @@ use crate::{
     framework::SendIterator,
     get_ctx_data,
     models::{ChannelData, GuildData, UserData},
-    FrameworkCtx,
+    FrameworkCtx, PopularTimezones,
 };
 
 use std::{collections::HashMap, iter, time::Duration};
@@ -177,20 +177,21 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
             &GuildData::prefix_from_id(msg.guild_id, &pool).await,
         );
 
-        let popular_timezones = sqlx::query!(
-            "SELECT timezone FROM users GROUP BY timezone ORDER BY COUNT(timezone) DESC LIMIT 20"
-        )
-        .fetch_all(&pool)
-        .await
-        .unwrap();
+        let popular_timezones = ctx
+            .data
+            .read()
+            .await
+            .get::<PopularTimezones>()
+            .cloned()
+            .unwrap();
 
         let popular_timezones_iter = popular_timezones.iter().map(|t| {
             (
-                t.timezone.clone(),
+                t.to_string(),
                 format!(
                     "🕗 `{}`",
                     Utc::now()
-                        .with_timezone(&t.timezone.parse::<Tz>().unwrap())
+                        .with_timezone(t)
                         .format(user_data.meridian().fmt_str_short())
                         .to_string()
                 ),

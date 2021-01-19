@@ -42,6 +42,8 @@ use serenity::futures::TryFutureExt;
 use inflector::Inflector;
 use log::info;
 
+use chrono_tz::Tz;
+
 struct SQLPool;
 
 impl TypeMapKey for SQLPool {
@@ -58,6 +60,12 @@ struct FrameworkCtx;
 
 impl TypeMapKey for FrameworkCtx {
     type Value = Arc<Box<dyn Framework + Send + Sync>>;
+}
+
+struct PopularTimezones;
+
+impl TypeMapKey for PopularTimezones {
+    type Value = Arc<Vec<Tz>>;
 }
 
 struct Handler;
@@ -249,9 +257,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         )))
         .unwrap();
 
+        let popular_timezones = sqlx::query!(
+            "SELECT timezone FROM users GROUP BY timezone ORDER BY COUNT(timezone) DESC LIMIT 21"
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap()
+        .iter()
+        .map(|t| t.timezone.parse::<Tz>().unwrap())
+        .collect::<Vec<Tz>>();
+
         let mut data = client.data.write().await;
 
         data.insert::<SQLPool>(pool);
+        data.insert::<PopularTimezones>(Arc::new(popular_timezones));
         data.insert::<ReqwestClient>(Arc::new(reqwest::Client::new()));
         data.insert::<FrameworkCtx>(framework_arc);
         data.insert::<LanguageManager>(Arc::new(language_manager))
