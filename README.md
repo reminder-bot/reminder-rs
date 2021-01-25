@@ -2,13 +2,10 @@
 Reminder Bot for Discord, now in Rust.
 Old Python version: https://github.com/reminder-bot/bot
 
-## What is this?
-This is a rewrite of Reminder Bot in Rust, using Serenity and SQLx amongst other libraries.
-
-## Why is this?
-Serenity and Rust are proving wonders for SoundFX. This is all in an effort to reduce resource consumption and improve performance.
-
 ## How do I use it?
+We offer a hosted version of the bot. You can invite it with: **https://invite.reminder-bot.com**. The catch is that repeating 
+reminders are paid on the hosted version of the bot. Keep reading if you want to host it yourself.
+
 You'll need rustc and cargo for compilation. To run, you'll need Python 3 still (due to no suitable replacement for dateparser in Rust)
 
 ### Compiling
