@@ -398,6 +398,8 @@ impl Framework for RegexFramework {
                                     if command.check_permissions(&ctx, &guild, &member).await {
                                         dbg!(command.name);
 
+                                        GuildData::from_guild(guild, &pool).await;
+
                                         (command.func)(&ctx, &msg, args).await;
                                     } else if command.required_perms == PermissionLevel::Restricted
                                     {
