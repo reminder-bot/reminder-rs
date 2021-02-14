@@ -28,6 +28,8 @@ __Required Variables__
 * `DISCORD_TOKEN` - your application's bot user's authorization token
 
 __Other Variables__
+* `MIN_INTERVAL` - default `600`, defines the shortest interval the bot should accept
+* `MAX_TIME` - default `1576800000`, defines the maximum time ahead that reminders can be set for
 * `LOCAL_TIMEZONE` - default `UTC`, necessary for calculations in the natural language processor
 * `DEFAULT_PREFIX` - default `$`, used for the default prefix on new guilds
 * `SUBSCRIPTION_ROLES` - default `None`, accepts a list of Discord role IDs that are given to subscribed users
