@@ -13,6 +13,7 @@ use crate::{
     THEME_COLOR,
 };
 
+use serenity::builder::CreateEmbedFooter;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -32,6 +33,20 @@ async fn ping(ctx: &Context, msg: &Message, _args: String) {
         .await;
 }
 
+async fn footer(ctx: &Context) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut CreateEmbedFooter {
+    let shard_count = ctx.cache.shard_count().await;
+    let shard = ctx.shard_id;
+
+    move |f| {
+        f.text(format!(
+            "{}\nshard {} of {}",
+            concat!(env!("CARGO_PKG_NAME"), " ver ", env!("CARGO_PKG_VERSION")),
+            shard,
+            shard_count,
+        ))
+    }
+}
+
 #[command]
 #[can_blacklist(false)]
 async fn help(ctx: &Context, msg: &Message, args: String) {
@@ -43,6 +58,7 @@ async fn help(ctx: &Context, msg: &Message, args: String) {
         language: &str,
     ) {
         let desc = lm.get(language, "help/desc").replace("{prefix}", prefix);
+        let footer = footer(ctx).await;
 
         let _ = msg
             .channel_id
@@ -81,13 +97,7 @@ async fn help(ctx: &Context, msg: &Message, args: String) {
                             true,
                         )
                         .field(lm.get(language, "help/other_title"), "`timer`", true)
-                        .footer(|f| {
-                            f.text(concat!(
-                                env!("CARGO_PKG_NAME"),
-                                " ver ",
-                                env!("CARGO_PKG_VERSION")
-                            ))
-                        })
+                        .footer(footer)
                         .color(*THEME_COLOR)
                 })
             })
@@ -124,6 +134,7 @@ async fn info(ctx: &Context, msg: &Message, _args: String) {
     let language = UserData::language_of(&msg.author, &pool);
     let prefix = GuildData::prefix_from_id(msg.guild_id, &pool);
     let current_user = ctx.cache.current_user();
+    let footer = footer(ctx).await;
 
     let desc = lm
         .get(&language.await, "info")
@@ -137,13 +148,7 @@ async fn info(ctx: &Context, msg: &Message, _args: String) {
             m.embed(move |e| {
                 e.title("Info")
                     .description(desc)
-                    .footer(|f| {
-                        f.text(concat!(
-                            env!("CARGO_PKG_NAME"),
-                            " ver ",
-                            env!("CARGO_PKG_VERSION")
-                        ))
-                    })
+                    .footer(footer)
                     .color(*THEME_COLOR)
             })
         })
@@ -156,6 +161,7 @@ async fn donate(ctx: &Context, msg: &Message, _args: String) {
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let desc = lm.get(&language, "donate");
+    let footer = footer(ctx).await;
 
     let _ = msg
         .channel_id
@@ -163,13 +169,7 @@ async fn donate(ctx: &Context, msg: &Message, _args: String) {
             m.embed(move |e| {
                 e.title("Donate")
                     .description(desc)
-                    .footer(|f| {
-                        f.text(concat!(
-                            env!("CARGO_PKG_NAME"),
-                            " ver ",
-                            env!("CARGO_PKG_VERSION")
-                        ))
-                    })
+                    .footer(footer)
                     .color(*THEME_COLOR)
             })
         })
@@ -178,19 +178,15 @@ async fn donate(ctx: &Context, msg: &Message, _args: String) {
 
 #[command]
 async fn dashboard(ctx: &Context, msg: &Message, _args: String) {
+    let footer = footer(ctx).await;
+
     let _ = msg
         .channel_id
         .send_message(ctx, |m| {
             m.embed(move |e| {
                 e.title("Dashboard")
                     .description("https://reminder-bot.com/dashboard")
-                    .footer(|f| {
-                        f.text(concat!(
-                            env!("CARGO_PKG_NAME"),
-                            " ver ",
-                            env!("CARGO_PKG_VERSION")
-                        ))
-                    })
+                    .footer(footer)
                     .color(*THEME_COLOR)
             })
         })

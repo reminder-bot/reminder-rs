@@ -1401,7 +1401,16 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
             } else {
                 let _ = msg
                     .channel_id
-                    .say(&ctx, "DEV ERROR: Failed to invoke Python")
+                    .send_message(ctx, |m| {
+                        m.embed(move |e| {
+                            e.title(
+                                lm.get(&user_data.language, "remind/title")
+                                    .replace("{number}", "0"),
+                            )
+                            .description(lm.get(&user_data.language, "natural/invalid_time"))
+                            .color(*THEME_COLOR)
+                        })
+                    })
                     .await;
             }
         }

@@ -398,7 +398,16 @@ impl Framework for RegexFramework {
                                     if command.check_permissions(&ctx, &guild, &member).await {
                                         dbg!(command.name);
 
-                                        GuildData::from_guild(guild, &pool).await;
+                                        {
+                                            let guild_id = guild.id.as_u64().to_owned();
+
+                                            GuildData::from_guild(guild, &pool).await.expect(
+                                                &format!(
+                                                    "Failed to create new guild object for {}",
+                                                    guild_id
+                                                ),
+                                            );
+                                        }
 
                                         (command.func)(&ctx, &msg, args).await;
                                     } else if command.required_perms == PermissionLevel::Restricted

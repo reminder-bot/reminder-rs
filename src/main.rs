@@ -42,6 +42,7 @@ use serenity::futures::TryFutureExt;
 use inflector::Inflector;
 use log::info;
 
+use crate::models::GuildData;
 use chrono_tz::Tz;
 
 struct SQLPool;
@@ -94,9 +95,26 @@ DELETE FROM channels WHERE channel = ?
 
     async fn guild_create(&self, ctx: Context, guild: Guild, is_new: bool) {
         if is_new {
+            let guild_id = guild.id.as_u64().to_owned();
+
+            {
+                let pool = ctx
+                    .data
+                    .read()
+                    .await
+                    .get::<SQLPool>()
+                    .cloned()
+                    .expect("Could not get SQLPool from data");
+
+                GuildData::from_guild(guild, &pool).await.expect(&format!(
+                    "Failed to create new guild object for {}",
+                    guild_id
+                ));
+            }
+
             if let Ok(token) = env::var("DISCORDBOTS_TOKEN") {
                 let shard_count = ctx.cache.shard_count().await;
-                let current_shard_id = shard_id(guild.id.as_u64().to_owned(), shard_count);
+                let current_shard_id = shard_id(guild_id, shard_count);
 
                 let guild_count = ctx
                     .cache
