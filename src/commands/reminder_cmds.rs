@@ -978,6 +978,22 @@ impl Content {
     }
 }
 
+/*
+#[command("countdown")]
+#[permission_level(Managed)]
+async fn countdown(ctx: &Context, msg: &Message, args: String) {
+    if !check_subscription_on_message(&ctx, &msg).await {
+    } else {
+        let (pool, lm) = get_ctx_data(&ctx).await;
+        let split_args = args.splitn(3, ' ').collect::<Vec<&str>>();
+
+        if split_args.len() == 3 {
+        } else {
+        }
+    }
+}
+*/
+
 #[command("remind")]
 #[permission_level(Managed)]
 async fn remind(ctx: &Context, msg: &Message, args: String) {

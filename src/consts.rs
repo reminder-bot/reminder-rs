@@ -57,14 +57,14 @@ lazy_static! {
         .unwrap();
 
     pub static ref REGEX_NATURAL_COMMAND_1: Regex = RegexBuilder::new(
-    r#"(?P<time>.*?) (?:send|say) (?P<msg>.*?)(?: to (?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+))?$"#
+    r#"(?P<time>.*?)(?:\s+)(?:send|say)(?:\s+)(?P<msg>.*?)(?:(?:\s+)to(?:\s+)(?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+))?$"#
     )
         .dot_matches_new_line(true)
         .build()
         .unwrap();
 
     pub static ref REGEX_NATURAL_COMMAND_2: Regex = RegexBuilder::new(
-    r#"(?P<msg>.*) every (?P<interval>.*?)(?: (?:until|for) (?P<expires>.*?))?$"#
+    r#"(?P<msg>.*)(?:\s+)every(?:\s+)(?P<interval>.*?)(?:(?:\s+)(?:until|for)(?:\s+)(?P<expires>.*?))?$"#
     )
         .dot_matches_new_line(true)
         .build()
