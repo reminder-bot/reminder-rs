@@ -1,31 +1,6 @@
 pub const DAY: u64 = 86_400;
 pub const HOUR: u64 = 3_600;
 pub const MINUTE: u64 = 60;
-pub const HELP_STRINGS: [&'static str; 23] = [
-    "help/lang",
-    "help/meridian",
-    "help/timezone",
-    "help/prefix",
-    "help/blacklist",
-    "help/restrict",
-    "help/alias",
-    "help/remind",
-    "help/interval",
-    "help/natural",
-    "help/look",
-    "help/del",
-    "help/offset",
-    "help/pause",
-    "help/nudge",
-    "help/info",
-    "help/help",
-    "help/donate",
-    "help/clock",
-    "help/todo",
-    "help/todos",
-    "help/todoc",
-    "help/timer",
-];
 
 pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
 

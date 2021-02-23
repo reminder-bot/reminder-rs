@@ -176,7 +176,7 @@ impl SendIterator for ChannelId {
 }
 
 pub struct RegexFramework {
-    commands: HashMap<String, &'static Command>,
+    pub commands: HashMap<String, &'static Command>,
     command_matcher: Regex,
     dm_regex_matcher: Regex,
     default_prefix: String,

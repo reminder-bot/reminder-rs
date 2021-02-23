@@ -290,7 +290,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         data.insert::<SQLPool>(pool);
         data.insert::<PopularTimezones>(Arc::new(popular_timezones));
         data.insert::<ReqwestClient>(Arc::new(reqwest::Client::new()));
-        data.insert::<FrameworkCtx>(framework_arc);
+        data.insert::<FrameworkCtx>(framework_arc.clone());
         data.insert::<LanguageManager>(Arc::new(language_manager))
     }
 

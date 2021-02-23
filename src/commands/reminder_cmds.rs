@@ -982,14 +982,23 @@ impl Content {
 #[command("countdown")]
 #[permission_level(Managed)]
 async fn countdown(ctx: &Context, msg: &Message, args: String) {
-    if !check_subscription_on_message(&ctx, &msg).await {
-    } else {
+    if check_subscription_on_message(&ctx, &msg).await {
         let (pool, lm) = get_ctx_data(&ctx).await;
+        let timezone = UserData::timezone_of(&msg.author, &pool).await;
+
         let split_args = args.splitn(3, ' ').collect::<Vec<&str>>();
 
         if split_args.len() == 3 {
+            let time = split_args.get(0).unwrap();
+            let interval = split_args.get(1).unwrap();
+            let event_name = split_args.get(2).unwrap();
+
+            let time_parser = TimeParser::new(*time, &timezone);
+
+            if let Ok(target_ts) = time_parser.timestamp() {}
         } else {
         }
+    } else {
     }
 }
 */

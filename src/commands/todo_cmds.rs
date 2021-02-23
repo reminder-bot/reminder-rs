@@ -367,7 +367,7 @@ impl Execute for Result<SubCommand, ()> {
     }
 }
 
-#[command]
+#[command("todo")]
 async fn todo_user(ctx: &Context, msg: &Message, args: String) {
     let mut split = args.split(' ');
 
@@ -384,7 +384,7 @@ async fn todo_user(ctx: &Context, msg: &Message, args: String) {
         .await;
 }
 
-#[command("todos")]
+#[command("todoc")]
 #[supports_dm(false)]
 #[permission_level(Managed)]
 async fn todo_channel(ctx: &Context, msg: &Message, args: String) {

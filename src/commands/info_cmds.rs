@@ -6,14 +6,16 @@ use chrono::offset::Utc;
 
 use crate::{
     command_help,
-    consts::{DEFAULT_PREFIX, HELP_STRINGS},
+    consts::DEFAULT_PREFIX,
     get_ctx_data,
     language_manager::LanguageManager,
     models::{GuildData, UserData},
-    THEME_COLOR,
+    FrameworkCtx, THEME_COLOR,
 };
 
+use crate::framework::RegexFramework;
 use serenity::builder::CreateEmbedFooter;
+use std::mem;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -110,14 +112,24 @@ async fn help(ctx: &Context, msg: &Message, args: String) {
     let prefix = GuildData::prefix_from_id(msg.guild_id, &pool);
 
     if !args.is_empty() {
-        let matched = HELP_STRINGS
-            .iter()
-            .filter(|h| h.split_at(5).1 == args)
-            .next();
+        let framework: Arc<Box<RegexFramework>> = {
+            let framework_trait = ctx
+                .data
+                .read()
+                .await
+                .get::<FrameworkCtx>()
+                .cloned()
+                .expect("Could not get FrameworkCtx from data");
 
-        if let Some(help_str) = matched {
-            let command_name = help_str.split_at(5).1;
+            unsafe { mem::transmute(framework_trait.clone()) }
+        };
 
+        let matched = framework
+            .commands
+            .get(args.as_str())
+            .map(|inner| inner.name);
+
+        if let Some(command_name) = matched {
             command_help(ctx, msg, lm, &prefix.await, &language.await, command_name).await
         } else {
             default_help(ctx, msg, lm, &prefix.await, &language.await).await;

@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 
 use crate::consts::{LOCAL_TIMEZONE, PYTHON_LOCATION};
 
-use chrono::TimeZone;
+use chrono::{DateTime, Datelike, Timelike, Utc};
 use chrono_tz::Tz;
 use std::convert::TryFrom;
 use std::str::from_utf8;
@@ -95,35 +95,63 @@ impl TimeParser {
     }
 
     fn process_explicit(&self) -> Result<i64, InvalidTime> {
-        let segments = self.time_string.matches('-').count();
+        let mut time = Utc::now()
+            .with_timezone(&self.timezone)
+            .with_second(0)
+            .unwrap();
 
-        let parse_string = if segments == 1 {
-            let slashes = self.time_string.matches('/').count();
+        let mut segments = self.time_string.rsplit('-');
+        // this segment will always exist even if split fails
+        let hms = segments.next().unwrap();
 
-            match slashes {
-                0 => Ok("%d-".to_string()),
-                1 => Ok("%d/%m-".to_string()),
-                2 => Ok("%d/%m/%Y-".to_string()),
-                _ => Err(InvalidTime::ParseErrorDMY),
+        let h_m_s = hms.split(':');
+
+        for (t, setter) in h_m_s.take(3).zip(&[
+            DateTime::with_hour,
+            DateTime::with_minute,
+            DateTime::with_second,
+        ]) {
+            time = setter(&time, t.parse().map_err(|_| InvalidTime::ParseErrorHMS)?)
+                .map_or_else(|| Err(InvalidTime::ParseErrorHMS), |inner| Ok(inner))?;
+        }
+
+        if let Some(dmy) = segments.next() {
+            let mut d_m_y = dmy.split('/');
+
+            let day = d_m_y.next();
+            let month = d_m_y.next();
+            let year = d_m_y.next();
+
+            for (t, setter) in [day, month]
+                .iter()
+                .zip(&[DateTime::with_day, DateTime::with_month])
+            {
+                if let Some(t) = t {
+                    time = setter(&time, t.parse().map_err(|_| InvalidTime::ParseErrorDMY)?)
+                        .map_or_else(|| Err(InvalidTime::ParseErrorDMY), |inner| Ok(inner))?;
+                }
             }
-        } else {
-            Ok("".to_string())
-        }? + {
-            let colons = self.time_string.matches(':').count();
 
-            match colons {
-                1 => Ok("%H:%M"),
-                2 => Ok("%H:%M:%S"),
-                _ => Err(InvalidTime::ParseErrorHMS),
+            if let Some(year) = year {
+                if year.len() == 4 {
+                    time = time
+                        .with_year(year.parse().map_err(|_| InvalidTime::ParseErrorDMY)?)
+                        .map_or_else(|| Err(InvalidTime::ParseErrorDMY), |inner| Ok(inner))?;
+                } else if year.len() == 2 {
+                    time = time
+                        .with_year(
+                            format!("20{}", year)
+                                .parse()
+                                .map_err(|_| InvalidTime::ParseErrorDMY)?,
+                        )
+                        .map_or_else(|| Err(InvalidTime::ParseErrorDMY), |inner| Ok(inner))?;
+                } else {
+                    Err(InvalidTime::ParseErrorDMY)?;
+                }
             }
-        }?;
+        }
 
-        let dt = self
-            .timezone
-            .datetime_from_str(self.time_string.as_str(), &parse_string)
-            .map_err(|_| InvalidTime::ParseErrorChrono)?;
-
-        Ok(dt.timestamp() as i64)
+        Ok(time.timestamp() as i64)
     }
 
     fn process_displacement(&self) -> Result<i64, InvalidTime> {

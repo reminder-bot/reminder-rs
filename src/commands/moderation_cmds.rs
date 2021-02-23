@@ -215,7 +215,7 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
     }
 }
 
-#[command]
+#[command("meridian")]
 async fn change_meridian(ctx: &Context, msg: &Message, args: String) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
@@ -258,7 +258,7 @@ async fn change_meridian(ctx: &Context, msg: &Message, args: String) {
     }
 }
 
-#[command]
+#[command("lang")]
 async fn language(ctx: &Context, msg: &Message, args: String) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
