@@ -993,9 +993,96 @@ async fn countdown(ctx: &Context, msg: &Message, args: String) {
             let interval = split_args.get(1).unwrap();
             let event_name = split_args.get(2).unwrap();
 
-            let time_parser = TimeParser::new(*time, &timezone);
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
 
-            if let Ok(target_ts) = time_parser.timestamp() {}
+            let time_parser = TimeParser::new(*time, timezone);
+            let interval_parser = TimeParser::new(*interval, timezone);
+
+            if let Ok(target_ts) = time_parser.timestamp() {
+                if let Ok(interval) = interval_parser.displacement() {
+                    let mut first_time = target_ts;
+
+                    while first_time + interval < now as i64 {
+                        first_time += interval;
+                    }
+
+                    let description = format!(
+                        "**{}** occurs in **<<timefrom:{}:%d days, %h:%m>>**",
+                        event_name, target_ts
+                    );
+
+                    sqlx::query!(
+                        "
+INSERT INTO embeds (title, description, color) VALUES (?, ?, ?)
+                    ",
+                        event_name,
+                        description,
+                        *THEME_COLOR
+                    )
+                    .execute(&pool)
+                    .await;
+
+                    let embed_id = sqlx::query!(
+                        "
+SELECT id FROM embeds WHERE title = ? AND description = ?
+                    ",
+                        event_name,
+                        description
+                    )
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+
+                    sqlx::query!(
+                        "
+INSERT INTO messages (embed_id) VALUES (?)
+                    ",
+                        embed_id.id
+                    )
+                    .execute(&pool)
+                    .await;
+
+                    sqlx::query!(
+                        "
+INSERT INTO reminders (
+    `uid`,
+    `name`,
+    `message_id`,
+    `channel_id`,
+    `time`,
+    `interval`,
+    `method`,
+    `set_by`,
+    `expires`
+) VALUES (
+    ?,
+    'Countdown',
+    (SELECT id FROM messages WHERE embed_id = ?),
+    (SELECT id FROM channels WHERE channel = ?),
+    ?,
+    ?,
+    'countdown',
+    (SELECT id FROM users WHERE user = ?),
+    FROM_UNIXTIME(?)
+)
+                    ",
+                        generate_uid(),
+                        embed_id.id,
+                        msg.channel_id.as_u64(),
+                        first_time,
+                        interval,
+                        msg.author.id.as_u64(),
+                        target_ts
+                    )
+                    .execute(&pool)
+                    .await;
+                } else {
+                }
+            } else {
+            }
         } else {
         }
     } else {

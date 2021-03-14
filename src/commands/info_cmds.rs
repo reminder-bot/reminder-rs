@@ -13,9 +13,7 @@ use crate::{
     FrameworkCtx, THEME_COLOR,
 };
 
-use crate::framework::RegexFramework;
 use serenity::builder::CreateEmbedFooter;
-use std::mem;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -112,17 +110,13 @@ async fn help(ctx: &Context, msg: &Message, args: String) {
     let prefix = GuildData::prefix_from_id(msg.guild_id, &pool);
 
     if !args.is_empty() {
-        let framework: Arc<Box<RegexFramework>> = {
-            let framework_trait = ctx
-                .data
-                .read()
-                .await
-                .get::<FrameworkCtx>()
-                .cloned()
-                .expect("Could not get FrameworkCtx from data");
-
-            unsafe { mem::transmute(framework_trait.clone()) }
-        };
+        let framework = ctx
+            .data
+            .read()
+            .await
+            .get::<FrameworkCtx>()
+            .cloned()
+            .expect("Could not get FrameworkCtx from data");
 
         let matched = framework
             .commands

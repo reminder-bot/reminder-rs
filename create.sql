@@ -133,7 +133,7 @@ CREATE TABLE reminders.reminders (
     avatar VARCHAR(512),
     username VARCHAR(32),
 
-    method ENUM('remind', 'natural', 'dashboard', 'todo'),
+    method ENUM('remind', 'natural', 'dashboard', 'todo', 'countdown'),
     set_at TIMESTAMP DEFAULT NOW(),
     set_by INT UNSIGNED,
 
@@ -168,7 +168,7 @@ CREATE TABLE reminders.command_restrictions (
     id INT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
 
     role_id INT UNSIGNED NOT NULL,
-    command ENUM('todos', 'natural', 'remind', 'interval', 'timer', 'del', 'look', 'alias') NOT NULL,
+    command ENUM('todos', 'natural', 'remind', 'interval', 'timer', 'del', 'look', 'alias', 'countdown') NOT NULL,
 
     PRIMARY KEY (id),
     FOREIGN KEY (role_id) REFERENCES reminders.roles(id) ON DELETE CASCADE,
@@ -229,21 +229,3 @@ CREATE EVENT reminders.event_cleanup
 ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 DAY
 ON COMPLETION PRESERVE
 DO DELETE FROM reminders.events WHERE `time` < DATE_SUB(NOW(), INTERVAL 5 DAY);
-
-CREATE TABLE reminders.languages (
-    id SMALLINT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
-    name VARCHAR(20) NOT NULL,
-    code VARCHAR(2) NOT NULL,
-
-    PRIMARY KEY (id)
-);
-
-CREATE TABLE reminders.strings (
-    id INT NOT NULL AUTO_INCREMENT,
-    name TEXT,
-    language TEXT,
-    value TEXT,
-
-    PRIMARY KEY (id)
-);
--- MUST RUN to_database.py TO FORM STRING STORES

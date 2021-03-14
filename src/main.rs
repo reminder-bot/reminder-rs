@@ -12,7 +12,6 @@ use serenity::{
     async_trait,
     cache::Cache,
     client::{bridge::gateway::GatewayIntents, Client},
-    framework::Framework,
     http::{client::Http, CacheHttp},
     model::{
         channel::GuildChannel,
@@ -60,7 +59,7 @@ impl TypeMapKey for ReqwestClient {
 struct FrameworkCtx;
 
 impl TypeMapKey for FrameworkCtx {
-    type Value = Arc<Box<dyn Framework + Send + Sync>>;
+    type Value = Arc<RegexFramework>;
 }
 
 struct PopularTimezones;
@@ -242,7 +241,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("a", &moderation_cmds::ALIAS_COMMAND)
         .build();
 
-    let framework_arc = Arc::new(Box::new(framework) as Box<dyn Framework + Send + Sync>);
+    let framework_arc = Arc::new(framework);
 
     let mut client = Client::builder(&token)
         .intents(if dm_enabled {
