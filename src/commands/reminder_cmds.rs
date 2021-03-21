@@ -978,12 +978,13 @@ impl Content {
     }
 }
 
-/*
 #[command("countdown")]
 #[permission_level(Managed)]
 async fn countdown(ctx: &Context, msg: &Message, args: String) {
+    let (pool, lm) = get_ctx_data(&ctx).await;
+    let language = UserData::language_of(&msg.author, &pool).await;
+
     if check_subscription_on_message(&ctx, &msg).await {
-        let (pool, lm) = get_ctx_data(&ctx).await;
         let timezone = UserData::timezone_of(&msg.author, &pool).await;
 
         let split_args = args.splitn(3, ' ').collect::<Vec<&str>>();
@@ -1005,8 +1006,8 @@ async fn countdown(ctx: &Context, msg: &Message, args: String) {
                 if let Ok(interval) = interval_parser.displacement() {
                     let mut first_time = target_ts;
 
-                    while first_time + interval < now as i64 {
-                        first_time += interval;
+                    while first_time - interval > now as i64 {
+                        first_time -= interval;
                     }
 
                     let description = format!(
@@ -1023,7 +1024,8 @@ INSERT INTO embeds (title, description, color) VALUES (?, ?, ?)
                         *THEME_COLOR
                     )
                     .execute(&pool)
-                    .await;
+                    .await
+                    .unwrap();
 
                     let embed_id = sqlx::query!(
                         "
@@ -1043,7 +1045,8 @@ INSERT INTO messages (embed_id) VALUES (?)
                         embed_id.id
                     )
                     .execute(&pool)
-                    .await;
+                    .await
+                    .unwrap();
 
                     sqlx::query!(
                         "
@@ -1078,17 +1081,56 @@ INSERT INTO reminders (
                         target_ts
                     )
                     .execute(&pool)
-                    .await;
+                    .await
+                    .unwrap();
+
+                    let _ = msg.channel_id.send_message(&ctx, |m| {
+                        m.embed(|e| {
+                            e.title(lm.get(&language, "remind/success")).description(
+                                "A new countdown reminder has been created on this channel",
+                            )
+                        })
+                    });
                 } else {
+                    let _ = msg.channel_id.send_message(&ctx, |m| {
+                        m.embed(|e| {
+                            e.title(lm.get(&language, "remind/issue"))
+                                .description(lm.get(&language, "interval/invalid_interval"))
+                        })
+                    });
                 }
             } else {
+                let _ = msg.channel_id.send_message(&ctx, |m| {
+                    m.embed(|e| {
+                        e.title(lm.get(&language, "remind/issue"))
+                            .description(lm.get(&language, "remind/invalid_time"))
+                    })
+                });
             }
         } else {
+            command_help(
+                ctx,
+                msg,
+                lm,
+                &GuildData::prefix_from_id(msg.guild_id, &pool).await,
+                &language,
+                "countdown",
+            )
+            .await;
         }
     } else {
+        let _ = msg
+            .channel_id
+            .say(
+                &ctx,
+                lm.get(&language, "interval/donor").replace(
+                    "{prefix}",
+                    &GuildData::prefix_from_id(msg.guild_id, &pool).await,
+                ),
+            )
+            .await;
     }
 }
-*/
 
 #[command("remind")]
 #[permission_level(Managed)]
