@@ -813,7 +813,6 @@ enum ReminderError {
     PastTime,
     ShortInterval,
     InvalidTag,
-    NotEnoughArgs,
     InvalidTime,
     InvalidExpiration,
     NeedSubscription,
@@ -842,7 +841,6 @@ impl ToResponse for ReminderError {
             Self::PastTime => "remind/past_time",
             Self::ShortInterval => "interval/short_interval",
             Self::InvalidTag => "remind/invalid_tag",
-            Self::NotEnoughArgs => "remind/no_argument",
             Self::InvalidTime => "remind/invalid_time",
             Self::InvalidExpiration => "interval/invalid_expiration",
             Self::NeedSubscription => "interval/donor",
@@ -1570,16 +1568,15 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
         }
 
         None => {
-            let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
-
-            let resp = lm
-                .get(&user_data.language, "natural/no_argument")
-                .replace("{prefix}", &prefix);
-
-            let _ = msg
-                .channel_id
-                .send_message(&ctx, |m| m.embed(|e| e.description(resp)))
-                .await;
+            command_help(
+                ctx,
+                msg,
+                lm,
+                &GuildData::prefix_from_id(msg.guild_id, &pool).await,
+                &user_data.language,
+                "natural",
+            )
+            .await;
         }
     }
 }

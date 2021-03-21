@@ -78,7 +78,7 @@ async fn help(ctx: &Context, msg: &Message, args: String) {
                         )
                         .field(
                             lm.get(language, "help/reminder_title"),
-                            "`remind` `interval` `natural` `look`",
+                            "`remind` `interval` `natural` `look` `countdown`",
                             true,
                         )
                         .field(
