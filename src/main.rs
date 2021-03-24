@@ -44,6 +44,13 @@ use log::info;
 use crate::models::GuildData;
 use chrono_tz::Tz;
 
+#[cfg(feature = "prefix-cache")]
+struct PrefixCache;
+#[cfg(feature = "prefix-cache")]
+impl TypeMapKey for PrefixCache {
+    type Value = Arc<dashmap::DashMap<GuildId, String>>;
+}
+
 struct SQLPool;
 
 impl TypeMapKey for SQLPool {
@@ -165,6 +172,11 @@ DELETE FROM channels WHERE channel = ?
             .cloned()
             .expect("Could not get SQLPool from data");
 
+        #[cfg(feature = "prefix-cache")]
+        let prefix_cache = ctx.data.read().await.get::<PrefixCache>().cloned().unwrap();
+        #[cfg(feature = "prefix-cache")]
+        prefix_cache.remove(&guild.id);
+
         sqlx::query!(
             "
 DELETE FROM guilds WHERE guild = ?
@@ -262,6 +274,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .expect("Error occurred creating client");
 
     {
+        #[cfg(feature = "prefix-cache")]
+        let prefix_cache = dashmap::DashMap::new();
+
         let pool = MySqlPool::connect(
             &env::var("DATABASE_URL").expect("Missing DATABASE_URL from environment"),
         )
@@ -286,6 +301,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .collect::<Vec<Tz>>();
 
         let mut data = client.data.write().await;
+
+        #[cfg(feature = "prefix-cache")]
+        data.insert::<PrefixCache>(Arc::new(prefix_cache));
 
         data.insert::<SQLPool>(pool);
         data.insert::<PopularTimezones>(Arc::new(popular_timezones));

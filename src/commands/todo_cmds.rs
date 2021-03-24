@@ -233,7 +233,7 @@ DELETE FROM todos WHERE user_id = (SELECT id FROM users WHERE user = ?) AND guil
         let (pool, lm) = get_ctx_data(&ctx).await;
 
         let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
-        let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+        let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
 
         match subcommand {
             SubCommand::View => {
@@ -426,7 +426,7 @@ async fn show_help(ctx: &Context, msg: &Message, target: Option<TodoTarget>) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool);
-    let prefix = GuildData::prefix_from_id(msg.guild_id, &pool);
+    let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx);
 
     let command = match target {
         None => "todo",

@@ -17,6 +17,12 @@ use log::error;
 
 use crate::consts::{DEFAULT_PREFIX, LOCAL_LANGUAGE, LOCAL_TIMEZONE};
 
+#[cfg(feature = "prefix-cache")]
+use crate::PrefixCache;
+use crate::SQLPool;
+
+use serenity::prelude::Context;
+
 pub struct GuildData {
     pub id: u32,
     pub name: Option<String>,
@@ -24,10 +30,47 @@ pub struct GuildData {
 }
 
 impl GuildData {
+    #[cfg(feature = "prefix-cache")]
     pub async fn prefix_from_id<T: Into<GuildId>>(
         guild_id_opt: Option<T>,
-        pool: &MySqlPool,
+        ctx: &Context,
     ) -> String {
+        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+        let prefix_cache = ctx.data.read().await.get::<PrefixCache>().cloned().unwrap();
+
+        if let Some(guild_id) = guild_id_opt {
+            let guild_id = guild_id.into();
+
+            if let Some(prefix) = prefix_cache.get(&guild_id) {
+                prefix.to_string()
+            } else {
+                let row = sqlx::query!(
+                    "
+SELECT prefix FROM guilds WHERE guild = ?
+                ",
+                    guild_id.as_u64().to_owned()
+                )
+                .fetch_one(&pool)
+                .await;
+
+                let prefix = row.map_or_else(|_| DEFAULT_PREFIX.clone(), |r| r.prefix);
+
+                prefix_cache.insert(guild_id, prefix.clone());
+
+                prefix
+            }
+        } else {
+            DEFAULT_PREFIX.clone()
+        }
+    }
+
+    #[cfg(not(feature = "prefix-cache"))]
+    pub async fn prefix_from_id<T: Into<GuildId>>(
+        guild_id_opt: Option<T>,
+        ctx: &Context,
+    ) -> String {
+        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+
         if let Some(guild_id) = guild_id_opt {
             let guild_id = guild_id.into().as_u64().to_owned();
 
@@ -37,7 +80,7 @@ SELECT prefix FROM guilds WHERE guild = ?
                 ",
                 guild_id
             )
-            .fetch_one(pool)
+            .fetch_one(&pool)
             .await;
 
             row.map_or_else(|_| DEFAULT_PREFIX.clone(), |r| r.prefix)

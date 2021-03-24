@@ -335,15 +335,7 @@ impl Framework for RegexFramework {
 
         async fn check_prefix(ctx: &Context, guild: &Guild, prefix_opt: Option<Match<'_>>) -> bool {
             if let Some(prefix) = prefix_opt {
-                let pool = ctx
-                    .data
-                    .read()
-                    .await
-                    .get::<SQLPool>()
-                    .cloned()
-                    .expect("Could not get SQLPool from data");
-
-                let guild_prefix = GuildData::prefix_from_id(Some(guild.id), &pool).await;
+                let guild_prefix = GuildData::prefix_from_id(Some(guild.id), &ctx).await;
 
                 guild_prefix.as_str() == prefix.as_str()
             } else {
@@ -369,7 +361,7 @@ impl Framework for RegexFramework {
                 if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
                     let lm = data.get::<LanguageManager>().unwrap();
 
-                    let language = UserData::language_of(&msg.author, &pool).await;
+                    let language = UserData::language_of(&msg.author, &pool);
 
                     match check_self_permissions(&ctx, &guild, &channel).await {
                         Ok(perms) => match perms {
@@ -414,18 +406,25 @@ impl Framework for RegexFramework {
                                     {
                                         let _ = msg
                                             .channel_id
-                                            .say(&ctx, lm.get(&language, "no_perms_restricted"))
+                                            .say(
+                                                &ctx,
+                                                lm.get(&language.await, "no_perms_restricted"),
+                                            )
                                             .await;
                                     } else if command.required_perms == PermissionLevel::Managed {
                                         let _ = msg
                                             .channel_id
                                             .say(
                                                 &ctx,
-                                                lm.get(&language, "no_perms_managed").replace(
-                                                    "{prefix}",
-                                                    &GuildData::prefix_from_id(msg.guild_id, &pool)
+                                                lm.get(&language.await, "no_perms_managed")
+                                                    .replace(
+                                                        "{prefix}",
+                                                        &GuildData::prefix_from_id(
+                                                            msg.guild_id,
+                                                            &ctx,
+                                                        )
                                                         .await,
-                                                ),
+                                                    ),
                                             )
                                             .await;
                                     }
@@ -439,7 +438,7 @@ impl Framework for RegexFramework {
                                 manage_messages,
                             ) => {
                                 let response = lm
-                                    .get(&language, "no_perms_general")
+                                    .get(&language.await, "no_perms_general")
                                     .replace(
                                         "{manage_webhooks}",
                                         if manage_webhooks { "✅" } else { "❌" },

@@ -173,7 +173,7 @@ async fn offset(ctx: &Context, msg: &Message, args: String) {
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
     if args.is_empty() {
-        let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+        let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
 
         command_help(ctx, msg, lm, &prefix, &user_data.language, "offset").await;
     } else {
@@ -496,10 +496,48 @@ async fn delete(ctx: &Context, msg: &Message, _args: String) {
         .say(&ctx, lm.get(&user_data.language, "del/listing"))
         .await;
 
-    let reminders = if let Some(guild_id) = msg.guild_id.map(|f| f.as_u64().to_owned()) {
-        sqlx::query_as_unchecked!(
-            LookReminder,
-            "
+    let reminders = if let Some(guild_id) = msg.guild_id {
+        let guild_opt = guild_id.to_guild_cached(&ctx).await;
+
+        if let Some(guild) = guild_opt {
+            let channels = guild
+                .channels
+                .keys()
+                .into_iter()
+                .map(|k| k.as_u64().to_string())
+                .collect::<Vec<String>>()
+                .join(",");
+
+            sqlx::query_as_unchecked!(
+                LookReminder,
+                "
+SELECT
+    reminders.id, reminders.time, channels.channel, messages.content, embeds.description
+FROM
+    reminders
+LEFT OUTER JOIN
+    channels
+ON
+    channels.id = reminders.channel_id
+INNER JOIN
+    messages
+ON
+    messages.id = reminders.message_id
+LEFT JOIN
+    embeds
+ON
+    embeds.id = messages.embed_id
+WHERE
+    FIND_IN_SET(channels.channel, ?)
+                ",
+                channels
+            )
+            .fetch_all(&pool)
+            .await
+        } else {
+            sqlx::query_as_unchecked!(
+                LookReminder,
+                "
 SELECT
     reminders.id, reminders.time, channels.channel, messages.content, embeds.description
 FROM
@@ -518,11 +556,12 @@ ON
     embeds.id = messages.embed_id
 WHERE
     channels.guild_id = (SELECT id FROM guilds WHERE guild = ?)
-            ",
-            guild_id
-        )
-        .fetch_all(&pool)
-        .await
+                ",
+                guild_id.as_u64()
+            )
+            .fetch_all(&pool)
+            .await
+        }
     } else {
         sqlx::query_as!(
             LookReminder,
@@ -779,7 +818,7 @@ DELETE FROM timers WHERE owner = ? AND name = ?
         }
 
         _ => {
-            let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+            let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
 
             command_help(ctx, msg, lm, &prefix, &language, "timer").await;
         }
@@ -1110,7 +1149,7 @@ INSERT INTO reminders (
                 ctx,
                 msg,
                 lm,
-                &GuildData::prefix_from_id(msg.guild_id, &pool).await,
+                &GuildData::prefix_from_id(msg.guild_id, &ctx).await,
                 &language,
                 "countdown",
             )
@@ -1123,7 +1162,7 @@ INSERT INTO reminders (
                 &ctx,
                 lm.get(&language, "interval/donor").replace(
                     "{prefix}",
-                    &GuildData::prefix_from_id(msg.guild_id, &pool).await,
+                    &GuildData::prefix_from_id(msg.guild_id, &ctx).await,
                 ),
             )
             .await;
@@ -1195,7 +1234,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                             &ctx,
                             lm.get(&language, "interval/donor").replace(
                                 "{prefix}",
-                                &GuildData::prefix_from_id(msg.guild_id, &pool).await,
+                                &GuildData::prefix_from_id(msg.guild_id, &ctx).await,
                             ),
                         )
                         .await;
@@ -1347,7 +1386,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
         }
 
         None => {
-            let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+            let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
 
             match command {
                 RemindCommand::Remind => {
@@ -1572,7 +1611,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                 ctx,
                 msg,
                 lm,
-                &GuildData::prefix_from_id(msg.guild_id, &pool).await,
+                &GuildData::prefix_from_id(msg.guild_id, &ctx).await,
                 &user_data.language,
                 "natural",
             )
@@ -1629,7 +1668,7 @@ async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
                     match create_webhook(&ctx, guild_channel, "Reminder").await {
                         Ok(webhook) => {
                             channel_data.webhook_id = Some(webhook.id.as_u64().to_owned());
-                            channel_data.webhook_token = Some(webhook.token);
+                            channel_data.webhook_token = webhook.token;
 
                             channel_data.commit_changes(&pool).await;
                         }

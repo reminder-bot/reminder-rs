@@ -213,8 +213,8 @@ dependencies = [
 
 [[package]]
 name = "command_attr"
-version = "0.3.3"
-source = "git+https://github.com/Lakelezz/serenity?branch=remove-indirection#6d955638f356b2dbbf7f69a4123c0bfbe218d601"
+version = "0.3.4"
+source = "git+https://github.com/serenity-rs/serenity?branch=next#943cf037c114ddf3513a3c8c3a2301da41c34f9e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -290,6 +290,16 @@ dependencies = [
  "autocfg 1.0.1",
  "cfg-if",
  "lazy_static",
+]
+
+[[package]]
+name = "dashmap"
+version = "4.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e77a43b28d0668df09411cb0bc9a8c2adc40f9a048afe863e05fd43251e8e39c"
+dependencies = [
+ "cfg-if",
+ "num_cpus",
 ]
 
 [[package]]
@@ -1261,11 +1271,12 @@ dependencies = [
 
 [[package]]
 name = "reminder_rs"
-version = "1.4.9"
+version = "1.4.10"
 dependencies = [
  "Inflector",
  "chrono",
  "chrono-tz",
+ "dashmap",
  "dotenv",
  "env_logger",
  "humantime",
@@ -1483,8 +1494,8 @@ dependencies = [
 
 [[package]]
 name = "serenity"
-version = "0.10.2"
-source = "git+https://github.com/Lakelezz/serenity?branch=remove-indirection#6d955638f356b2dbbf7f69a4123c0bfbe218d601"
+version = "0.10.4"
+source = "git+https://github.com/serenity-rs/serenity?branch=next#943cf037c114ddf3513a3c8c3a2301da41c34f9e"
 dependencies = [
  "async-trait",
  "async-tungstenite",

@@ -28,6 +28,9 @@ use crate::{
     FrameworkCtx, PopularTimezones,
 };
 
+#[cfg(feature = "prefix-cache")]
+use crate::PrefixCache;
+
 use std::{collections::HashMap, iter, time::Duration};
 
 #[command]
@@ -174,7 +177,7 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
     } else {
         let content = lm.get(&user_data.language, "timezone/no_argument").replace(
             "{prefix}",
-            &GuildData::prefix_from_id(msg.guild_id, &pool).await,
+            &GuildData::prefix_from_id(msg.guild_id, &ctx).await,
         );
 
         let popular_timezones = ctx
@@ -252,7 +255,7 @@ async fn change_meridian(ctx: &Context, msg: &Message, args: String) {
             })
             .await;
     } else {
-        let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+        let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
 
         command_help(ctx, msg, lm, &prefix, &user_data.language, "meridian").await;
     }
@@ -413,6 +416,12 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) {
             .await;
     } else {
         guild_data.prefix = args;
+
+        #[cfg(feature = "prefix-cache")]
+        let prefix_cache = ctx.data.read().await.get::<PrefixCache>().cloned().unwrap();
+        #[cfg(feature = "prefix-cache")]
+        prefix_cache.insert(msg.guild_id.unwrap(), guild_data.prefix.clone());
+
         guild_data.commit_changes(&pool).await;
 
         let content =
@@ -548,7 +557,7 @@ WHERE
             })
             .await;
     } else {
-        let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+        let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
 
         command_help(ctx, msg, lm, &prefix, &language, "restrict").await;
     }
@@ -675,7 +684,7 @@ SELECT command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHER
             }
         }
     } else {
-        let prefix = GuildData::prefix_from_id(msg.guild_id, &pool).await;
+        let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
 
         command_help(ctx, msg, lm, &prefix, &language, "alias").await;
     }

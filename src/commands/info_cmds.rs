@@ -107,7 +107,7 @@ async fn help(ctx: &Context, msg: &Message, args: String) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool);
-    let prefix = GuildData::prefix_from_id(msg.guild_id, &pool);
+    let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx);
 
     if !args.is_empty() {
         let framework = ctx
@@ -138,7 +138,7 @@ async fn info(ctx: &Context, msg: &Message, _args: String) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool);
-    let prefix = GuildData::prefix_from_id(msg.guild_id, &pool);
+    let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx);
     let current_user = ctx.cache.current_user();
     let footer = footer(ctx).await;
 
