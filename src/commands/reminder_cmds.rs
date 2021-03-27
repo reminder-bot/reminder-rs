@@ -1,5 +1,7 @@
 use regex_command_attr::command;
 
+use chrono_tz::Tz;
+
 use serenity::{
     cache::Cache,
     client::Context,
@@ -45,7 +47,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use crate::models::MeridianType;
 use regex::Captures;
+use serenity::model::channel::Channel;
 
 fn shorthand_displacement(seconds: u64) -> String {
     let (days, seconds) = seconds.div_rem(&DAY);
@@ -342,6 +346,7 @@ impl LookFlags {
 struct LookReminder {
     id: u32,
     time: u32,
+    interval: Option<u32>,
     channel: u64,
     content: String,
     description: Option<String>,
@@ -353,6 +358,47 @@ impl LookReminder {
             self.content.clone()
         } else {
             self.description.clone().unwrap_or(String::from(""))
+        }
+    }
+
+    fn display(
+        &self,
+        flags: &LookFlags,
+        meridian: &MeridianType,
+        timezone: &Tz,
+        inter: &str,
+    ) -> String {
+        let time_display = match flags.time_display {
+            TimeDisplayType::Absolute => timezone
+                .timestamp(self.time as i64, 0)
+                .format(meridian.fmt_str())
+                .to_string(),
+
+            TimeDisplayType::Relative => {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+
+                longhand_displacement((self.time as u64).checked_sub(now).unwrap_or(1))
+            }
+        };
+
+        if let Some(interval) = self.interval {
+            format!(
+                "'{}' *{}* **{}**, repeating every **{}**",
+                self.display_content(),
+                &inter,
+                time_display,
+                longhand_displacement(interval as u64)
+            )
+        } else {
+            format!(
+                "'{}' *{}* **{}**",
+                self.display_content(),
+                &inter,
+                time_display
+            )
         }
     }
 }
@@ -370,16 +416,25 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
 
     let enabled = if flags.show_disabled { "0,1" } else { "1" };
 
-    let reminders = if let Some(guild_id) = msg.guild_id.map(|f| f.as_u64().to_owned()) {
-        let channel_id = flags
-            .channel_id
-            .unwrap_or_else(|| msg.channel_id.as_u64().to_owned());
+    let channel_opt = msg.channel_id.to_channel_cached(&ctx).await;
 
-        sqlx::query_as!(
-            LookReminder,
-            "
+    let channel_id = if let Some(Channel::Guild(channel)) = channel_opt {
+        if Some(channel.guild_id) == msg.guild_id {
+            flags
+                .channel_id
+                .unwrap_or_else(|| msg.channel_id.as_u64().to_owned())
+        } else {
+            msg.channel_id.as_u64().to_owned()
+        }
+    } else {
+        msg.channel_id.as_u64().to_owned()
+    };
+
+    let reminders = sqlx::query_as!(
+        LookReminder,
+        "
 SELECT
-    reminders.id, reminders.time, channels.channel, messages.content, embeds.description
+    reminders.id, reminders.time, reminders.interval, channels.channel, messages.content, embeds.description
 FROM
     reminders
 INNER JOIN
@@ -395,7 +450,6 @@ LEFT JOIN
 ON
     embeds.id = messages.embed_id
 WHERE
-    channels.guild_id = (SELECT id FROM guilds WHERE guild = ?) AND
     channels.channel = ? AND
     FIND_IN_SET(reminders.enabled, ?)
 ORDER BY
@@ -403,48 +457,12 @@ ORDER BY
 LIMIT
     ?
             ",
-            guild_id,
-            channel_id,
-            enabled,
-            flags.limit
-        )
-        .fetch_all(&pool)
-        .await
-    } else {
-        sqlx::query_as_unchecked!(
-            LookReminder,
-            "
-SELECT
-    reminders.id, reminders.time, channels.channel, messages.content, embeds.description
-FROM
-    reminders
-LEFT OUTER JOIN
-    channels
-ON
-    channels.id = reminders.channel_id
-INNER JOIN
-    messages
-ON
-    messages.id = reminders.message_id
-LEFT JOIN
-    embeds
-ON
-    embeds.id = messages.embed_id
-WHERE
-    channels.channel = ? AND
-    FIND_IN_SET(reminders.enabled, ?)
-ORDER BY
-    reminders.time
-LIMIT
-    ?
-            ",
-            msg.channel_id.as_u64(),
-            enabled,
-            flags.limit
-        )
-        .fetch_all(&pool)
-        .await
-    }
+        channel_id,
+        enabled,
+        flags.limit
+    )
+    .fetch_all(&pool)
+    .await
     .unwrap();
 
     if reminders.is_empty() {
@@ -455,30 +473,9 @@ LIMIT
     } else {
         let inter = lm.get(&language, "look/inter");
 
-        let display = reminders.iter().map(|reminder| {
-            let time_display = match flags.time_display {
-                TimeDisplayType::Absolute => timezone
-                    .timestamp(reminder.time as i64, 0)
-                    .format(meridian.fmt_str())
-                    .to_string(),
-
-                TimeDisplayType::Relative => {
-                    let now = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs();
-
-                    longhand_displacement((reminder.time as u64).checked_sub(now).unwrap_or(1))
-                }
-            };
-
-            format!(
-                "'{}' *{}* **{}**",
-                reminder.display_content(),
-                &inter,
-                time_display
-            )
-        });
+        let display = reminders
+            .iter()
+            .map(|reminder| reminder.display(&flags, &meridian, &timezone, &inter));
 
         let _ = msg.channel_id.say_lines(&ctx, display).await;
     }
@@ -512,7 +509,7 @@ async fn delete(ctx: &Context, msg: &Message, _args: String) {
                 LookReminder,
                 "
 SELECT
-    reminders.id, reminders.time, channels.channel, messages.content, embeds.description
+    reminders.id, reminders.time, reminders.interval, channels.channel, messages.content, embeds.description
 FROM
     reminders
 LEFT OUTER JOIN
@@ -539,7 +536,7 @@ WHERE
                 LookReminder,
                 "
 SELECT
-    reminders.id, reminders.time, channels.channel, messages.content, embeds.description
+    reminders.id, reminders.time, reminders.interval, channels.channel, messages.content, embeds.description
 FROM
     reminders
 LEFT OUTER JOIN
@@ -567,7 +564,7 @@ WHERE
             LookReminder,
             "
 SELECT
-    reminders.id, reminders.time, channels.channel, messages.content, embeds.description
+    reminders.id, reminders.time, reminders.interval, channels.channel, messages.content, embeds.description
 FROM
     reminders
 INNER JOIN
