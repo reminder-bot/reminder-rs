@@ -31,6 +31,7 @@ use crate::{
 #[cfg(feature = "prefix-cache")]
 use crate::PrefixCache;
 
+use crate::models::CtxGuildData;
 use std::{collections::HashMap, iter, time::Duration};
 
 #[command]
@@ -175,10 +176,9 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
             }
         }
     } else {
-        let content = lm.get(&user_data.language, "timezone/no_argument").replace(
-            "{prefix}",
-            &GuildData::prefix_from_id(msg.guild_id, &ctx).await,
-        );
+        let content = lm
+            .get(&user_data.language, "timezone/no_argument")
+            .replace("{prefix}", &ctx.prefix(msg.guild_id).await);
 
         let popular_timezones = ctx
             .data
@@ -255,7 +255,7 @@ async fn change_meridian(ctx: &Context, msg: &Message, args: String) {
             })
             .await;
     } else {
-        let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
+        let prefix = ctx.prefix(msg.guild_id).await;
 
         command_help(ctx, msg, lm, &prefix, &user_data.language, "meridian").await;
     }
@@ -557,7 +557,7 @@ WHERE
             })
             .await;
     } else {
-        let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
+        let prefix = ctx.prefix(msg.guild_id).await;
 
         command_help(ctx, msg, lm, &prefix, &language, "restrict").await;
     }
@@ -684,7 +684,7 @@ SELECT command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHER
             }
         }
     } else {
-        let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
+        let prefix = ctx.prefix(msg.guild_id).await;
 
         command_help(ctx, msg, lm, &prefix, &language, "alias").await;
     }

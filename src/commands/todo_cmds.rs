@@ -12,10 +12,8 @@ use serenity::{
 
 use std::fmt;
 
-use crate::{
-    command_help, get_ctx_data,
-    models::{GuildData, UserData},
-};
+use crate::models::CtxGuildData;
+use crate::{command_help, get_ctx_data, models::UserData};
 use sqlx::MySqlPool;
 use std::convert::TryFrom;
 
@@ -233,7 +231,7 @@ DELETE FROM todos WHERE user_id = (SELECT id FROM users WHERE user = ?) AND guil
         let (pool, lm) = get_ctx_data(&ctx).await;
 
         let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
-        let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
+        let prefix = ctx.prefix(msg.guild_id).await;
 
         match subcommand {
             SubCommand::View => {
@@ -426,7 +424,7 @@ async fn show_help(ctx: &Context, msg: &Message, target: Option<TodoTarget>) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool);
-    let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx);
+    let prefix = ctx.prefix(msg.guild_id);
 
     let command = match target {
         None => "todo",

@@ -34,6 +34,7 @@ use crate::{
     consts::{CNC_GUILD, DEFAULT_PREFIX, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
     language_manager::LanguageManager,
+    models::GuildData,
 };
 
 use serenity::futures::TryFutureExt;
@@ -41,14 +42,16 @@ use serenity::futures::TryFutureExt;
 use inflector::Inflector;
 use log::info;
 
-use crate::models::GuildData;
+use dashmap::DashMap;
+
+use tokio::sync::RwLock;
+
 use chrono_tz::Tz;
 
-#[cfg(feature = "prefix-cache")]
-struct PrefixCache;
-#[cfg(feature = "prefix-cache")]
-impl TypeMapKey for PrefixCache {
-    type Value = Arc<dashmap::DashMap<GuildId, String>>;
+struct GuildDataCache;
+
+impl TypeMapKey for GuildDataCache {
+    type Value = Arc<DashMap<GuildId, Arc<RwLock<GuildData>>>>;
 }
 
 struct SQLPool;
@@ -172,10 +175,14 @@ DELETE FROM channels WHERE channel = ?
             .cloned()
             .expect("Could not get SQLPool from data");
 
-        #[cfg(feature = "prefix-cache")]
-        let prefix_cache = ctx.data.read().await.get::<PrefixCache>().cloned().unwrap();
-        #[cfg(feature = "prefix-cache")]
-        prefix_cache.remove(&guild.id);
+        let guild_data_cache = ctx
+            .data
+            .read()
+            .await
+            .get::<GuildDataCache>()
+            .cloned()
+            .unwrap();
+        guild_data_cache.remove(&guild.id);
 
         sqlx::query!(
             "
@@ -274,8 +281,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .expect("Error occurred creating client");
 
     {
-        #[cfg(feature = "prefix-cache")]
-        let prefix_cache = dashmap::DashMap::new();
+        let guild_data_cache = dashmap::DashMap::new();
 
         let pool = MySqlPool::connect(
             &env::var("DATABASE_URL").expect("Missing DATABASE_URL from environment"),
@@ -302,8 +308,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         let mut data = client.data.write().await;
 
-        #[cfg(feature = "prefix-cache")]
-        data.insert::<PrefixCache>(Arc::new(prefix_cache));
+        data.insert::<GuildDataCache>(Arc::new(guild_data_cache));
 
         data.insert::<SQLPool>(pool);
         data.insert::<PopularTimezones>(Arc::new(popular_timezones));

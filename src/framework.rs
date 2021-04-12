@@ -20,7 +20,7 @@ use regex::{Match, Regex, RegexBuilder};
 use std::{collections::HashMap, fmt};
 
 use crate::language_manager::LanguageManager;
-use crate::models::{GuildData, UserData};
+use crate::models::{CtxGuildData, GuildData, UserData};
 use crate::{models::ChannelData, SQLPool};
 
 type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, ()>;
@@ -335,7 +335,7 @@ impl Framework for RegexFramework {
 
         async fn check_prefix(ctx: &Context, guild: &Guild, prefix_opt: Option<Match<'_>>) -> bool {
             if let Some(prefix) = prefix_opt {
-                let guild_prefix = GuildData::prefix_from_id(Some(guild.id), &ctx).await;
+                let guild_prefix = ctx.prefix(Some(guild.id)).await;
 
                 guild_prefix.as_str() == prefix.as_str()
             } else {
@@ -419,11 +419,7 @@ impl Framework for RegexFramework {
                                                 lm.get(&language.await, "no_perms_managed")
                                                     .replace(
                                                         "{prefix}",
-                                                        &GuildData::prefix_from_id(
-                                                            msg.guild_id,
-                                                            &ctx,
-                                                        )
-                                                        .await,
+                                                        &ctx.prefix(msg.guild_id).await,
                                                     ),
                                             )
                                             .await;

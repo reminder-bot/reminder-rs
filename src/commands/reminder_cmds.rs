@@ -47,7 +47,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::models::MeridianType;
+use crate::models::{CtxGuildData, MeridianType};
 use regex::Captures;
 use serenity::model::channel::Channel;
 
@@ -177,7 +177,7 @@ async fn offset(ctx: &Context, msg: &Message, args: String) {
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
     if args.is_empty() {
-        let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
+        let prefix = ctx.prefix(msg.guild_id).await;
 
         command_help(ctx, msg, lm, &prefix, &user_data.language, "offset").await;
     } else {
@@ -815,7 +815,7 @@ DELETE FROM timers WHERE owner = ? AND name = ?
         }
 
         _ => {
-            let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
+            let prefix = ctx.prefix(msg.guild_id).await;
 
             command_help(ctx, msg, lm, &prefix, &language, "timer").await;
         }
@@ -851,7 +851,6 @@ enum ReminderError {
     InvalidTag,
     InvalidTime,
     InvalidExpiration,
-    NeedSubscription,
     DiscordError(String),
 }
 
@@ -879,7 +878,6 @@ impl ToResponse for ReminderError {
             Self::InvalidTag => "remind/invalid_tag",
             Self::InvalidTime => "remind/invalid_time",
             Self::InvalidExpiration => "interval/invalid_expiration",
-            Self::NeedSubscription => "interval/donor",
             Self::DiscordError(_) => "remind/generic_error",
         }
     }
@@ -1146,7 +1144,7 @@ INSERT INTO reminders (
                 ctx,
                 msg,
                 lm,
-                &GuildData::prefix_from_id(msg.guild_id, &ctx).await,
+                &ctx.prefix(msg.guild_id).await,
                 &language,
                 "countdown",
             )
@@ -1157,10 +1155,8 @@ INSERT INTO reminders (
             .channel_id
             .say(
                 &ctx,
-                lm.get(&language, "interval/donor").replace(
-                    "{prefix}",
-                    &GuildData::prefix_from_id(msg.guild_id, &ctx).await,
-                ),
+                lm.get(&language, "interval/donor")
+                    .replace("{prefix}", &ctx.prefix(msg.guild_id).await),
             )
             .await;
     }
@@ -1229,10 +1225,8 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                         .channel_id
                         .say(
                             &ctx,
-                            lm.get(&language, "interval/donor").replace(
-                                "{prefix}",
-                                &GuildData::prefix_from_id(msg.guild_id, &ctx).await,
-                            ),
+                            lm.get(&language, "interval/donor")
+                                .replace("{prefix}", &ctx.prefix(msg.guild_id).await),
                         )
                         .await;
                 } else {
@@ -1383,7 +1377,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
         }
 
         None => {
-            let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx).await;
+            let prefix = ctx.prefix(msg.guild_id).await;
 
             match command {
                 RemindCommand::Remind => {
@@ -1608,7 +1602,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                 ctx,
                 msg,
                 lm,
-                &GuildData::prefix_from_id(msg.guild_id, &ctx).await,
+                &ctx.prefix(msg.guild_id).await,
                 &user_data.language,
                 "natural",
             )

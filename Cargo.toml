@@ -1,11 +1,11 @@
 [package]
 name = "reminder_rs"
-version = "1.4.12"
+version = "1.4.13"
 authors = ["jellywx <judesouthworth@pm.me>"]
 edition = "2018"
 
 [dependencies]
-dashmap = { version = "4.0", optional = true }
+dashmap = "4.0"
 dotenv = "0.15"
 humantime = "2.1"
 tokio = { version = "1", features = ["process", "full"] }
@@ -28,6 +28,3 @@ sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "macros", "mysql",
 
 [dependencies.regex_command_attr]
 path = "./regex_command_attr"
-
-[features]
-prefix-cache = ["dashmap"]

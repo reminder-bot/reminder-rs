@@ -5,14 +5,11 @@ use serenity::{client::Context, model::channel::Message};
 use chrono::offset::Utc;
 
 use crate::{
-    command_help,
-    consts::DEFAULT_PREFIX,
-    get_ctx_data,
-    language_manager::LanguageManager,
-    models::{GuildData, UserData},
-    FrameworkCtx, THEME_COLOR,
+    command_help, consts::DEFAULT_PREFIX, get_ctx_data, language_manager::LanguageManager,
+    models::UserData, FrameworkCtx, THEME_COLOR,
 };
 
+use crate::models::CtxGuildData;
 use serenity::builder::CreateEmbedFooter;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -107,7 +104,7 @@ async fn help(ctx: &Context, msg: &Message, args: String) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool);
-    let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx);
+    let prefix = ctx.prefix(msg.guild_id);
 
     if !args.is_empty() {
         let framework = ctx
@@ -138,7 +135,7 @@ async fn info(ctx: &Context, msg: &Message, _args: String) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool);
-    let prefix = GuildData::prefix_from_id(msg.guild_id, &ctx);
+    let prefix = ctx.prefix(msg.guild_id);
     let current_user = ctx.cache.current_user();
     let footer = footer(ctx).await;
 

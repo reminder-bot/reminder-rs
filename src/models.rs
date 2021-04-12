@@ -1,4 +1,5 @@
 use serenity::{
+    async_trait,
     http::CacheHttp,
     model::{
         channel::Channel,
@@ -6,6 +7,7 @@ use serenity::{
         id::{GuildId, UserId},
         user::User,
     },
+    prelude::Context,
 };
 
 use sqlx::MySqlPool;
@@ -15,13 +17,77 @@ use chrono_tz::Tz;
 
 use log::error;
 
-use crate::consts::{DEFAULT_PREFIX, LOCAL_LANGUAGE, LOCAL_TIMEZONE};
+use crate::{
+    consts::{DEFAULT_PREFIX, LOCAL_LANGUAGE, LOCAL_TIMEZONE},
+    GuildDataCache, SQLPool,
+};
 
-#[cfg(feature = "prefix-cache")]
-use crate::PrefixCache;
-use crate::SQLPool;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
-use serenity::prelude::Context;
+#[async_trait]
+pub trait CtxGuildData {
+    async fn guild_data<G: Into<GuildId> + Send + Sync>(
+        &self,
+        guild_id: G,
+    ) -> Result<Arc<RwLock<GuildData>>, sqlx::Error>;
+
+    async fn prefix<G: Into<GuildId> + Send + Sync>(&self, guild_id: Option<G>) -> String;
+}
+
+#[async_trait]
+impl CtxGuildData for Context {
+    async fn guild_data<G: Into<GuildId> + Send + Sync>(
+        &self,
+        guild_id: G,
+    ) -> Result<Arc<RwLock<GuildData>>, sqlx::Error> {
+        let guild_id = guild_id.into();
+
+        let guild = guild_id.to_guild_cached(&self.cache).await.unwrap();
+
+        let guild_cache = self
+            .data
+            .read()
+            .await
+            .get::<GuildDataCache>()
+            .cloned()
+            .unwrap();
+
+        let x = if let Some(guild_data) = guild_cache.get(&guild_id) {
+            Ok(guild_data.clone())
+        } else {
+            let pool = self.data.read().await.get::<SQLPool>().cloned().unwrap();
+
+            match GuildData::from_guild(guild, &pool).await {
+                Ok(d) => {
+                    let lock = Arc::new(RwLock::new(d));
+
+                    guild_cache.insert(guild_id, lock.clone());
+
+                    Ok(lock)
+                }
+
+                Err(e) => Err(e),
+            }
+        };
+
+        x
+    }
+
+    async fn prefix<G: Into<GuildId> + Send + Sync>(&self, guild_id: Option<G>) -> String {
+        if let Some(guild_id) = guild_id {
+            self.guild_data(guild_id)
+                .await
+                .unwrap()
+                .read()
+                .await
+                .prefix
+                .clone()
+        } else {
+            DEFAULT_PREFIX.clone()
+        }
+    }
+}
 
 pub struct GuildData {
     pub id: u32,
@@ -30,65 +96,6 @@ pub struct GuildData {
 }
 
 impl GuildData {
-    #[cfg(feature = "prefix-cache")]
-    pub async fn prefix_from_id<T: Into<GuildId>>(
-        guild_id_opt: Option<T>,
-        ctx: &Context,
-    ) -> String {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-        let prefix_cache = ctx.data.read().await.get::<PrefixCache>().cloned().unwrap();
-
-        if let Some(guild_id) = guild_id_opt {
-            let guild_id = guild_id.into();
-
-            if let Some(prefix) = prefix_cache.get(&guild_id) {
-                prefix.to_string()
-            } else {
-                let row = sqlx::query!(
-                    "
-SELECT prefix FROM guilds WHERE guild = ?
-                ",
-                    guild_id.as_u64().to_owned()
-                )
-                .fetch_one(&pool)
-                .await;
-
-                let prefix = row.map_or_else(|_| DEFAULT_PREFIX.clone(), |r| r.prefix);
-
-                prefix_cache.insert(guild_id, prefix.clone());
-
-                prefix
-            }
-        } else {
-            DEFAULT_PREFIX.clone()
-        }
-    }
-
-    #[cfg(not(feature = "prefix-cache"))]
-    pub async fn prefix_from_id<T: Into<GuildId>>(
-        guild_id_opt: Option<T>,
-        ctx: &Context,
-    ) -> String {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
-        if let Some(guild_id) = guild_id_opt {
-            let guild_id = guild_id.into().as_u64().to_owned();
-
-            let row = sqlx::query!(
-                "
-SELECT prefix FROM guilds WHERE guild = ?
-                ",
-                guild_id
-            )
-            .fetch_one(&pool)
-            .await;
-
-            row.map_or_else(|_| DEFAULT_PREFIX.clone(), |r| r.prefix)
-        } else {
-            DEFAULT_PREFIX.clone()
-        }
-    }
-
     pub async fn from_guild(guild: Guild, pool: &MySqlPool) -> Result<Self, sqlx::Error> {
         let guild_id = guild.id.as_u64().to_owned();
 
