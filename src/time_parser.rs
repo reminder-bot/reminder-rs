@@ -32,7 +32,7 @@ enum ParseType {
 }
 
 pub struct TimeParser {
-    timezone: Tz,
+    pub timezone: Tz,
     inverted: bool,
     time_string: String,
     parse_type: ParseType,
