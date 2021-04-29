@@ -6,8 +6,8 @@ use serenity::{
     model::{
         channel::ReactionType,
         channel::{Channel, Message},
-        id::ChannelId,
-        id::RoleId,
+        id::{ChannelId, RoleId},
+        interactions::{Interaction, InteractionResponseType},
     },
 };
 
@@ -27,9 +27,6 @@ use crate::{
     models::{ChannelData, GuildData, UserData},
     FrameworkCtx, PopularTimezones,
 };
-
-#[cfg(feature = "prefix-cache")]
-use crate::PrefixCache;
 
 use crate::models::CtxGuildData;
 use std::{collections::HashMap, iter, time::Duration};
@@ -218,6 +215,116 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
     }
 }
 
+pub async fn timezone_interaction(ctx: &Context, interaction: Interaction) {
+    let (pool, lm) = get_ctx_data(&&ctx).await;
+
+    let mut user_data = UserData::from_user(&interaction.member.user, &ctx, &pool)
+        .await
+        .unwrap();
+
+    let footer_text = lm.get(&user_data.language, "timezone/footer").replacen(
+        "{timezone}",
+        &user_data.timezone,
+        1,
+    );
+
+    if let Some(data) = &interaction.data {
+        if let Some(timezone) = data
+            .options
+            .first()
+            .map(|inner| {
+                inner
+                    .value
+                    .clone()
+                    .map(|v| v.as_str().map(|s| s.to_string()))
+                    .flatten()
+            })
+            .flatten()
+            .map(|tz| tz.parse::<Tz>().ok())
+            .flatten()
+        {
+            user_data.timezone = timezone.to_string();
+            user_data.commit_changes(&pool).await;
+
+            let now = Utc::now().with_timezone(&user_data.timezone());
+
+            let content = lm
+                .get(&user_data.language, "timezone/set_p")
+                .replacen("{timezone}", &user_data.timezone, 1)
+                .replacen(
+                    "{time}",
+                    &now.format(user_data.meridian().fmt_str_short()).to_string(),
+                    1,
+                );
+
+            interaction
+                .create_interaction_response(&ctx, |response| {
+                    response
+                        .kind(InteractionResponseType::ChannelMessageWithSource)
+                        .interaction_response_data(|data| {
+                            data.embed(|e| {
+                                e.title(lm.get(&user_data.language, "timezone/set_p_title"))
+                                    .description(content)
+                                    .color(*THEME_COLOR)
+                                    .footer(|f| {
+                                        f.text(
+                                            lm.get(&user_data.language, "timezone/footer")
+                                                .replacen("{timezone}", &user_data.timezone, 1),
+                                        )
+                                    })
+                            })
+                        })
+                })
+                .await
+                .unwrap();
+        } else {
+            let content = lm
+                .get(&user_data.language, "timezone/no_argument")
+                .replace("{prefix}", "/");
+
+            let popular_timezones = ctx
+                .data
+                .read()
+                .await
+                .get::<PopularTimezones>()
+                .cloned()
+                .unwrap();
+
+            let popular_timezones_iter = popular_timezones.iter().map(|t| {
+                (
+                    t.to_string(),
+                    format!(
+                        "🕗 `{}`",
+                        Utc::now()
+                            .with_timezone(t)
+                            .format(user_data.meridian().fmt_str_short())
+                            .to_string()
+                    ),
+                    true,
+                )
+            });
+
+            interaction
+                .create_interaction_response(&ctx, |response| {
+                    response
+                        .kind(InteractionResponseType::ChannelMessageWithSource)
+                        .interaction_response_data(|data| {
+                            data.embed(|e| {
+                                e.title(lm.get(&user_data.language, "timezone/no_argument_title"))
+                            .description(content)
+                            .color(*THEME_COLOR)
+                            .fields(popular_timezones_iter)
+                            .footer(|f| f.text(footer_text))
+                            .url("https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee")
+                            })
+                        })
+                })
+                .await
+                .unwrap();
+        }
+    }
+}
+
 #[command("meridian")]
 async fn change_meridian(ctx: &Context, msg: &Message, args: String) {
     let (pool, lm) = get_ctx_data(&ctx).await;
@@ -393,15 +500,44 @@ async fn language(ctx: &Context, msg: &Message, args: String) {
     }
 }
 
+pub async fn language_interaction(ctx: &Context, interaction: Interaction) {
+    let (pool, lm) = get_ctx_data(&ctx).await;
+
+    let mut user_data = UserData::from_user(&interaction.member.user, &ctx, &pool)
+        .await
+        .unwrap();
+
+    if let Some(data) = &interaction.data {
+        let option = &data.options[0];
+
+        user_data.language = option.value.clone().unwrap().as_str().unwrap().to_string();
+        user_data.commit_changes(&pool).await;
+
+        interaction
+            .create_interaction_response(ctx, |response| {
+                response
+                    .kind(InteractionResponseType::ChannelMessageWithSource)
+                    .interaction_response_data(|data| {
+                        data.embed(|e| {
+                            e.title(lm.get(&user_data.language, "lang/set_p_title"))
+                                .color(*THEME_COLOR)
+                                .description(lm.get(&user_data.language, "lang/set_p"))
+                        })
+                    })
+            })
+            .await
+            .unwrap();
+    }
+}
+
 #[command]
 #[supports_dm(false)]
 #[permission_level(Restricted)]
 async fn prefix(ctx: &Context, msg: &Message, args: String) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
-    let mut guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool)
-        .await
-        .unwrap();
+    let guild_data = ctx.guild_data(msg.guild_id.unwrap()).await.unwrap();
+
     let language = UserData::language_of(&msg.author, &pool).await;
 
     if args.len() > 5 {
@@ -415,20 +551,59 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) {
             .say(&ctx, lm.get(&language, "prefix/no_argument"))
             .await;
     } else {
-        guild_data.prefix = args;
+        guild_data.write().await.prefix = args;
+        guild_data.read().await.commit_changes(&pool).await;
 
-        #[cfg(feature = "prefix-cache")]
-        let prefix_cache = ctx.data.read().await.get::<PrefixCache>().cloned().unwrap();
-        #[cfg(feature = "prefix-cache")]
-        prefix_cache.insert(msg.guild_id.unwrap(), guild_data.prefix.clone());
-
-        guild_data.commit_changes(&pool).await;
-
-        let content =
-            lm.get(&language, "prefix/success")
-                .replacen("{prefix}", &guild_data.prefix, 1);
+        let content = lm.get(&language, "prefix/success").replacen(
+            "{prefix}",
+            &guild_data.read().await.prefix,
+            1,
+        );
 
         let _ = msg.channel_id.say(&ctx, content).await;
+    }
+}
+
+pub async fn prefix_interaction(ctx: &Context, interaction: Interaction) {
+    let (pool, lm) = get_ctx_data(&ctx).await;
+
+    let guild_data = ctx.guild_data(interaction.guild_id).await.unwrap();
+
+    let language = UserData::language_of(&interaction.member, &pool).await;
+
+    if let Some(data) = &interaction.data {
+        let option = &data.options[0];
+
+        let new_prefix = option.value.clone().unwrap().as_str().unwrap().to_string();
+
+        if new_prefix.len() > 5 {
+            interaction
+                .create_interaction_response(ctx, |response| {
+                    response
+                        .kind(InteractionResponseType::ChannelMessageWithSource)
+                        .interaction_response_data(|data| {
+                            data.content(lm.get(&language, "prefix/too_long"))
+                        })
+                })
+                .await
+                .unwrap();
+        } else {
+            guild_data.write().await.prefix = new_prefix.clone();
+            guild_data.read().await.commit_changes(&pool).await;
+
+            let content = lm
+                .get(&language, "prefix/success")
+                .replacen("{prefix}", &new_prefix, 1);
+
+            interaction
+                .create_interaction_response(ctx, |response| {
+                    response
+                        .kind(InteractionResponseType::ChannelMessageWithSource)
+                        .interaction_response_data(|data| data.content(content))
+                })
+                .await
+                .unwrap();
+        }
     }
 }
 

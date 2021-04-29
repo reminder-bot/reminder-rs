@@ -23,7 +23,7 @@ rand = "0.7"
 Inflector = "0.11"
 levenshtein = "1.0"
 # serenity = { version = "0.10", features = ["collector"] }
-serenity = { git = "https://github.com/serenity-rs/serenity", branch = "next", features = ["collector"] }
+serenity = { git = "https://github.com/serenity-rs/serenity", branch = "next", features = ["collector", "unstable_discord_api"] }
 sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "macros", "mysql", "bigdecimal", "chrono"]}
 
 [dependencies.regex_command_attr]

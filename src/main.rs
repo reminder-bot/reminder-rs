@@ -47,6 +47,9 @@ use dashmap::DashMap;
 use tokio::sync::RwLock;
 
 use chrono_tz::Tz;
+use serenity::model::interactions::{Interaction, InteractionType};
+use serenity::model::prelude::ApplicationCommandOptionType;
+use std::collections::HashSet;
 
 struct GuildDataCache;
 
@@ -194,6 +197,29 @@ DELETE FROM guilds WHERE guild = ?
         .await
         .unwrap();
     }
+
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        match interaction.kind {
+            InteractionType::ApplicationCommand => {
+                if let Some(data) = &interaction.data {
+                    match data.name.as_str() {
+                        "timezone" => {
+                            moderation_cmds::timezone_interaction(&ctx, interaction).await
+                        }
+                        "lang" => moderation_cmds::language_interaction(&ctx, interaction).await,
+                        "prefix" => moderation_cmds::prefix_interaction(&ctx, interaction).await,
+                        "help" => info_cmds::help_interaction(&ctx, interaction).await,
+                        "info" => info_cmds::info_interaction(&ctx, interaction).await,
+                        "donate" => info_cmds::donate_interaction(&ctx, interaction).await,
+                        "clock" => info_cmds::clock_interaction(&ctx, interaction).await,
+                        _ => {}
+                    }
+                }
+            }
+
+            _ => {}
+        }
+    }
 }
 
 #[tokio::main]
@@ -280,6 +306,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .await
         .expect("Error occurred creating client");
 
+    let language_manager = Arc::new(
+        LanguageManager::from_compiled(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/",
+            env!("STRINGS_FILE")
+        )))
+        .unwrap(),
+    );
+
     {
         let guild_data_cache = dashmap::DashMap::new();
 
@@ -287,13 +322,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             &env::var("DATABASE_URL").expect("Missing DATABASE_URL from environment"),
         )
         .await
-        .unwrap();
-
-        let language_manager = LanguageManager::from_compiled(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/assets/",
-            env!("STRINGS_FILE")
-        )))
         .unwrap();
 
         let popular_timezones = sqlx::query!(
@@ -314,8 +342,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         data.insert::<PopularTimezones>(Arc::new(popular_timezones));
         data.insert::<ReqwestClient>(Arc::new(reqwest::Client::new()));
         data.insert::<FrameworkCtx>(framework_arc.clone());
-        data.insert::<LanguageManager>(Arc::new(language_manager))
+        data.insert::<LanguageManager>(language_manager.clone())
     }
+
+    create_interactions(
+        &client.cache_and_http,
+        framework_arc.clone(),
+        language_manager.clone(),
+    )
+    .await;
 
     if let Ok((Some(lower), Some(upper))) = env::var("SHARD_RANGE").map(|sr| {
         let mut split = sr
@@ -358,6 +393,135 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     Ok(())
+}
+
+async fn create_interactions(
+    cache_http: impl CacheHttp,
+    framework: Arc<RegexFramework>,
+    lm: Arc<LanguageManager>,
+) {
+    let http = cache_http.http();
+    let app_id = {
+        let app_info = http.get_current_application_info().await.unwrap();
+
+        app_info.id.as_u64().to_owned()
+    };
+
+    if let Some(guild_id) = env::var("TEST_GUILD")
+        .map(|i| i.parse::<u64>().ok().map(|u| GuildId(u)))
+        .ok()
+        .flatten()
+    {
+        guild_id
+            .create_application_command(&http, app_id, |command| {
+                command
+                    .name("timezone")
+                    .description("Select your local timezone. Do `/timezone` for more information")
+                    .create_interaction_option(|option| {
+                        option
+                            .name("region")
+                            .description("Name of your time region")
+                            .kind(ApplicationCommandOptionType::String)
+                    })
+            })
+            .await
+            .unwrap();
+
+        guild_id
+            .create_application_command(&http, app_id, |command| {
+                command
+                    .name("lang")
+                    .description("Select your language")
+                    .create_interaction_option(|option| {
+                        option
+                            .name("language")
+                            .description("Name of supported language you wish to use")
+                            .kind(ApplicationCommandOptionType::String)
+                            .required(true);
+
+                        for (code, language) in lm.all_languages() {
+                            option.add_string_choice(language, code);
+                        }
+
+                        option
+                    })
+            })
+            .await
+            .unwrap();
+
+        guild_id
+            .create_application_command(&http, app_id, |command| {
+                command
+                    .name("prefix")
+                    .description("Select the prefix for normal commands")
+                    .create_interaction_option(|option| {
+                        option
+                            .name("prefix")
+                            .description("New prefix to use")
+                            .kind(ApplicationCommandOptionType::String)
+                            .required(true)
+                    })
+            })
+            .await
+            .unwrap();
+
+        guild_id
+            .create_application_command(&http, app_id, |command| {
+                command
+                    .name("info")
+                    .description("Get information about the bot")
+            })
+            .await
+            .unwrap();
+
+        guild_id
+            .create_application_command(&http, app_id, |command| {
+                command
+                    .name("donate")
+                    .description("View information about the Patreon")
+            })
+            .await
+            .unwrap();
+
+        guild_id
+            .create_application_command(&http, app_id, |command| {
+                command
+                    .name("clock")
+                    .description("View the current time in your timezone")
+            })
+            .await
+            .unwrap();
+
+        guild_id
+            .create_application_command(&http, app_id, |command| {
+                command
+                    .name("help")
+                    .description("Get details about commands. Do `/help` to view all commands")
+                    .create_interaction_option(|option| {
+                        option
+                            .name("command")
+                            .description("Name of the command to view help for")
+                            .kind(ApplicationCommandOptionType::String);
+
+                        let mut command_set = HashSet::new();
+                        command_set.insert("help");
+                        command_set.insert("info");
+                        command_set.insert("donate");
+
+                        for (_, command) in &framework.commands {
+                            if !command_set.contains(command.name) {
+                                option.add_string_choice(&command.name, &command.name);
+
+                                command_set.insert(command.name);
+                            }
+                        }
+
+                        option
+                    })
+            })
+            .await
+            .unwrap();
+    }
 }
 
 pub async fn check_subscription(cache_http: impl CacheHttp, user_id: impl Into<UserId>) -> bool {
