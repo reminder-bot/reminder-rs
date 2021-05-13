@@ -212,6 +212,7 @@ DELETE FROM guilds WHERE guild = ?
                         "info" => info_cmds::info_interaction(&ctx, interaction).await,
                         "donate" => info_cmds::donate_interaction(&ctx, interaction).await,
                         "clock" => info_cmds::clock_interaction(&ctx, interaction).await,
+                        "remind" => reminder_cmds::set_reminder(&ctx, interaction).await,
                         _ => {}
                     }
                 }
@@ -517,6 +518,36 @@ async fn create_interactions(
                         }
 
                         option
+                    })
+            })
+            .await
+            .unwrap();
+
+        guild_id
+            .create_application_command(&http, app_id, |command| {
+                command
+                    .name("remind")
+                    .description("Set a reminder")
+                    .create_interaction_option(|option| {
+                        option
+                            .name("message")
+                            .description("Message to send with the reminder")
+                            .kind(ApplicationCommandOptionType::String)
+                            .required(true)
+                    })
+                    .create_interaction_option(|option| {
+                        option
+                            .name("time")
+                            .description("Time to send the reminder")
+                            .kind(ApplicationCommandOptionType::String)
+                            .required(true)
+                    })
+                    .create_interaction_option(|option| {
+                        option
+                            .name("channel")
+                            .description("Channel to send reminder to (default: this channel)")
+                            .kind(ApplicationCommandOptionType::Channel)
+                            .required(false)
                     })
             })
             .await

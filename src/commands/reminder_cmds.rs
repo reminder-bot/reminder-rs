@@ -50,6 +50,7 @@ use std::{
 use crate::models::{CtxGuildData, MeridianType};
 use regex::Captures;
 use serenity::model::channel::Channel;
+use serenity::model::interactions::Interaction;
 
 fn shorthand_displacement(seconds: u64) -> String {
     let (days, seconds) = seconds.div_rem(&DAY);
@@ -1550,6 +1551,19 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
             .await;
         }
     }
+}
+
+pub async fn set_reminder(ctx: &Context, interaction: Interaction) {
+    let (pool, lm) = get_ctx_data(&ctx).await;
+
+    let now = SystemTime::now();
+    let since_epoch = now
+        .duration_since(UNIX_EPOCH)
+        .expect("Time calculated as going backwards. Very bad");
+
+    let user_data = UserData::from_user(&interaction.member.user, &ctx, &pool)
+        .await
+        .unwrap();
 }
 
 async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
