@@ -28,10 +28,8 @@ use crate::{
     FrameworkCtx, PopularTimezones,
 };
 
-#[cfg(feature = "prefix-cache")]
-use crate::PrefixCache;
-
 use crate::models::CtxGuildData;
+use serenity::model::id::MessageId;
 use std::{collections::HashMap, iter, time::Duration};
 
 #[command]
@@ -670,6 +668,7 @@ SELECT command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHER
 
                             let mut new_msg = msg.clone();
                             new_msg.content = format!("<@{}> {}", &ctx.cache.current_user_id().await, row.command);
+                            new_msg.id = MessageId(0);
 
                             framework.dispatch(ctx.clone(), new_msg).await;
                         },

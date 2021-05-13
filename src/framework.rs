@@ -22,6 +22,7 @@ use std::{collections::HashMap, fmt};
 use crate::language_manager::LanguageManager;
 use crate::models::{CtxGuildData, GuildData, UserData};
 use crate::{models::ChannelData, CurrentlyExecuting, SQLPool};
+use serenity::model::id::MessageId;
 use std::time::Duration;
 
 type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, ()>;
@@ -364,7 +365,7 @@ impl Framework for RegexFramework {
                 lock.insert(msg.author.id);
             }
 
-            if !user_is_executing {
+            if !user_is_executing || msg.id == MessageId(0) {
                 // Guild Command
                 if let (Some(guild), Some(Channel::Guild(channel))) =
                     (msg.guild(&ctx).await, msg.channel(&ctx).await)
