@@ -23,7 +23,7 @@ use crate::language_manager::LanguageManager;
 use crate::models::{CtxGuildData, GuildData, UserData};
 use crate::{models::ChannelData, CurrentlyExecuting, SQLPool};
 use serenity::model::id::MessageId;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, ()>;
 
@@ -361,8 +361,10 @@ impl Framework for RegexFramework {
             {
                 let mut lock = currently_executing.lock().unwrap();
 
-                user_is_executing = lock.contains(&msg.author.id);
-                lock.insert(msg.author.id);
+                user_is_executing = lock
+                    .get(&msg.author.id)
+                    .map_or(false, |now| now.elapsed().as_secs() < 4);
+                lock.insert(msg.author.id, Instant::now());
             }
 
             if !user_is_executing || msg.id == MessageId(0) {
@@ -532,6 +534,8 @@ impl Framework for RegexFramework {
                     let mut lock = currently_executing.lock().unwrap();
                     lock.remove(&msg.author.id);
                 }
+            } else {
+                warn!("User {} is still executing!", msg.author.id);
             }
         }
     }

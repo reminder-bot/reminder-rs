@@ -47,8 +47,8 @@ use dashmap::DashMap;
 use tokio::sync::RwLock;
 
 use chrono_tz::Tz;
-use std::collections::HashSet;
 use std::sync::Mutex;
+use std::time::Instant;
 
 struct GuildDataCache;
 
@@ -83,7 +83,7 @@ impl TypeMapKey for PopularTimezones {
 struct CurrentlyExecuting;
 
 impl TypeMapKey for CurrentlyExecuting {
-    type Value = Arc<Mutex<HashSet<UserId>>>;
+    type Value = Arc<Mutex<HashMap<UserId, Instant>>>;
 }
 
 struct Handler;
@@ -317,7 +317,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut data = client.data.write().await;
 
         data.insert::<GuildDataCache>(Arc::new(guild_data_cache));
-        data.insert::<CurrentlyExecuting>(Arc::new(Mutex::new(HashSet::new())));
+        data.insert::<CurrentlyExecuting>(Arc::new(Mutex::new(HashMap::new())));
         data.insert::<SQLPool>(pool);
         data.insert::<PopularTimezones>(Arc::new(popular_timezones));
         data.insert::<ReqwestClient>(Arc::new(reqwest::Client::new()));

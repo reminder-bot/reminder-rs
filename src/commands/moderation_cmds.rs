@@ -397,9 +397,7 @@ async fn language(ctx: &Context, msg: &Message, args: String) {
 async fn prefix(ctx: &Context, msg: &Message, args: String) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
-    let mut guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool)
-        .await
-        .unwrap();
+    let guild_data = ctx.guild_data(msg.guild_id.unwrap()).await.unwrap();
     let language = UserData::language_of(&msg.author, &pool).await;
 
     if args.len() > 5 {
@@ -413,18 +411,15 @@ async fn prefix(ctx: &Context, msg: &Message, args: String) {
             .say(&ctx, lm.get(&language, "prefix/no_argument"))
             .await;
     } else {
-        guild_data.prefix = args;
+        guild_data.write().await.prefix = args;
 
-        #[cfg(feature = "prefix-cache")]
-        let prefix_cache = ctx.data.read().await.get::<PrefixCache>().cloned().unwrap();
-        #[cfg(feature = "prefix-cache")]
-        prefix_cache.insert(msg.guild_id.unwrap(), guild_data.prefix.clone());
+        guild_data.read().await.commit_changes(&pool).await;
 
-        guild_data.commit_changes(&pool).await;
-
-        let content =
-            lm.get(&language, "prefix/success")
-                .replacen("{prefix}", &guild_data.prefix, 1);
+        let content = lm.get(&language, "prefix/success").replacen(
+            "{prefix}",
+            &guild_data.read().await.prefix,
+            1,
+        );
 
         let _ = msg.channel_id.say(&ctx, content).await;
     }
