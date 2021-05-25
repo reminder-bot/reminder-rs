@@ -21,9 +21,8 @@ use std::{collections::HashMap, fmt};
 
 use crate::language_manager::LanguageManager;
 use crate::models::{CtxGuildData, GuildData, UserData};
-use crate::{models::ChannelData, CurrentlyExecuting, SQLPool};
+use crate::{models::ChannelData, LimitExecutors, SQLPool};
 use serenity::model::id::MessageId;
-use std::time::{Duration, Instant};
 
 type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, ()>;
 
@@ -348,194 +347,165 @@ impl Framework for RegexFramework {
         // gate to prevent analysing messages unnecessarily
         if (msg.author.bot && self.ignore_bots) || msg.content.is_empty() {
         } else {
-            let currently_executing = ctx
-                .data
-                .read()
-                .await
-                .get::<CurrentlyExecuting>()
-                .cloned()
-                .unwrap();
-
-            let user_is_executing;
-
+            // Guild Command
+            if let (Some(guild), Some(Channel::Guild(channel))) =
+                (msg.guild(&ctx).await, msg.channel(&ctx).await)
             {
-                let mut lock = currently_executing.lock().unwrap();
+                let data = ctx.data.read().await;
 
-                user_is_executing = lock
-                    .get(&msg.author.id)
-                    .map_or(false, |now| now.elapsed().as_secs() < 4);
-                lock.insert(msg.author.id, Instant::now());
-            }
+                let pool = data
+                    .get::<SQLPool>()
+                    .cloned()
+                    .expect("Could not get SQLPool from data");
 
-            if !user_is_executing || msg.id == MessageId(0) {
-                // Guild Command
-                if let (Some(guild), Some(Channel::Guild(channel))) =
-                    (msg.guild(&ctx).await, msg.channel(&ctx).await)
-                {
-                    let data = ctx.data.read().await;
+                if let Some(full_match) = self.command_matcher.captures(&msg.content) {
+                    if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
+                        let lm = data.get::<LanguageManager>().unwrap();
 
-                    let pool = data
-                        .get::<SQLPool>()
-                        .cloned()
-                        .expect("Could not get SQLPool from data");
+                        let language = UserData::language_of(&msg.author, &pool);
 
-                    if let Some(full_match) = self.command_matcher.captures(&msg.content) {
-                        if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
-                            let lm = data.get::<LanguageManager>().unwrap();
-
-                            let language = UserData::language_of(&msg.author, &pool);
-
-                            match check_self_permissions(&ctx, &guild, &channel).await {
-                                Ok(perms) => match perms {
-                                    PermissionCheck::All => {
-                                        let command = self
-                                            .commands
-                                            .get(
-                                                &full_match
-                                                    .name("cmd")
-                                                    .unwrap()
-                                                    .as_str()
-                                                    .to_lowercase(),
-                                            )
-                                            .unwrap();
-
-                                        let channel_data = ChannelData::from_channel(
-                                            msg.channel(&ctx).await.unwrap(),
-                                            &pool,
+                        match check_self_permissions(&ctx, &guild, &channel).await {
+                            Ok(perms) => match perms {
+                                PermissionCheck::All => {
+                                    let command = self
+                                        .commands
+                                        .get(
+                                            &full_match
+                                                .name("cmd")
+                                                .unwrap()
+                                                .as_str()
+                                                .to_lowercase(),
                                         )
-                                        .await
                                         .unwrap();
 
-                                        if !command.can_blacklist || !channel_data.blacklisted {
-                                            let args = full_match
-                                                .name("args")
-                                                .map(|m| m.as_str())
-                                                .unwrap_or("")
-                                                .to_string();
+                                    let channel_data = ChannelData::from_channel(
+                                        msg.channel(&ctx).await.unwrap(),
+                                        &pool,
+                                    )
+                                    .await
+                                    .unwrap();
 
-                                            let member =
-                                                guild.member(&ctx, &msg.author).await.unwrap();
+                                    if !command.can_blacklist || !channel_data.blacklisted {
+                                        let args = full_match
+                                            .name("args")
+                                            .map(|m| m.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
 
-                                            if command
-                                                .check_permissions(&ctx, &guild, &member)
-                                                .await
+                                        let member = guild.member(&ctx, &msg.author).await.unwrap();
+
+                                        if command.check_permissions(&ctx, &guild, &member).await {
+                                            dbg!(command.name);
+
                                             {
-                                                dbg!(command.name);
+                                                let guild_id = guild.id.as_u64().to_owned();
 
-                                                {
-                                                    let guild_id = guild.id.as_u64().to_owned();
-
-                                                    GuildData::from_guild(guild, &pool)
-                                                        .await
-                                                        .expect(&format!(
+                                                GuildData::from_guild(guild, &pool).await.expect(
+                                                    &format!(
                                                         "Failed to create new guild object for {}",
                                                         guild_id
-                                                    ));
-                                                }
-
-                                                (command.func)(&ctx, &msg, args).await;
-                                            } else if command.required_perms
-                                                == PermissionLevel::Restricted
-                                            {
-                                                let _ = msg
-                                                    .channel_id
-                                                    .say(
-                                                        &ctx,
-                                                        lm.get(
-                                                            &language.await,
-                                                            "no_perms_restricted",
-                                                        ),
-                                                    )
-                                                    .await;
-                                            } else if command.required_perms
-                                                == PermissionLevel::Managed
-                                            {
-                                                let _ = msg
-                                                    .channel_id
-                                                    .say(
-                                                        &ctx,
-                                                        lm.get(&language.await, "no_perms_managed")
-                                                            .replace(
-                                                                "{prefix}",
-                                                                &ctx.prefix(msg.guild_id).await,
-                                                            ),
-                                                    )
-                                                    .await;
+                                                    ),
+                                                );
                                             }
+
+                                            if msg.id == MessageId(0)
+                                                || !ctx.check_executing(msg.author.id).await
+                                            {
+                                                ctx.set_executing(msg.author.id).await;
+                                                (command.func)(&ctx, &msg, args).await;
+                                                ctx.drop_executing(msg.author.id).await;
+                                            }
+                                        } else if command.required_perms
+                                            == PermissionLevel::Restricted
+                                        {
+                                            let _ = msg
+                                                .channel_id
+                                                .say(
+                                                    &ctx,
+                                                    lm.get(&language.await, "no_perms_restricted"),
+                                                )
+                                                .await;
+                                        } else if command.required_perms == PermissionLevel::Managed
+                                        {
+                                            let _ = msg
+                                                .channel_id
+                                                .say(
+                                                    &ctx,
+                                                    lm.get(&language.await, "no_perms_managed")
+                                                        .replace(
+                                                            "{prefix}",
+                                                            &ctx.prefix(msg.guild_id).await,
+                                                        ),
+                                                )
+                                                .await;
                                         }
                                     }
-
-                                    PermissionCheck::Basic(
-                                        manage_webhooks,
-                                        embed_links,
-                                        add_reactions,
-                                        manage_messages,
-                                    ) => {
-                                        let response = lm
-                                            .get(&language.await, "no_perms_general")
-                                            .replace(
-                                                "{manage_webhooks}",
-                                                if manage_webhooks { "✅" } else { "❌" },
-                                            )
-                                            .replace(
-                                                "{embed_links}",
-                                                if embed_links { "✅" } else { "❌" },
-                                            )
-                                            .replace(
-                                                "{add_reactions}",
-                                                if add_reactions { "✅" } else { "❌" },
-                                            )
-                                            .replace(
-                                                "{manage_messages}",
-                                                if manage_messages { "✅" } else { "❌" },
-                                            );
-
-                                        let _ = msg.channel_id.say(&ctx, response).await;
-                                    }
-
-                                    PermissionCheck::None => {
-                                        warn!("Missing enough permissions for guild {}", guild.id);
-                                    }
-                                },
-
-                                Err(e) => {
-                                    error!(
-                                        "Error occurred getting permissions in guild {}: {:?}",
-                                        guild.id, e
-                                    );
                                 }
+
+                                PermissionCheck::Basic(
+                                    manage_webhooks,
+                                    embed_links,
+                                    add_reactions,
+                                    manage_messages,
+                                ) => {
+                                    let response = lm
+                                        .get(&language.await, "no_perms_general")
+                                        .replace(
+                                            "{manage_webhooks}",
+                                            if manage_webhooks { "✅" } else { "❌" },
+                                        )
+                                        .replace(
+                                            "{embed_links}",
+                                            if embed_links { "✅" } else { "❌" },
+                                        )
+                                        .replace(
+                                            "{add_reactions}",
+                                            if add_reactions { "✅" } else { "❌" },
+                                        )
+                                        .replace(
+                                            "{manage_messages}",
+                                            if manage_messages { "✅" } else { "❌" },
+                                        );
+
+                                    let _ = msg.channel_id.say(&ctx, response).await;
+                                }
+
+                                PermissionCheck::None => {
+                                    warn!("Missing enough permissions for guild {}", guild.id);
+                                }
+                            },
+
+                            Err(e) => {
+                                error!(
+                                    "Error occurred getting permissions in guild {}: {:?}",
+                                    guild.id, e
+                                );
                             }
                         }
                     }
                 }
-                // DM Command
-                else if self.dm_enabled {
-                    if let Some(full_match) = self.dm_regex_matcher.captures(&msg.content[..]) {
-                        let command = self
-                            .commands
-                            .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
-                            .unwrap();
-                        let args = full_match
-                            .name("args")
-                            .map(|m| m.as_str())
-                            .unwrap_or("")
-                            .to_string();
+            }
+            // DM Command
+            else if self.dm_enabled {
+                if let Some(full_match) = self.dm_regex_matcher.captures(&msg.content[..]) {
+                    let command = self
+                        .commands
+                        .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
+                        .unwrap();
+                    let args = full_match
+                        .name("args")
+                        .map(|m| m.as_str())
+                        .unwrap_or("")
+                        .to_string();
 
-                        dbg!(command.name);
+                    dbg!(command.name);
 
+                    if msg.id == MessageId(0) || !ctx.check_executing(msg.author.id).await {
+                        ctx.set_executing(msg.author.id).await;
                         (command.func)(&ctx, &msg, args).await;
+                        ctx.drop_executing(msg.author.id).await;
                     }
                 }
-
-                {
-                    // wait 500 ms before allowing the user to execute a command again
-                    tokio::time::sleep(Duration::from_millis(500)).await;
-
-                    let mut lock = currently_executing.lock().unwrap();
-                    lock.remove(&msg.author.id);
-                }
-            } else {
-                warn!("User {} is still executing!", msg.author.id);
             }
         }
     }

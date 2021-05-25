@@ -47,7 +47,6 @@ use dashmap::DashMap;
 use tokio::sync::RwLock;
 
 use chrono_tz::Tz;
-use std::sync::Mutex;
 use std::time::Instant;
 
 struct GuildDataCache;
@@ -83,7 +82,60 @@ impl TypeMapKey for PopularTimezones {
 struct CurrentlyExecuting;
 
 impl TypeMapKey for CurrentlyExecuting {
-    type Value = Arc<Mutex<HashMap<UserId, Instant>>>;
+    type Value = Arc<RwLock<HashMap<UserId, Instant>>>;
+}
+
+#[async_trait]
+trait LimitExecutors {
+    async fn check_executing(&self, user: UserId) -> bool;
+    async fn set_executing(&self, user: UserId);
+    async fn drop_executing(&self, user: UserId);
+}
+
+#[async_trait]
+impl LimitExecutors for Context {
+    async fn check_executing(&self, user: UserId) -> bool {
+        let currently_executing = self
+            .data
+            .read()
+            .await
+            .get::<CurrentlyExecuting>()
+            .cloned()
+            .unwrap();
+
+        let lock = currently_executing.read().await;
+
+        lock.get(&user)
+            .map_or(false, |now| now.elapsed().as_secs() < 4)
+    }
+
+    async fn set_executing(&self, user: UserId) {
+        let currently_executing = self
+            .data
+            .read()
+            .await
+            .get::<CurrentlyExecuting>()
+            .cloned()
+            .unwrap();
+
+        let mut lock = currently_executing.write().await;
+
+        lock.insert(user, Instant::now());
+    }
+
+    async fn drop_executing(&self, user: UserId) {
+        let currently_executing = self
+            .data
+            .read()
+            .await
+            .get::<CurrentlyExecuting>()
+            .cloned()
+            .unwrap();
+
+        let mut lock = currently_executing.write().await;
+
+        lock.remove(&user);
+    }
 }
 
 struct Handler;
@@ -317,7 +369,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut data = client.data.write().await;
 
         data.insert::<GuildDataCache>(Arc::new(guild_data_cache));
-        data.insert::<CurrentlyExecuting>(Arc::new(Mutex::new(HashMap::new())));
+        data.insert::<CurrentlyExecuting>(Arc::new(RwLock::new(HashMap::new())));
         data.insert::<SQLPool>(pool);
         data.insert::<PopularTimezones>(Arc::new(popular_timezones));
         data.insert::<ReqwestClient>(Arc::new(reqwest::Client::new()));
