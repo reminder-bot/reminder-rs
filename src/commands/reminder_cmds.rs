@@ -193,7 +193,7 @@ UPDATE reminders
     INNER JOIN `channels`
         ON `channels`.id = reminders.channel_id
     SET
-        reminders.`time` = reminders.`time` + ?
+        reminders.`utc_time` = reminders.`utc_time` + ?
     WHERE channels.guild_id = ?
                     ",
                     displacement,
@@ -205,7 +205,7 @@ UPDATE reminders
             } else {
                 sqlx::query!(
                     "
-UPDATE reminders SET `time` = `time` + ? WHERE reminders.channel_id = ?
+UPDATE reminders SET `utc_time` = `utc_time` + ? WHERE reminders.channel_id = ?
                     ",
                     displacement,
                     user_data.dm_channel
@@ -345,11 +345,11 @@ impl LookFlags {
 
 struct LookReminder {
     id: u32,
-    time: u32,
+    time: NaiveDateTime,
     interval: Option<u32>,
     channel: u64,
     content: String,
-    description: Option<String>,
+    description: String,
 }
 
 impl LookReminder {
@@ -357,7 +357,7 @@ impl LookReminder {
         if self.content.len() > 0 {
             self.content.clone()
         } else {
-            self.description.clone().unwrap_or(String::from(""))
+            self.description.clone()
         }
     }
 
@@ -370,7 +370,7 @@ impl LookReminder {
     ) -> String {
         let time_display = match flags.time_display {
             TimeDisplayType::Absolute => timezone
-                .timestamp(self.time as i64, 0)
+                .timestamp(self.time.timestamp(), 0)
                 .format(meridian.fmt_str())
                 .to_string(),
 
@@ -380,7 +380,7 @@ impl LookReminder {
                     .unwrap()
                     .as_secs();
 
-                longhand_displacement((self.time as u64).checked_sub(now).unwrap_or(1))
+                longhand_displacement((self.time.timestamp() as u64).checked_sub(now).unwrap_or(1))
             }
         };
 
@@ -434,26 +434,23 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
         LookReminder,
         "
 SELECT
-    reminders.id, reminders.time, reminders.interval, channels.channel, messages.content, embeds.description
+    reminders.id,
+    reminders.utc_time AS time,
+    reminders.interval,
+    channels.channel,
+    reminders.content,
+    reminders.embed_description AS description
 FROM
     reminders
 INNER JOIN
     channels
 ON
     reminders.channel_id = channels.id
-INNER JOIN
-    messages
-ON
-    messages.id = reminders.message_id
-LEFT JOIN
-    embeds
-ON
-    embeds.id = messages.embed_id
 WHERE
     channels.channel = ? AND
     FIND_IN_SET(reminders.enabled, ?)
 ORDER BY
-    reminders.time
+    reminders.utc_time
 LIMIT
     ?
             ",
@@ -509,21 +506,18 @@ async fn delete(ctx: &Context, msg: &Message, _args: String) {
                 LookReminder,
                 "
 SELECT
-    reminders.id, reminders.time, reminders.interval, channels.channel, messages.content, embeds.description
+    reminders.id,
+    reminders.utc_time AS time,
+    reminders.interval,
+    channels.channel,
+    reminders.content,
+    reminders.embed_description AS description
 FROM
     reminders
 LEFT OUTER JOIN
     channels
 ON
     channels.id = reminders.channel_id
-INNER JOIN
-    messages
-ON
-    messages.id = reminders.message_id
-LEFT JOIN
-    embeds
-ON
-    embeds.id = messages.embed_id
 WHERE
     FIND_IN_SET(channels.channel, ?)
                 ",
@@ -536,21 +530,18 @@ WHERE
                 LookReminder,
                 "
 SELECT
-    reminders.id, reminders.time, reminders.interval, channels.channel, messages.content, embeds.description
+    reminders.id,
+    reminders.utc_time AS time,
+    reminders.interval,
+    channels.channel,
+    reminders.content,
+    reminders.embed_description AS description
 FROM
     reminders
 LEFT OUTER JOIN
     channels
 ON
     channels.id = reminders.channel_id
-INNER JOIN
-    messages
-ON
-    messages.id = reminders.message_id
-LEFT JOIN
-    embeds
-ON
-    embeds.id = messages.embed_id
 WHERE
     channels.guild_id = (SELECT id FROM guilds WHERE guild = ?)
                 ",
@@ -564,17 +555,14 @@ WHERE
             LookReminder,
             "
 SELECT
-    reminders.id, reminders.time, reminders.interval, channels.channel, messages.content, embeds.description
+    reminders.id,
+    reminders.utc_time AS time,
+    reminders.interval,
+    channels.channel,
+    reminders.content,
+    reminders.embed_description AS description
 FROM
     reminders
-INNER JOIN
-    messages
-ON
-    reminders.message_id = messages.id
-LEFT JOIN
-    embeds
-ON
-    embeds.id = messages.embed_id
 INNER JOIN
     channels
 ON
@@ -593,7 +581,7 @@ WHERE
 
     let enumerated_reminders = reminders.iter().enumerate().map(|(count, reminder)| {
         reminder_ids.push(reminder.id);
-        let time = user_data.timezone().timestamp(reminder.time as i64, 0);
+        let time = user_data.timezone().timestamp(reminder.time.timestamp(), 0);
 
         format!(
             "**{}**: '{}' *<#{}>* at {}",
@@ -1049,63 +1037,34 @@ async fn countdown(ctx: &Context, msg: &Message, args: String) {
 
                     sqlx::query!(
                         "
-INSERT INTO embeds (title, description, color) VALUES (?, ?, ?)
-                    ",
-                        event_name,
-                        description,
-                        *THEME_COLOR
-                    )
-                    .execute(&pool)
-                    .await
-                    .unwrap();
-
-                    let embed_id = sqlx::query!(
-                        "
-SELECT id FROM embeds WHERE title = ? AND description = ?
-                    ",
-                        event_name,
-                        description
-                    )
-                    .fetch_one(&pool)
-                    .await
-                    .unwrap();
-
-                    sqlx::query!(
-                        "
-INSERT INTO messages (embed_id) VALUES (?)
-                    ",
-                        embed_id.id
-                    )
-                    .execute(&pool)
-                    .await
-                    .unwrap();
-
-                    sqlx::query!(
-                        "
 INSERT INTO reminders (
     `uid`,
     `name`,
-    `message_id`,
+    `embed_title`,
+    `embed_description`,
+    `embed_color`,
     `channel_id`,
-    `time`,
+    `utc_time`,
     `interval`,
-    `method`,
     `set_by`,
     `expires`
 ) VALUES (
     ?,
     'Countdown',
-    (SELECT id FROM messages WHERE embed_id = ?),
-    (SELECT id FROM channels WHERE channel = ?),
     ?,
     ?,
-    'countdown',
+    ?,
+    ?,
+    ?,
+    ?,
     (SELECT id FROM users WHERE user = ?),
     FROM_UNIXTIME(?)
 )
                     ",
                         generate_uid(),
-                        embed_id.id,
+                        event_name,
+                        description,
+                        *THEME_COLOR,
                         msg.channel_id.as_u64(),
                         first_time,
                         interval,
@@ -1698,36 +1657,44 @@ async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
                             } else {
                                 sqlx::query!(
                                     "
-INSERT INTO messages (content, tts, attachment, attachment_name) VALUES (?, ?, ?, ?)
+INSERT INTO reminders (
+    uid,
+    content,
+    tts,
+    attachment,
+    attachment_name,
+    channel_id,
+    `utc_time`,
+    expires,
+    `interval`,
+    set_by
+) VALUES (
+    ?,
+    ?,
+    ?,
+    ?,
+    ?,
+    ?,
+    FROM_UNIXTIME(?),
+    FROM_UNIXTIME(?),
+    ?,
+    (SELECT id FROM users WHERE user = ? LIMIT 1)
+)
                             ",
+                                    generate_uid(),
                                     content.content,
                                     content.tts,
                                     content.attachment,
                                     content.attachment_name,
+                                    db_channel_id,
+                                    time as u32,
+                                    expires,
+                                    interval,
+                                    user_id
                                 )
-                                .execute(&pool.clone())
+                                .execute(pool)
                                 .await
                                 .unwrap();
-
-                                sqlx::query!(
-                            "
-INSERT INTO reminders (uid, message_id, channel_id, time, expires, `interval`, method, set_by) VALUES
-    (?,
-    (SELECT id FROM messages WHERE content = ? ORDER BY id DESC LIMIT 1),
-    ?, ?, FROM_UNIXTIME(?), ?, 'remind',
-    (SELECT id FROM users WHERE user = ? LIMIT 1))
-                            ",
-                            generate_uid(),
-                            content.content,
-                            db_channel_id,
-                            time as u32,
-                            expires,
-                            interval,
-                            user_id
-                        )
-                        .execute(pool)
-                        .await
-                        .unwrap();
 
                                 Ok(())
                             }

@@ -1,6 +1,6 @@
 [package]
 name = "reminder_rs"
-version = "1.4.15"
+version = "1.5.0"
 authors = ["jellywx <judesouthworth@pm.me>"]
 edition = "2018"
 

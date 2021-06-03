@@ -1,3 +1,5 @@
+CREATE DATABASE IF NOT EXISTS reminders;
+
 SET FOREIGN_KEY_CHECKS=0;
 
 USE reminders;
