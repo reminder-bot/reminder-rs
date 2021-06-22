@@ -48,15 +48,16 @@ CREATE TABLE reminders_new (
     PRIMARY KEY (id),
 
     FOREIGN KEY (`channel_id`) REFERENCES channels (`id`) ON DELETE CASCADE,
-    FOREIGN KEY (`set_by`) REFERENCES users (`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`set_by`) REFERENCES users (`id`) ON DELETE SET NULL
 
     # disallow having a reminder as restartable if it has no interval
-    CONSTRAINT restartable_interval_mutex CHECK (`restartable` = 0 OR `interval` IS NULL),
+    -- , CONSTRAINT restartable_interval_mutex CHECK (`restartable` = 0 OR `interval` IS NULL)
     # disallow disabling if interval is unspecified
-    CONSTRAINT interval_enabled_mutin CHECK (`enabled` = 1 OR `interval` IS NULL),
+    -- , CONSTRAINT interval_enabled_mutin CHECK (`enabled` = 1 OR `interval` IS NULL)
     # disallow an expiry time if interval is unspecified
-    CONSTRAINT interval_expires_mutin CHECK (`expires` IS NULL OR `interval` IS NOT NULL)
-);
+    -- , CONSTRAINT interval_expires_mutin CHECK (`expires` IS NULL OR `interval` IS NOT NULL)
+)
+COLLATE utf8mb4_unicode_ci;
 
 # import data from other tables
 INSERT INTO reminders_new (
@@ -86,7 +87,7 @@ INSERT INTO reminders_new (
                                     reminders.uid,
                                     reminders.name,
                                     reminders.channel_id,
-                                    FROM_UNIXTIME(reminders.time),
+                                    DATE_ADD(FROM_UNIXTIME(0), INTERVAL reminders.`time` SECOND),
                                     reminders.`interval`,
                                     reminders.enabled,
                                     reminders.expires,

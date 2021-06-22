@@ -1675,8 +1675,8 @@ INSERT INTO reminders (
     ?,
     ?,
     ?,
-    FROM_UNIXTIME(?),
-    FROM_UNIXTIME(?),
+    DATE_ADD(FROM_UNIXTIME(0), INTERVAL ? SECOND),
+    DATE_ADD(FROM_UNIXTIME(0), INTERVAL ? SECOND),
     ?,
     (SELECT id FROM users WHERE user = ? LIMIT 1)
 )
