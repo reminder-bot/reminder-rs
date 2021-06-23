@@ -121,7 +121,7 @@ CREATE TABLE embed_fields_new (
 
     PRIMARY KEY (id),
 
-    FOREIGN KEY (reminder_id) REFERENCES reminders_new (id)
+    FOREIGN KEY (reminder_id) REFERENCES reminders_new (id) ON DELETE CASCADE
 );
 
 INSERT INTO embed_fields_new (
