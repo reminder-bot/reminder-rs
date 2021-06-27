@@ -12,12 +12,14 @@ use serenity::{
     async_trait,
     cache::Cache,
     client::{bridge::gateway::GatewayIntents, Client},
+    futures::TryFutureExt,
     http::{client::Http, CacheHttp},
     model::{
         channel::GuildChannel,
         channel::Message,
         guild::{Guild, GuildUnavailable},
         id::{GuildId, UserId},
+        interactions::{Interaction, InteractionData, InteractionType},
     },
     prelude::{Context, EventHandler, TypeMapKey},
     utils::shard_id,
@@ -27,7 +29,7 @@ use sqlx::mysql::MySqlPool;
 
 use dotenv::dotenv;
 
-use std::{collections::HashMap, env, sync::Arc};
+use std::{collections::HashMap, env, sync::Arc, time::Instant};
 
 use crate::{
     commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
@@ -37,8 +39,6 @@ use crate::{
     models::GuildData,
 };
 
-use serenity::futures::TryFutureExt;
-
 use inflector::Inflector;
 use log::info;
 
@@ -46,8 +46,12 @@ use dashmap::DashMap;
 
 use tokio::sync::RwLock;
 
+use crate::models::UserData;
+use chrono::Utc;
 use chrono_tz::Tz;
-use std::time::Instant;
+use serenity::model::prelude::{
+    InteractionApplicationCommandCallbackDataFlags, InteractionResponseType,
+};
 
 struct GuildDataCache;
 
@@ -254,6 +258,62 @@ DELETE FROM guilds WHERE guild = ?
         .await
         .unwrap();
     }
+
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        let (pool, lm) = get_ctx_data(&&ctx).await;
+
+        match interaction.kind {
+            InteractionType::ApplicationCommand => {}
+            InteractionType::MessageComponent => {
+                if let (Some(InteractionData::MessageComponent(data)), Some(member)) =
+                    (interaction.clone().data, interaction.clone().member)
+                {
+                    if data.custom_id.starts_with("timezone:") {
+                        let mut user_data = UserData::from_user(&member.user, &ctx, &pool)
+                            .await
+                            .unwrap();
+                        let new_timezone = data.custom_id.replace("timezone:", "").parse::<Tz>();
+
+                        if let Ok(timezone) = new_timezone {
+                            user_data.timezone = timezone.to_string();
+                            user_data.commit_changes(&pool).await;
+
+                            let _ = interaction.create_interaction_response(&ctx, |r| {
+                                r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                    .interaction_response_data(|d| {
+                                        let footer_text = lm.get(&user_data.language, "timezone/footer").replacen(
+                                            "{timezone}",
+                                            &user_data.timezone,
+                                            1,
+                                        );
+
+                                        let now = Utc::now().with_timezone(&user_data.timezone());
+
+                                        let content = lm
+                                            .get(&user_data.language, "timezone/set_p")
+                                            .replacen("{timezone}", &user_data.timezone, 1)
+                                            .replacen(
+                                                "{time}",
+                                                &now.format(user_data.meridian().fmt_str_short()).to_string(),
+                                                1,
+                                            );
+
+                                        d.create_embed(|e| e.title(lm.get(&user_data.language, "timezone/set_p_title"))
+                                            .color(*THEME_COLOR)
+                                            .description(content)
+                                            .footer(|f| f.text(footer_text)))
+                                            .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL);
+
+                                        d
+                                    })
+                            }).await;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 #[tokio::main]
@@ -270,6 +330,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .get_current_user()
         .map_ok(|user| user.id.as_u64().to_owned())
         .await?;
+    let application_id = http.get_current_application_info().await?.id;
 
     let dm_enabled = env::var("DM_ENABLED").map_or(true, |var| var == "1");
 
@@ -335,6 +396,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 | GatewayIntents::GUILDS
                 | GatewayIntents::GUILD_MESSAGE_REACTIONS
         })
+        .application_id(application_id.0)
         .event_handler(Handler)
         .framework_arc(framework_arc.clone())
         .await

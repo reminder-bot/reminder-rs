@@ -1,13 +1,14 @@
 use regex_command_attr::command;
 
 use serenity::{
+    builder::CreateActionRow,
     client::Context,
     framework::Framework,
     model::{
         channel::ReactionType,
         channel::{Channel, Message},
-        id::ChannelId,
-        id::RoleId,
+        id::{ChannelId, MessageId, RoleId},
+        interactions::ButtonStyle,
     },
 };
 
@@ -29,7 +30,6 @@ use crate::{
 };
 
 use crate::models::CtxGuildData;
-use serenity::model::id::MessageId;
 use std::{collections::HashMap, iter, time::Duration};
 
 #[command]
@@ -141,22 +141,28 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
             Err(_) => {
                 let filtered_tz = TZ_VARIANTS
                     .iter()
-                    .map(|tz| (tz, tz.to_string(), levenshtein(&tz.to_string(), &args)))
-                    .filter(|(_, tz, dist)| args.contains(tz) || tz.contains(&args) || dist < &4)
+                    .filter(|tz| {
+                        args.contains(&tz.to_string())
+                            || tz.to_string().contains(&args)
+                            || levenshtein(&tz.to_string(), &args) < 4
+                    })
                     .take(25)
-                    .map(|(tz, tz_s, _)| {
-                        (
-                            tz_s,
-                            format!(
-                                "🕗 `{}`",
-                                Utc::now()
-                                    .with_timezone(tz)
-                                    .format(user_data.meridian().fmt_str_short())
-                                    .to_string()
-                            ),
-                            true,
-                        )
-                    });
+                    .map(|t| t.to_owned())
+                    .collect::<Vec<Tz>>();
+
+                let fields = filtered_tz.iter().map(|tz| {
+                    (
+                        tz.to_string(),
+                        format!(
+                            "🕗 `{}`",
+                            Utc::now()
+                                .with_timezone(tz)
+                                .format(user_data.meridian().fmt_str_short())
+                                .to_string()
+                        ),
+                        true,
+                    )
+                });
 
                 let _ = msg
                     .channel_id
@@ -165,9 +171,24 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
                             e.title(lm.get(&user_data.language, "timezone/no_timezone_title"))
                                 .description(lm.get(&user_data.language, "timezone/no_timezone"))
                                 .color(*THEME_COLOR)
-                                .fields(filtered_tz)
+                                .fields(fields)
                                 .footer(|f| f.text(footer_text))
                                 .url("https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee")
+                        }).components(|c| {
+                            for row in filtered_tz.as_slice().chunks(5) {
+                                let mut action_row = CreateActionRow::default();
+                                for timezone in row {
+                                    action_row.create_button(|b| {
+                                        b.style(ButtonStyle::Secondary)
+                                            .label(timezone.to_string())
+                                            .custom_id(format!("timezone:{}", timezone.to_string()))
+                                    });
+                                }
+
+                                c.add_action_row(action_row);
+                            }
+
+                            c
                         })
                     })
                     .await;
@@ -210,6 +231,22 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
                         .fields(popular_timezones_iter)
                         .footer(|f| f.text(footer_text))
                         .url("https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee")
+                })
+                .components(|c| {
+                    for row in popular_timezones.as_slice().chunks(5) {
+                        let mut action_row = CreateActionRow::default();
+                        for timezone in row {
+                            action_row.create_button(|b| {
+                                b.style(ButtonStyle::Secondary)
+                                    .label(timezone.to_string())
+                                    .custom_id(format!("timezone:{}", timezone.to_string()))
+                            });
+                        }
+
+                        c.add_action_row(action_row);
+                    }
+
+                    c
                 })
             })
             .await;
