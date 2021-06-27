@@ -5,8 +5,7 @@ use serenity::{
     client::Context,
     framework::Framework,
     model::{
-        channel::ReactionType,
-        channel::{Channel, Message},
+        channel::Message,
         id::{ChannelId, MessageId, RoleId},
         interactions::ButtonStyle,
     },
@@ -30,7 +29,7 @@ use crate::{
 };
 
 use crate::models::CtxGuildData;
-use std::{collections::HashMap, iter, time::Duration};
+use std::{collections::HashMap, iter};
 
 #[command]
 #[supports_dm(false)]
@@ -339,6 +338,28 @@ async fn language(ctx: &Context, msg: &Message, args: String) {
                                 .description(lm.get(&user_data.language, "lang/invalid"))
                                 .fields(language_codes)
                         })
+                        .components(|c| {
+                            for row in lm
+                                .all_languages()
+                                .map(|(k, v)| (k.to_string(), v.to_string()))
+                                .collect::<Vec<(String, String)>>()
+                                .as_slice()
+                                .chunks(5)
+                            {
+                                let mut action_row = CreateActionRow::default();
+                                for (code, name) in row {
+                                    action_row.create_button(|b| {
+                                        b.style(ButtonStyle::Primary)
+                                            .label(name.to_title_case())
+                                            .custom_id(format!("lang:{}", code.to_uppercase()))
+                                    });
+                                }
+
+                                c.add_action_row(action_row);
+                            }
+
+                            c
+                        })
                     })
                     .await;
             }
@@ -352,21 +373,7 @@ async fn language(ctx: &Context, msg: &Message, args: String) {
             )
         });
 
-        let flags = lm
-            .all_languages()
-            .map(|(k, _)| ReactionType::Unicode(lm.get(k, "flag").to_string()));
-
-        let can_react = if let Some(Channel::Guild(channel)) = msg.channel(&ctx).await {
-            channel
-                .permissions_for_user(&ctx, ctx.cache.current_user().await)
-                .await
-                .map(|p| p.add_reactions())
-                .unwrap_or(false)
-        } else {
-            true
-        };
-
-        let reactor = msg
+        let _ = msg
             .channel_id
             .send_message(&ctx, |m| {
                 m.embed(|e| {
@@ -374,57 +381,31 @@ async fn language(ctx: &Context, msg: &Message, args: String) {
                         .color(*THEME_COLOR)
                         .description(lm.get(&user_data.language, "lang/select"))
                         .fields(language_codes)
-                });
+                })
+                .components(|c| {
+                    for row in lm
+                        .all_languages()
+                        .map(|(k, v)| (k.to_string(), v.to_string()))
+                        .collect::<Vec<(String, String)>>()
+                        .as_slice()
+                        .chunks(5)
+                    {
+                        let mut action_row = CreateActionRow::default();
+                        for (code, name) in row {
+                            action_row.create_button(|b| {
+                                b.style(ButtonStyle::Primary)
+                                    .label(name.to_title_case())
+                                    .custom_id(format!("lang:{}", code.to_uppercase()))
+                            });
+                        }
 
-                if can_react {
-                    m.reactions(flags);
-                }
+                        c.add_action_row(action_row);
+                    }
 
-                m
+                    c
+                })
             })
             .await;
-
-        if let Ok(sent_msg) = reactor {
-            let reaction_reply = sent_msg
-                .await_reaction(&ctx)
-                .timeout(Duration::from_secs(45))
-                .await;
-
-            if let Some(reaction_action) = reaction_reply {
-                if reaction_action.is_added() {
-                    if let ReactionType::Unicode(emoji) = &reaction_action.as_inner_ref().emoji {
-                        if let Some(lang) = lm.get_language_by_flag(emoji) {
-                            user_data.language = lang.to_string();
-
-                            user_data.commit_changes(&pool).await;
-
-                            let _ = msg
-                                .channel_id
-                                .send_message(&ctx, |m| {
-                                    m.embed(|e| {
-                                        e.title(lm.get(&user_data.language, "lang/set_p_title"))
-                                            .color(*THEME_COLOR)
-                                            .description(lm.get(&user_data.language, "lang/set_p"))
-                                    })
-                                })
-                                .await;
-                        }
-                    }
-                }
-            }
-
-            if let Some(Channel::Guild(channel)) = msg.channel(&ctx).await {
-                let has_perms = channel
-                    .permissions_for_user(&ctx, ctx.cache.current_user().await)
-                    .await
-                    .map(|p| p.manage_messages())
-                    .unwrap_or(false);
-
-                if has_perms {
-                    let _ = sent_msg.delete_reactions(&ctx).await;
-                }
-            }
-        }
     }
 }
 

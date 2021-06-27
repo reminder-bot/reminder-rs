@@ -268,6 +268,8 @@ DELETE FROM guilds WHERE guild = ?
                 if let (Some(InteractionData::MessageComponent(data)), Some(member)) =
                     (interaction.clone().data, interaction.clone().member)
                 {
+                    println!("{}", data.custom_id);
+
                     if data.custom_id.starts_with("timezone:") {
                         let mut user_data = UserData::from_user(&member.user, &ctx, &pool)
                             .await
@@ -307,6 +309,33 @@ DELETE FROM guilds WHERE guild = ?
                                         d
                                     })
                             }).await;
+                        }
+                    } else if data.custom_id.starts_with("lang:") {
+                        let mut user_data = UserData::from_user(&member.user, &ctx, &pool)
+                            .await
+                            .unwrap();
+                        let lang_code = data.custom_id.replace("lang:", "");
+
+                        if let Some(lang) = lm.get_language(&lang_code) {
+                            user_data.language = lang.to_string();
+                            user_data.commit_changes(&pool).await;
+
+                            let _ = interaction
+                                .create_interaction_response(&ctx, |r| {
+                                    r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                        .interaction_response_data(|d| {
+                                            d.create_embed(|e| {
+                                                e.title(
+                                                    lm.get(&user_data.language, "lang/set_p_title"),
+                                                )
+                                                .color(*THEME_COLOR)
+                                                .description(
+                                                    lm.get(&user_data.language, "lang/set_p"),
+                                                )
+                                            })
+                                        })
+                                })
+                                .await;
                         }
                     }
                 }
