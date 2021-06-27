@@ -298,9 +298,9 @@ impl RegexFramework {
 }
 
 enum PermissionCheck {
-    None,                          // No permissions
-    Basic(bool, bool, bool, bool), // Send + Embed permissions (sufficient to reply)
-    All,                           // Above + Manage Webhooks (sufficient to operate)
+    None,              // No permissions
+    Basic(bool, bool), // Send + Embed permissions (sufficient to reply)
+    All,               // Above + Manage Webhooks (sufficient to operate)
 }
 
 #[async_trait]
@@ -325,8 +325,6 @@ impl Framework for RegexFramework {
                     PermissionCheck::Basic(
                         guild_perms.manage_webhooks(),
                         channel_perms.embed_links(),
-                        channel_perms.add_reactions(),
-                        channel_perms.manage_messages(),
                     )
                 } else {
                     PermissionCheck::None
@@ -442,12 +440,7 @@ impl Framework for RegexFramework {
                                     }
                                 }
 
-                                PermissionCheck::Basic(
-                                    manage_webhooks,
-                                    embed_links,
-                                    add_reactions,
-                                    manage_messages,
-                                ) => {
+                                PermissionCheck::Basic(manage_webhooks, embed_links) => {
                                     let response = lm
                                         .get(&language.await, "no_perms_general")
                                         .replace(
@@ -457,14 +450,6 @@ impl Framework for RegexFramework {
                                         .replace(
                                             "{embed_links}",
                                             if embed_links { "✅" } else { "❌" },
-                                        )
-                                        .replace(
-                                            "{add_reactions}",
-                                            if add_reactions { "✅" } else { "❌" },
-                                        )
-                                        .replace(
-                                            "{manage_messages}",
-                                            if manage_messages { "✅" } else { "❌" },
                                         );
 
                                     let _ = msg.channel_id.say(&ctx, response).await;
