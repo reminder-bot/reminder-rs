@@ -1,7 +1,5 @@
 use regex_command_attr::command;
 
-use chrono_tz::Tz;
-
 use serenity::{
     cache::Cache,
     client::Context,
@@ -47,19 +45,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::models::{CtxGuildData, MeridianType};
+use crate::models::CtxGuildData;
 use regex::Captures;
 use serenity::model::channel::Channel;
-
-fn shorthand_displacement(seconds: u64) -> String {
-    let (days, seconds) = seconds.div_rem(&DAY);
-    let (hours, seconds) = seconds.div_rem(&HOUR);
-    let (minutes, seconds) = seconds.div_rem(&MINUTE);
-
-    let time_repr = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
-
-    format!("{} days, {}", days, time_repr)
-}
 
 fn longhand_displacement(seconds: u64) -> String {
     let (days, seconds) = seconds.div_rem(&DAY);
@@ -361,27 +349,11 @@ impl LookReminder {
         }
     }
 
-    fn display(
-        &self,
-        flags: &LookFlags,
-        meridian: &MeridianType,
-        timezone: &Tz,
-        inter: &str,
-    ) -> String {
+    fn display(&self, flags: &LookFlags, inter: &str) -> String {
         let time_display = match flags.time_display {
-            TimeDisplayType::Absolute => timezone
-                .timestamp(self.time.timestamp(), 0)
-                .format(meridian.fmt_str())
-                .to_string(),
+            TimeDisplayType::Absolute => format!("<t:{}>", self.time.timestamp()),
 
-            TimeDisplayType::Relative => {
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs();
-
-                longhand_displacement((self.time.timestamp() as u64).checked_sub(now).unwrap_or(1))
-            }
+            TimeDisplayType::Relative => format!("<t:{}:R>", self.time.timestamp()),
         };
 
         if let Some(interval) = self.interval {
@@ -409,8 +381,6 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool).await;
-    let timezone = UserData::timezone_of(&msg.author, &pool).await;
-    let meridian = UserData::meridian_of(&msg.author, &pool).await;
 
     let flags = LookFlags::from_string(&args);
 
@@ -472,7 +442,7 @@ LIMIT
 
         let display = reminders
             .iter()
-            .map(|reminder| reminder.display(&flags, &meridian, &timezone, &inter));
+            .map(|reminder| reminder.display(&flags, &inter));
 
         let _ = msg.channel_id.say_lines(&ctx, display).await;
     }
@@ -581,14 +551,13 @@ WHERE
 
     let enumerated_reminders = reminders.iter().enumerate().map(|(count, reminder)| {
         reminder_ids.push(reminder.id);
-        let time = user_data.timezone().timestamp(reminder.time.timestamp(), 0);
 
         format!(
-            "**{}**: '{}' *<#{}>* at {}",
+            "**{}**: '{}' *<#{}>* at <t:{}>",
             count + 1,
             reminder.display_content(),
             reminder.channel,
-            time.format(user_data.meridian().fmt_str())
+            reminder.time.timestamp()
         )
     });
 
@@ -1230,9 +1199,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                                     .replace("{location}", &ok_locations[0].mention())
                                     .replace(
                                         "{offset}",
-                                        &shorthand_displacement(
-                                            time_parser.displacement().unwrap() as u64,
-                                        ),
+                                        &format!("<t:{}:R>", time_parser.timestamp().unwrap()),
                                     ),
                                 n => lm
                                     .get(&language, "remind/success_bulk")
@@ -1247,9 +1214,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                                     )
                                     .replace(
                                         "{offset}",
-                                        &shorthand_displacement(
-                                            time_parser.displacement().unwrap() as u64,
-                                        ),
+                                        &format!("<t:{}:R>", time_parser.timestamp().unwrap()),
                                     ),
                             };
 
@@ -1356,11 +1321,6 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
 async fn natural(ctx: &Context, msg: &Message, args: String) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
-    let now = SystemTime::now();
-    let since_epoch = now
-        .duration_since(UNIX_EPOCH)
-        .expect("Time calculated as going backwards. Very bad");
-
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
     match REGEX_NATURAL_COMMAND_1.captures(&args) {
@@ -1424,8 +1384,6 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
 
                 match content_res {
                     Ok(mut content) => {
-                        let offset = timestamp as u64 - since_epoch.as_secs();
-
                         let mut ok_locations = vec![];
                         let mut err_locations = vec![];
                         let mut err_types = HashSet::new();
@@ -1457,7 +1415,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                             1 => lm
                                 .get(&user_data.language, "remind/success")
                                 .replace("{location}", &ok_locations[0].mention())
-                                .replace("{offset}", &shorthand_displacement(offset)),
+                                .replace("{offset}", &format!("<t:{}:R>", timestamp)),
                             n => lm
                                 .get(&user_data.language, "remind/success_bulk")
                                 .replace("{number}", &n.to_string())
@@ -1469,7 +1427,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                                         .collect::<Vec<String>>()
                                         .join(", "),
                                 )
-                                .replace("{offset}", &shorthand_displacement(offset)),
+                                .replace("{offset}", &format!("<t:{}:R>", timestamp)),
                         };
 
                         let error_part = format!(

@@ -1285,7 +1285,7 @@ dependencies = [
 
 [[package]]
 name = "reminder_rs"
-version = "1.5.0-1"
+version = "1.5.0-2"
 dependencies = [
  "Inflector",
  "chrono",
