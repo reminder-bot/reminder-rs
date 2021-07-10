@@ -350,6 +350,7 @@ struct LookReminder {
     channel: u64,
     content: String,
     description: String,
+    set_by: Option<u64>,
 }
 
 impl LookReminder {
@@ -386,18 +387,24 @@ impl LookReminder {
 
         if let Some(interval) = self.interval {
             format!(
-                "'{}' *{}* **{}**, repeating every **{}**",
+                "'{}' *{}* **{}**, repeating every **{}** (set by {})",
                 self.display_content(),
                 &inter,
                 time_display,
-                longhand_displacement(interval as u64)
+                longhand_displacement(interval as u64),
+                self.set_by
+                    .map(|i| format!("<@{}>", i))
+                    .unwrap_or_else(|| "unknown".to_string())
             )
         } else {
             format!(
-                "'{}' *{}* **{}**",
+                "'{}' *{}* **{}** (set by {})",
                 self.display_content(),
                 &inter,
-                time_display
+                time_display,
+                self.set_by
+                    .map(|i| format!("<@{}>", i))
+                    .unwrap_or_else(|| "unknown".to_string())
             )
         }
     }
@@ -439,13 +446,18 @@ SELECT
     reminders.interval,
     channels.channel,
     reminders.content,
-    reminders.embed_description AS description
+    reminders.embed_description AS description,
+    users.user AS set_by
 FROM
     reminders
 INNER JOIN
     channels
 ON
     reminders.channel_id = channels.id
+LEFT JOIN
+    users
+ON
+    reminders.set_by = users.id
 WHERE
     channels.channel = ? AND
     FIND_IN_SET(reminders.enabled, ?)
@@ -511,13 +523,18 @@ SELECT
     reminders.interval,
     channels.channel,
     reminders.content,
-    reminders.embed_description AS description
+    reminders.embed_description AS description,
+    users.user AS set_by
 FROM
     reminders
-LEFT OUTER JOIN
+LEFT JOIN
     channels
 ON
     channels.id = reminders.channel_id
+LEFT JOIN
+    users
+ON
+    reminders.set_by = users.id
 WHERE
     FIND_IN_SET(channels.channel, ?)
                 ",
@@ -535,13 +552,18 @@ SELECT
     reminders.interval,
     channels.channel,
     reminders.content,
-    reminders.embed_description AS description
+    reminders.embed_description AS description,
+    users.user AS set_by
 FROM
     reminders
-LEFT OUTER JOIN
+LEFT JOIN
     channels
 ON
     channels.id = reminders.channel_id
+LEFT JOIN
+    users
+ON
+    reminders.set_by = users.id
 WHERE
     channels.guild_id = (SELECT id FROM guilds WHERE guild = ?)
                 ",
@@ -560,13 +582,18 @@ SELECT
     reminders.interval,
     channels.channel,
     reminders.content,
-    reminders.embed_description AS description
+    reminders.embed_description AS description,
+    users.user AS set_by
 FROM
     reminders
 INNER JOIN
     channels
 ON
     channels.id = reminders.channel_id
+LEFT JOIN
+    users
+ON
+    reminders.set_by = users.id
 WHERE
     channels.channel = ?
             ",
