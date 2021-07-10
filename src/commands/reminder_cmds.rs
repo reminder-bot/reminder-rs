@@ -1593,11 +1593,19 @@ async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
 
     let db_channel_id = match scope_id {
         ReminderScope::User(user_id) => {
-            let user = UserId(*user_id).to_user(&ctx).await.unwrap();
+            if let Ok(user) = UserId(*user_id).to_user(&ctx).await {
+                let user_data = UserData::from_user(&user, &ctx, &pool).await.unwrap();
 
-            let user_data = UserData::from_user(&user, &ctx, &pool).await.unwrap();
+                if let Some(guild_id) = guild_id {
+                    if guild_id.member(ctx, user).await.is_err() {
+                        return Err(ReminderError::InvalidTag);
+                    }
+                }
 
-            user_data.dm_channel
+                user_data.dm_channel
+            } else {
+                return Err(ReminderError::InvalidTag);
+            }
         }
 
         ReminderScope::Channel(channel_id) => {
