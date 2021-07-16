@@ -1288,6 +1288,7 @@ name = "reminder_rs"
 version = "1.5.1"
 dependencies = [
  "Inflector",
+ "base64 0.13.0",
  "chrono",
  "chrono-tz",
  "dashmap",
@@ -1302,6 +1303,7 @@ dependencies = [
  "regex",
  "regex_command_attr",
  "reqwest",
+ "ring",
  "serde",
  "serde_json",
  "serenity",

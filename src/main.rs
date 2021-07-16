@@ -268,8 +268,6 @@ DELETE FROM guilds WHERE guild = ?
                 if let (Some(InteractionData::MessageComponent(data)), Some(member)) =
                     (interaction.clone().data, interaction.clone().member)
                 {
-                    println!("{}", data.custom_id);
-
                     if data.custom_id.starts_with("timezone:") {
                         let mut user_data = UserData::from_user(&member.user, &ctx, &pool)
                             .await

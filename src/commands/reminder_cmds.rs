@@ -7,8 +7,8 @@ use serenity::{
     client::Context,
     http::CacheHttp,
     model::{
-        channel::GuildChannel,
         channel::Message,
+        channel::{Channel, GuildChannel},
         guild::Guild,
         id::{ChannelId, GuildId, UserId},
         misc::Mentionable,
@@ -26,7 +26,7 @@ use crate::{
     },
     framework::SendIterator,
     get_ctx_data,
-    models::{ChannelData, GuildData, Timer, UserData},
+    models::{ChannelData, CtxGuildData, GuildData, MeridianType, Timer, UserData},
     time_parser::{natural_parser, TimeParser},
 };
 
@@ -42,14 +42,14 @@ use std::{
     collections::HashSet,
     convert::TryInto,
     default::Default,
+    env,
     fmt::Display,
     string::ToString,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::models::{CtxGuildData, MeridianType};
 use regex::Captures;
-use serenity::model::channel::Channel;
+use ring::hmac;
 
 fn shorthand_displacement(seconds: u64) -> String {
     let (days, seconds) = seconds.div_rem(&DAY);
@@ -78,6 +78,41 @@ fn longhand_displacement(seconds: u64) -> String {
     }
 
     sections.join(", ")
+}
+
+fn generate_signed_payload(reminder_id: u32, member_id: u64) -> String {
+    let s_key = hmac::Key::new(
+        hmac::HMAC_SHA256,
+        env::var("SECRET_KEY")
+            .expect("No SECRET_KEY provided")
+            .as_bytes(),
+    );
+
+    let mut context = hmac::Context::with_key(&s_key);
+
+    context.update(&reminder_id.to_le_bytes());
+    context.update(&member_id.to_le_bytes());
+
+    let signature = context.sign();
+
+    format!(
+        "{}.{}",
+        base64::encode(reminder_id.to_le_bytes()),
+        base64::encode(&signature)
+    )
+}
+
+fn validate_signature(payload: String, member_id: u64) -> bool {
+    let (a, _b) = payload.split_once('.').expect("Payload format incorrect");
+
+    let reminder_id = u32::from_le_bytes(
+        base64::decode(a)
+            .expect("Payload format incorrect")
+            .try_into()
+            .expect("Payload format incorrect"),
+    );
+
+    payload == generate_signed_payload(reminder_id, member_id)
 }
 
 async fn create_webhook(
