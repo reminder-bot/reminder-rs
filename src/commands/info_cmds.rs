@@ -1,18 +1,22 @@
 use regex_command_attr::command;
 
-use serenity::{client::Context, model::channel::Message};
+use serenity::{builder::CreateEmbedFooter, client::Context, model::channel::Message};
 
 use chrono::offset::Utc;
 
 use crate::{
-    command_help, consts::DEFAULT_PREFIX, get_ctx_data, language_manager::LanguageManager,
-    models::UserData, FrameworkCtx, THEME_COLOR,
+    command_help,
+    consts::DEFAULT_PREFIX,
+    get_ctx_data,
+    language_manager::LanguageManager,
+    models::{user_data::UserData, CtxGuildData},
+    FrameworkCtx, THEME_COLOR,
 };
 
-use crate::models::CtxGuildData;
-use serenity::builder::CreateEmbedFooter;
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[command]
 #[can_blacklist(false)]
@@ -202,7 +206,6 @@ async fn clock(ctx: &Context, msg: &Message, _args: String) {
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let timezone = UserData::timezone_of(&msg.author, &pool).await;
-    let meridian = UserData::meridian_of(&msg.author, &pool).await;
 
     let now = Utc::now().with_timezone(&timezone);
 
@@ -212,7 +215,7 @@ async fn clock(ctx: &Context, msg: &Message, _args: String) {
         .channel_id
         .say(
             &ctx,
-            clock_display.replacen("{}", &now.format(meridian.fmt_str()).to_string(), 1),
+            clock_display.replacen("{}", &now.format("%H:%M").to_string(), 1),
         )
         .await;
 }

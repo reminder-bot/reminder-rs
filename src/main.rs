@@ -36,7 +36,7 @@ use crate::{
     consts::{CNC_GUILD, DEFAULT_PREFIX, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
     language_manager::LanguageManager,
-    models::GuildData,
+    models::{guild_data::GuildData, user_data::UserData},
 };
 
 use inflector::Inflector;
@@ -46,7 +46,6 @@ use dashmap::DashMap;
 
 use tokio::sync::RwLock;
 
-use crate::models::UserData;
 use chrono::Utc;
 use chrono_tz::Tz;
 use serenity::model::prelude::{
@@ -294,7 +293,7 @@ DELETE FROM guilds WHERE guild = ?
                                             .replacen("{timezone}", &user_data.timezone, 1)
                                             .replacen(
                                                 "{time}",
-                                                &now.format(user_data.meridian().fmt_str_short()).to_string(),
+                                                &now.format("%H:%M").to_string(),
                                                 1,
                                             );
 
@@ -399,7 +398,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("blacklist", &moderation_cmds::BLACKLIST_COMMAND)
         .add_command("restrict", &moderation_cmds::RESTRICT_COMMAND)
         .add_command("timezone", &moderation_cmds::TIMEZONE_COMMAND)
-        .add_command("meridian", &moderation_cmds::CHANGE_MERIDIAN_COMMAND)
         .add_command("prefix", &moderation_cmds::PREFIX_COMMAND)
         .add_command("lang", &moderation_cmds::LANGUAGE_COMMAND)
         .add_command("pause", &reminder_cmds::PAUSE_COMMAND)

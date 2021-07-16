@@ -24,11 +24,14 @@ use crate::{
     },
     framework::SendIterator,
     get_ctx_data,
-    models::{ChannelData, CtxGuildData, GuildData, Timer, UserData},
+    models::{
+        channel_data::ChannelData, guild_data::GuildData, timer::Timer, user_data::UserData,
+        CtxGuildData,
+    },
     time_parser::{natural_parser, TimeParser},
 };
 
-use chrono::{offset::TimeZone, NaiveDateTime};
+use chrono::NaiveDateTime;
 
 use rand::{rngs::OsRng, seq::IteratorRandom};
 
@@ -136,7 +139,6 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
 
     let language = UserData::language_of(&msg.author, &pool).await;
     let timezone = UserData::timezone_of(&msg.author, &pool).await;
-    let meridian = UserData::meridian_of(&msg.author, &pool).await;
 
     let mut channel = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool)
         .await
@@ -172,13 +174,9 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
 
                 channel.commit_changes(&pool).await;
 
-                let content = lm.get(&language, "pause/paused_until").replace(
-                    "{}",
-                    &timezone
-                        .timestamp(timestamp, 0)
-                        .format(meridian.fmt_str())
-                        .to_string(),
-                );
+                let content = lm
+                    .get(&language, "pause/paused_until")
+                    .replace("{}", &format!("<t:{}:D>", timestamp));
 
                 let _ = msg.channel_id.say(&ctx, content).await;
             }
@@ -864,7 +862,6 @@ impl ReminderScope {
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 enum ReminderError {
-    LongTime,
     LongInterval,
     PastTime,
     ShortInterval,
@@ -891,7 +888,6 @@ trait ToResponse {
 impl ToResponse for ReminderError {
     fn to_response(&self) -> &'static str {
         match self {
-            Self::LongTime => "remind/long_time",
             Self::LongInterval => "interval/long_interval",
             Self::PastTime => "remind/past_time",
             Self::ShortInterval => "interval/short_interval",
@@ -904,7 +900,6 @@ impl ToResponse for ReminderError {
 
     fn to_response_natural(&self) -> &'static str {
         match self {
-            Self::LongTime => "natural/long_time",
             Self::InvalidTime => "natural/invalid_time",
             _ => self.to_response(),
         }
@@ -1601,7 +1596,7 @@ async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
     expires_parser: Option<T>,
     interval: Option<i64>,
     content: &mut Content,
-) -> Result<(), ReminderError> {
+) -> Result<String, ReminderError> {
     let user_id = user_id.into();
 
     if let Some(g_id) = guild_id {
@@ -1681,11 +1676,10 @@ async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
                             .as_secs() as i64;
 
                         if time >= unix_time - 10 {
-                            if time > unix_time + *MAX_TIME {
-                                Err(ReminderError::LongTime)
-                            } else {
-                                sqlx::query!(
-                                    "
+                            let uid = generate_uid();
+
+                            sqlx::query!(
+                                "
 INSERT INTO reminders (
     uid,
     content,
@@ -1710,23 +1704,22 @@ INSERT INTO reminders (
     (SELECT id FROM users WHERE user = ? LIMIT 1)
 )
                             ",
-                                    generate_uid(),
-                                    content.content,
-                                    content.tts,
-                                    content.attachment,
-                                    content.attachment_name,
-                                    db_channel_id,
-                                    time as u32,
-                                    expires,
-                                    interval,
-                                    user_id
-                                )
-                                .execute(pool)
-                                .await
-                                .unwrap();
+                                uid,
+                                content.content,
+                                content.tts,
+                                content.attachment,
+                                content.attachment_name,
+                                db_channel_id,
+                                time,
+                                expires,
+                                interval,
+                                user_id
+                            )
+                            .execute(pool)
+                            .await
+                            .unwrap();
 
-                                Ok(())
-                            }
+                            Ok(uid)
                         } else if time < 0 {
                             // case required for if python returns -1
                             Err(ReminderError::InvalidTime)

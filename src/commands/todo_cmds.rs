@@ -12,8 +12,10 @@ use serenity::{
 
 use std::fmt;
 
-use crate::models::CtxGuildData;
-use crate::{command_help, get_ctx_data, models::UserData};
+use crate::{
+    command_help, get_ctx_data,
+    models::{user_data::UserData, CtxGuildData},
+};
 use sqlx::MySqlPool;
 use std::convert::TryFrom;
 

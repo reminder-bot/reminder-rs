@@ -24,11 +24,10 @@ use crate::{
     consts::{REGEX_ALIAS, REGEX_CHANNEL, REGEX_COMMANDS, REGEX_ROLE, THEME_COLOR},
     framework::SendIterator,
     get_ctx_data,
-    models::{ChannelData, GuildData, UserData},
+    models::{channel_data::ChannelData, guild_data::GuildData, user_data::UserData, CtxGuildData},
     FrameworkCtx, PopularTimezones,
 };
 
-use crate::models::CtxGuildData;
 use std::{collections::HashMap, iter};
 
 #[command]
@@ -113,11 +112,7 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
                 let content = lm
                     .get(&user_data.language, "timezone/set_p")
                     .replacen("{timezone}", &user_data.timezone, 1)
-                    .replacen(
-                        "{time}",
-                        &now.format(user_data.meridian().fmt_str_short()).to_string(),
-                        1,
-                    );
+                    .replacen("{time}", &now.format("%H:%M").to_string(), 1);
 
                 let _ =
                     msg.channel_id
@@ -154,10 +149,7 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
                         tz.to_string(),
                         format!(
                             "🕗 `{}`",
-                            Utc::now()
-                                .with_timezone(tz)
-                                .format(user_data.meridian().fmt_str_short())
-                                .to_string()
+                            Utc::now().with_timezone(tz).format("%H:%M").to_string()
                         ),
                         true,
                     )
@@ -211,10 +203,7 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
                 t.to_string(),
                 format!(
                     "🕗 `{}`",
-                    Utc::now()
-                        .with_timezone(t)
-                        .format(user_data.meridian().fmt_str_short())
-                        .to_string()
+                    Utc::now().with_timezone(t).format("%H:%M").to_string()
                 ),
                 true,
             )
@@ -249,49 +238,6 @@ async fn timezone(ctx: &Context, msg: &Message, args: String) {
                 })
             })
             .await;
-    }
-}
-
-#[command("meridian")]
-async fn change_meridian(ctx: &Context, msg: &Message, args: String) {
-    let (pool, lm) = get_ctx_data(&ctx).await;
-
-    let mut user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
-
-    if &args == "12" {
-        user_data.meridian_time = true;
-
-        user_data.commit_changes(&pool).await;
-
-        let _ = msg
-            .channel_id
-            .send_message(&ctx, |m| {
-                m.embed(|e| {
-                    e.title(lm.get(&user_data.language, "meridian/title"))
-                        .color(*THEME_COLOR)
-                        .description(lm.get(&user_data.language, "meridian/12"))
-                })
-            })
-            .await;
-    } else if &args == "24" {
-        user_data.meridian_time = false;
-
-        user_data.commit_changes(&pool).await;
-
-        let _ = msg
-            .channel_id
-            .send_message(&ctx, |m| {
-                m.embed(|e| {
-                    e.title(lm.get(&user_data.language, "meridian/title"))
-                        .color(*THEME_COLOR)
-                        .description(lm.get(&user_data.language, "meridian/24"))
-                })
-            })
-            .await;
-    } else {
-        let prefix = ctx.prefix(msg.guild_id).await;
-
-        command_help(ctx, msg, lm, &prefix, &user_data.language, "meridian").await;
     }
 }
 

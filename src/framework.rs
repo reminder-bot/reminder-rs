@@ -8,7 +8,7 @@ use serenity::{
     model::{
         channel::{Channel, GuildChannel, Message},
         guild::{Guild, Member},
-        id::ChannelId,
+        id::{ChannelId, MessageId},
     },
     Result as SerenityResult,
 };
@@ -19,10 +19,11 @@ use regex::{Match, Regex, RegexBuilder};
 
 use std::{collections::HashMap, fmt};
 
-use crate::language_manager::LanguageManager;
-use crate::models::{CtxGuildData, GuildData, UserData};
-use crate::{models::ChannelData, LimitExecutors, SQLPool};
-use serenity::model::id::MessageId;
+use crate::{
+    language_manager::LanguageManager,
+    models::{channel_data::ChannelData, guild_data::GuildData, user_data::UserData, CtxGuildData},
+    LimitExecutors, SQLPool,
+};
 
 type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, ()>;
 
