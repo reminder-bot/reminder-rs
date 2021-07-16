@@ -24,7 +24,7 @@ use crate::{
     },
     framework::SendIterator,
     get_ctx_data,
-    models::{ChannelData, CtxGuildData, GuildData, MeridianType, Timer, UserData},
+    models::{ChannelData, CtxGuildData, GuildData, Timer, UserData},
     time_parser::{natural_parser, TimeParser},
 };
 
