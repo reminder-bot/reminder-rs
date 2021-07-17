@@ -46,6 +46,7 @@ use dashmap::DashMap;
 
 use tokio::sync::RwLock;
 
+use crate::models::reminder::{Reminder, ReminderAction};
 use chrono::Utc;
 use chrono_tz::Tz;
 use serenity::model::prelude::{
@@ -336,9 +337,44 @@ DELETE FROM guilds WHERE guild = ?
                                                     lm.get(&user_data.language, "lang/set_p"),
                                                 )
                                             })
+                                            .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
                                         })
                                 })
                                 .await;
+                        }
+                    } else {
+                        match Reminder::from_interaction(&ctx, member.user.id, data.custom_id).await
+                        {
+                            Ok((reminder, action)) => {
+                                let response = match action {
+                                    ReminderAction::Delete => {
+                                        reminder.delete(&ctx).await;
+                                        "Reminder has been deleted"
+                                    }
+                                };
+
+                                let _ = interaction
+                                    .create_interaction_response(&ctx, |r| {
+                                        r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                            .interaction_response_data(|d| d
+                                                .content(response)
+                                                .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
+                                            )
+                                    })
+                                    .await;
+                            }
+
+                            Err(ie) => {
+                                let _ = interaction
+                                    .create_interaction_response(&ctx, |r| {
+                                        r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                            .interaction_response_data(|d| d
+                                                .content(ie.to_string())
+                                                .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
+                                            )
+                                    })
+                                    .await;
+                            }
                         }
                     }
                 }

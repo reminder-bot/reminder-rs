@@ -1,7 +1,6 @@
 use regex_command_attr::command;
 
 use serenity::{
-    cache::Cache,
     client::Context,
     http::CacheHttp,
     model::{
@@ -9,6 +8,7 @@ use serenity::{
         channel::{Channel, GuildChannel},
         guild::Guild,
         id::{ChannelId, GuildId, UserId},
+        interactions::ButtonStyle,
         misc::Mentionable,
         webhook::Webhook,
     },
@@ -26,7 +26,7 @@ use crate::{
     models::{
         channel_data::ChannelData,
         guild_data::GuildData,
-        reminder::{LookFlags, Reminder},
+        reminder::{LookFlags, Reminder, ReminderAction},
         timer::Timer,
         user_data::UserData,
         CtxGuildData,
@@ -53,43 +53,6 @@ use std::{
 };
 
 use regex::Captures;
-
-use ring::hmac;
-
-fn generate_signed_payload(reminder_id: u32, member_id: u64) -> String {
-    let s_key = hmac::Key::new(
-        hmac::HMAC_SHA256,
-        env::var("SECRET_KEY")
-            .expect("No SECRET_KEY provided")
-            .as_bytes(),
-    );
-
-    let mut context = hmac::Context::with_key(&s_key);
-
-    context.update(&reminder_id.to_le_bytes());
-    context.update(&member_id.to_le_bytes());
-
-    let signature = context.sign();
-
-    format!(
-        "{}.{}",
-        base64::encode(reminder_id.to_le_bytes()),
-        base64::encode(&signature)
-    )
-}
-
-fn validate_signature(payload: String, member_id: u64) -> bool {
-    let (a, _b) = payload.split_once('.').expect("Payload format incorrect");
-
-    let reminder_id = u32::from_le_bytes(
-        base64::decode(a)
-            .expect("Payload format incorrect")
-            .try_into()
-            .expect("Payload format incorrect"),
-    );
-
-    payload == generate_signed_payload(reminder_id, member_id)
-}
 
 async fn create_webhook(
     ctx: impl CacheHttp,
@@ -961,6 +924,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                     match content_res {
                         Ok(mut content) => {
                             let mut ok_locations = vec![];
+                            let mut ok_reminders = vec![];
                             let mut err_locations = vec![];
                             let mut err_types = HashSet::new();
 
@@ -978,11 +942,16 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                                 )
                                 .await;
 
-                                if let Err(e) = res {
-                                    err_locations.push(scope);
-                                    err_types.insert(e);
-                                } else {
-                                    ok_locations.push(scope);
+                                match res {
+                                    Err(e) => {
+                                        err_locations.push(scope);
+                                        err_types.insert(e);
+                                    }
+
+                                    Ok(id) => {
+                                        ok_locations.push(scope);
+                                        ok_reminders.push(id);
+                                    }
                                 }
                             }
 
@@ -1058,6 +1027,22 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                                         )
                                         .description(format!("{}\n\n{}", success_part, error_part))
                                         .color(*THEME_COLOR)
+                                    })
+                                    .components(|c| {
+                                        if ok_locations.len() == 1 {
+                                            c.create_action_row(|r| {
+                                                r.create_button(|b| {
+                                                    b.style(ButtonStyle::Danger)
+                                                        .label("Delete")
+                                                        .custom_id(ok_reminders[0].signed_action(
+                                                            msg.author.id,
+                                                            ReminderAction::Delete,
+                                                        ))
+                                                })
+                                            });
+                                        }
+
+                                        c
                                     })
                                 })
                                 .await;
@@ -1323,7 +1308,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
 }
 
 async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
-    ctx: impl CacheHttp + AsRef<Cache>,
+    ctx: &Context,
     pool: &MySqlPool,
     user_id: U,
     guild_id: Option<GuildId>,
@@ -1332,7 +1317,7 @@ async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
     expires_parser: Option<T>,
     interval: Option<i64>,
     content: &mut Content,
-) -> Result<String, ReminderError> {
+) -> Result<Reminder, ReminderError> {
     let user_id = user_id.into();
 
     if let Some(g_id) = guild_id {
@@ -1349,7 +1334,7 @@ async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
                 let user_data = UserData::from_user(&user, &ctx, &pool).await.unwrap();
 
                 if let Some(guild_id) = guild_id {
-                    if guild_id.member(ctx, user).await.is_err() {
+                    if guild_id.member(&ctx, user).await.is_err() {
                         return Err(ReminderError::InvalidTag);
                     }
                 }
@@ -1455,7 +1440,9 @@ INSERT INTO reminders (
                             .await
                             .unwrap();
 
-                            Ok(uid)
+                            let reminder = Reminder::from_uid(ctx, uid).await.unwrap();
+
+                            Ok(reminder)
                         } else if time < 0 {
                             // case required for if python returns -1
                             Err(ReminderError::InvalidTime)
