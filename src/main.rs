@@ -178,10 +178,11 @@ DELETE FROM channels WHERE channel = ?
                     .cloned()
                     .expect("Could not get SQLPool from data");
 
-                GuildData::from_guild(guild, &pool).await.expect(&format!(
-                    "Failed to create new guild object for {}",
-                    guild_id
-                ));
+                GuildData::from_guild(guild, &pool)
+                    .await
+                    .unwrap_or_else(|_| {
+                        panic!("Failed to create new guild object for {}", guild_id)
+                    });
             }
 
             if let Ok(token) = env::var("DISCORDBOTS_TOKEN") {
@@ -229,7 +230,12 @@ DELETE FROM channels WHERE channel = ?
         }
     }
 
-    async fn guild_delete(&self, ctx: Context, guild: GuildUnavailable, _guild: Option<Guild>) {
+    async fn guild_delete(
+        &self,
+        ctx: Context,
+        deleted_guild: GuildUnavailable,
+        _guild: Option<Guild>,
+    ) {
         let pool = ctx
             .data
             .read()
@@ -245,13 +251,13 @@ DELETE FROM channels WHERE channel = ?
             .get::<GuildDataCache>()
             .cloned()
             .unwrap();
-        guild_data_cache.remove(&guild.id);
+        guild_data_cache.remove(&deleted_guild.id);
 
         sqlx::query!(
             "
 DELETE FROM guilds WHERE guild = ?
             ",
-            guild.id.as_u64()
+            deleted_guild.id.as_u64()
         )
         .execute(&pool)
         .await

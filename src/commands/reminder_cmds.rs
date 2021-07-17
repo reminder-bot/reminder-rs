@@ -18,14 +18,17 @@ use serenity::{
 use crate::{
     check_subscription_on_message, command_help,
     consts::{
-        CHARACTERS, DAY, HOUR, MAX_TIME, MINUTE, MIN_INTERVAL, REGEX_CHANNEL, REGEX_CHANNEL_USER,
-        REGEX_CONTENT_SUBSTITUTION, REGEX_NATURAL_COMMAND_1, REGEX_NATURAL_COMMAND_2,
-        REGEX_REMIND_COMMAND, THEME_COLOR,
+        CHARACTERS, MAX_TIME, MIN_INTERVAL, REGEX_CHANNEL_USER, REGEX_CONTENT_SUBSTITUTION,
+        REGEX_NATURAL_COMMAND_1, REGEX_NATURAL_COMMAND_2, REGEX_REMIND_COMMAND, THEME_COLOR,
     },
     framework::SendIterator,
     get_ctx_data,
     models::{
-        channel_data::ChannelData, guild_data::GuildData, timer::Timer, user_data::UserData,
+        channel_data::ChannelData,
+        guild_data::GuildData,
+        reminder::{LookFlags, Reminder},
+        timer::Timer,
+        user_data::UserData,
         CtxGuildData,
     },
     time_parser::{natural_parser, TimeParser},
@@ -52,25 +55,6 @@ use std::{
 use regex::Captures;
 
 use ring::hmac;
-
-fn longhand_displacement(seconds: u64) -> String {
-    let (days, seconds) = seconds.div_rem(&DAY);
-    let (hours, seconds) = seconds.div_rem(&HOUR);
-    let (minutes, seconds) = seconds.div_rem(&MINUTE);
-
-    let mut sections = vec![];
-
-    for (var, name) in [days, hours, minutes, seconds]
-        .iter()
-        .zip(["days", "hours", "minutes", "seconds"].iter())
-    {
-        if *var > 0 {
-            sections.push(format!("{} {}", var, name));
-        }
-    }
-
-    sections.join(", ")
-}
 
 fn generate_signed_payload(reminder_id: u32, member_id: u64) -> String {
     let s_key = hmac::Key::new(
@@ -307,115 +291,6 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) {
     }
 }
 
-enum TimeDisplayType {
-    Absolute,
-    Relative,
-}
-
-struct LookFlags {
-    pub limit: u16,
-    pub show_disabled: bool,
-    pub channel_id: Option<u64>,
-    time_display: TimeDisplayType,
-}
-
-impl Default for LookFlags {
-    fn default() -> Self {
-        Self {
-            limit: u16::MAX,
-            show_disabled: true,
-            channel_id: None,
-            time_display: TimeDisplayType::Relative,
-        }
-    }
-}
-
-impl LookFlags {
-    fn from_string(args: &str) -> Self {
-        let mut new_flags: Self = Default::default();
-
-        for arg in args.split(' ') {
-            match arg {
-                "enabled" => {
-                    new_flags.show_disabled = false;
-                }
-
-                "time" => {
-                    new_flags.time_display = TimeDisplayType::Absolute;
-                }
-
-                param => {
-                    if let Ok(val) = param.parse::<u16>() {
-                        new_flags.limit = val;
-                    } else {
-                        if let Some(channel) = REGEX_CHANNEL
-                            .captures(&arg)
-                            .map(|cap| cap.get(1))
-                            .flatten()
-                            .map(|c| c.as_str().parse::<u64>().unwrap())
-                        {
-                            new_flags.channel_id = Some(channel);
-                        }
-                    }
-                }
-            }
-        }
-
-        new_flags
-    }
-}
-
-struct LookReminder {
-    id: u32,
-    time: NaiveDateTime,
-    interval: Option<u32>,
-    channel: u64,
-    content: String,
-    description: String,
-    set_by: Option<u64>,
-}
-
-impl LookReminder {
-    fn display_content(&self) -> String {
-        if self.content.len() > 0 {
-            self.content.clone()
-        } else {
-            self.description.clone()
-        }
-    }
-
-    fn display(&self, flags: &LookFlags, inter: &str) -> String {
-        let time_display = match flags.time_display {
-            TimeDisplayType::Absolute => format!("<t:{}>", self.time.timestamp()),
-
-            TimeDisplayType::Relative => format!("<t:{}:R>", self.time.timestamp()),
-        };
-
-        if let Some(interval) = self.interval {
-            format!(
-                "'{}' *{}* **{}**, repeating every **{}** (set by {})",
-                self.display_content(),
-                &inter,
-                time_display,
-                longhand_displacement(interval as u64),
-                self.set_by
-                    .map(|i| format!("<@{}>", i))
-                    .unwrap_or_else(|| "unknown".to_string())
-            )
-        } else {
-            format!(
-                "'{}' *{}* **{}** (set by {})",
-                self.display_content(),
-                &inter,
-                time_display,
-                self.set_by
-                    .map(|i| format!("<@{}>", i))
-                    .unwrap_or_else(|| "unknown".to_string())
-            )
-        }
-    }
-}
-
 #[command("look")]
 #[permission_level(Managed)]
 async fn look(ctx: &Context, msg: &Message, args: String) {
@@ -425,58 +300,19 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
 
     let flags = LookFlags::from_string(&args);
 
-    let enabled = if flags.show_disabled { "0,1" } else { "1" };
-
     let channel_opt = msg.channel_id.to_channel_cached(&ctx).await;
 
     let channel_id = if let Some(Channel::Guild(channel)) = channel_opt {
         if Some(channel.guild_id) == msg.guild_id {
-            flags
-                .channel_id
-                .unwrap_or_else(|| msg.channel_id.as_u64().to_owned())
+            flags.channel_id.unwrap_or(msg.channel_id)
         } else {
-            msg.channel_id.as_u64().to_owned()
+            msg.channel_id
         }
     } else {
-        msg.channel_id.as_u64().to_owned()
+        msg.channel_id
     };
 
-    let reminders = sqlx::query_as!(
-        LookReminder,
-        "
-SELECT
-    reminders.id,
-    reminders.utc_time AS time,
-    reminders.interval,
-    channels.channel,
-    reminders.content,
-    reminders.embed_description AS description,
-    users.user AS set_by
-FROM
-    reminders
-INNER JOIN
-    channels
-ON
-    reminders.channel_id = channels.id
-LEFT JOIN
-    users
-ON
-    reminders.set_by = users.id
-WHERE
-    channels.channel = ? AND
-    FIND_IN_SET(reminders.enabled, ?)
-ORDER BY
-    reminders.utc_time
-LIMIT
-    ?
-            ",
-        channel_id,
-        enabled,
-        flags.limit
-    )
-    .fetch_all(&pool)
-    .await
-    .unwrap();
+    let reminders = Reminder::from_channel(ctx, channel_id, &flags).await;
 
     if reminders.is_empty() {
         let _ = msg
@@ -506,109 +342,9 @@ async fn delete(ctx: &Context, msg: &Message, _args: String) {
         .say(&ctx, lm.get(&user_data.language, "del/listing"))
         .await;
 
-    let reminders = if let Some(guild_id) = msg.guild_id {
-        let guild_opt = guild_id.to_guild_cached(&ctx).await;
-
-        if let Some(guild) = guild_opt {
-            let channels = guild
-                .channels
-                .keys()
-                .into_iter()
-                .map(|k| k.as_u64().to_string())
-                .collect::<Vec<String>>()
-                .join(",");
-
-            sqlx::query_as_unchecked!(
-                LookReminder,
-                "
-SELECT
-    reminders.id,
-    reminders.utc_time AS time,
-    reminders.interval,
-    channels.channel,
-    reminders.content,
-    reminders.embed_description AS description,
-    users.user AS set_by
-FROM
-    reminders
-LEFT JOIN
-    channels
-ON
-    channels.id = reminders.channel_id
-LEFT JOIN
-    users
-ON
-    reminders.set_by = users.id
-WHERE
-    FIND_IN_SET(channels.channel, ?)
-                ",
-                channels
-            )
-            .fetch_all(&pool)
-            .await
-        } else {
-            sqlx::query_as_unchecked!(
-                LookReminder,
-                "
-SELECT
-    reminders.id,
-    reminders.utc_time AS time,
-    reminders.interval,
-    channels.channel,
-    reminders.content,
-    reminders.embed_description AS description,
-    users.user AS set_by
-FROM
-    reminders
-LEFT JOIN
-    channels
-ON
-    channels.id = reminders.channel_id
-LEFT JOIN
-    users
-ON
-    reminders.set_by = users.id
-WHERE
-    channels.guild_id = (SELECT id FROM guilds WHERE guild = ?)
-                ",
-                guild_id.as_u64()
-            )
-            .fetch_all(&pool)
-            .await
-        }
-    } else {
-        sqlx::query_as!(
-            LookReminder,
-            "
-SELECT
-    reminders.id,
-    reminders.utc_time AS time,
-    reminders.interval,
-    channels.channel,
-    reminders.content,
-    reminders.embed_description AS description,
-    users.user AS set_by
-FROM
-    reminders
-INNER JOIN
-    channels
-ON
-    channels.id = reminders.channel_id
-LEFT JOIN
-    users
-ON
-    reminders.set_by = users.id
-WHERE
-    channels.channel = ?
-            ",
-            msg.channel_id.as_u64()
-        )
-        .fetch_all(&pool)
-        .await
-    }
-    .unwrap();
-
     let mut reminder_ids: Vec<u32> = vec![];
+
+    let reminders = Reminder::from_guild(ctx, msg.guild_id, msg.author.id).await;
 
     let enumerated_reminders = reminders.iter().enumerate().map(|(count, reminder)| {
         reminder_ids.push(reminder.id);
@@ -618,7 +354,7 @@ WHERE
             count + 1,
             reminder.display_content(),
             reminder.channel,
-            reminder.time.timestamp()
+            reminder.utc_time.timestamp()
         )
     });
 
@@ -983,7 +719,7 @@ impl Content {
                 Ok(Self {
                     content: content.to_string(),
                     tts: false,
-                    attachment: Some(attachment_bytes.clone()),
+                    attachment: Some(attachment_bytes),
                     attachment_name: Some(attachment.filename.clone()),
                 })
             } else {
@@ -1186,7 +922,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
         Some(captures) => {
             let parsed = parse_mention_list(captures.name("mentions").unwrap().as_str());
 
-            let scopes = if parsed.len() == 0 {
+            let scopes = if parsed.is_empty() {
                 vec![ReminderScope::Channel(msg.channel_id.into())]
             } else {
                 parsed
@@ -1236,7 +972,7 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                                     msg.guild_id,
                                     &scope,
                                     &time_parser,
-                                    expires_parser.as_ref().clone(),
+                                    expires_parser.as_ref(),
                                     interval,
                                     &mut content,
                                 )
@@ -1455,7 +1191,7 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                                 &scope,
                                 timestamp,
                                 expires,
-                                interval.clone(),
+                                interval,
                                 &mut content,
                             )
                             .await;

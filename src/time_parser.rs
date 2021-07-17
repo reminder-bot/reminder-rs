@@ -112,7 +112,7 @@ impl TimeParser {
             DateTime::with_second,
         ]) {
             time = setter(&time, t.parse().map_err(|_| InvalidTime::ParseErrorHMS)?)
-                .map_or_else(|| Err(InvalidTime::ParseErrorHMS), |inner| Ok(inner))?;
+                .map_or_else(|| Err(InvalidTime::ParseErrorHMS), Ok)?;
         }
 
         if let Some(dmy) = segments.next() {
@@ -128,7 +128,7 @@ impl TimeParser {
             {
                 if let Some(t) = t {
                     time = setter(&time, t.parse().map_err(|_| InvalidTime::ParseErrorDMY)?)
-                        .map_or_else(|| Err(InvalidTime::ParseErrorDMY), |inner| Ok(inner))?;
+                        .map_or_else(|| Err(InvalidTime::ParseErrorDMY), Ok)?;
                 }
             }
 
@@ -136,7 +136,7 @@ impl TimeParser {
                 if year.len() == 4 {
                     time = time
                         .with_year(year.parse().map_err(|_| InvalidTime::ParseErrorDMY)?)
-                        .map_or_else(|| Err(InvalidTime::ParseErrorDMY), |inner| Ok(inner))?;
+                        .map_or_else(|| Err(InvalidTime::ParseErrorDMY), Ok)?;
                 } else if year.len() == 2 {
                     time = time
                         .with_year(
@@ -144,9 +144,9 @@ impl TimeParser {
                                 .parse()
                                 .map_err(|_| InvalidTime::ParseErrorDMY)?,
                         )
-                        .map_or_else(|| Err(InvalidTime::ParseErrorDMY), |inner| Ok(inner))?;
+                        .map_or_else(|| Err(InvalidTime::ParseErrorDMY), Ok)?;
                 } else {
-                    Err(InvalidTime::ParseErrorDMY)?;
+                    return Err(InvalidTime::ParseErrorDMY);
                 }
             }
         }
@@ -157,10 +157,10 @@ impl TimeParser {
     fn process_displacement(&self) -> Result<i64, InvalidTime> {
         let mut current_buffer = "0".to_string();
 
-        let mut seconds = 0 as i64;
-        let mut minutes = 0 as i64;
-        let mut hours = 0 as i64;
-        let mut days = 0 as i64;
+        let mut seconds = 0_i64;
+        let mut minutes = 0_i64;
+        let mut hours = 0_i64;
+        let mut days = 0_i64;
 
         for character in self.time_string.chars() {
             match character {
@@ -205,7 +205,7 @@ impl TimeParser {
     }
 }
 
-pub(crate) async fn natural_parser(time: &str, timezone: &str) -> Option<i64> {
+pub async fn natural_parser(time: &str, timezone: &str) -> Option<i64> {
     Command::new(&*PYTHON_LOCATION)
         .arg("-c")
         .arg(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/dp.py")))

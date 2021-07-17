@@ -74,18 +74,16 @@ async fn blacklist(ctx: &Context, msg: &Message, args: String) {
                 .say(&ctx, lm.get(&language, "blacklist/added_from"))
                 .await;
         }
+    } else if local {
+        let _ = msg
+            .channel_id
+            .say(&ctx, lm.get(&language, "blacklist/removed"))
+            .await;
     } else {
-        if local {
-            let _ = msg
-                .channel_id
-                .say(&ctx, lm.get(&language, "blacklist/removed"))
-                .await;
-        } else {
-            let _ = msg
-                .channel_id
-                .say(&ctx, lm.get(&language, "blacklist/removed_from"))
-                .await;
-        }
+        let _ = msg
+            .channel_id
+            .say(&ctx, lm.get(&language, "blacklist/removed_from"))
+            .await;
     }
 }
 

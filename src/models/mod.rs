@@ -1,5 +1,6 @@
 pub mod channel_data;
 pub mod guild_data;
+pub mod reminder;
 pub mod timer;
 pub mod user_data;
 

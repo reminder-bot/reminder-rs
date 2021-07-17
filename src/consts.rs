@@ -51,7 +51,7 @@ lazy_static! {
                 .split(',')
                 .filter_map(|item| { item.parse::<u64>().ok() })
                 .collect::<Vec<u64>>())
-            .unwrap_or_else(|_| vec![])
+            .unwrap_or_else(|_| Vec::new())
     );
 
     pub static ref CNC_GUILD: Option<u64> = env::var("CNC_GUILD")

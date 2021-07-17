@@ -240,7 +240,7 @@ impl RegexFramework {
                 let mut command_names_vec =
                     self.commands.keys().map(|k| &k[..]).collect::<Vec<&str>>();
 
-                command_names_vec.sort_unstable_by(|a, b| b.len().cmp(&a.len()));
+                command_names_vec.sort_unstable_by_key(|a| a.len());
 
                 command_names = command_names_vec.join("|");
             }
@@ -276,7 +276,7 @@ impl RegexFramework {
                     })
                     .collect::<Vec<&str>>();
 
-                command_names_vec.sort_unstable_by(|a, b| b.len().cmp(&a.len()));
+                command_names_vec.sort_unstable_by_key(|a| a.len());
 
                 dm_command_names = command_names_vec.join("|");
             }
@@ -399,12 +399,14 @@ impl Framework for RegexFramework {
                                             {
                                                 let guild_id = guild.id.as_u64().to_owned();
 
-                                                GuildData::from_guild(guild, &pool).await.expect(
-                                                    &format!(
+                                                GuildData::from_guild(guild, &pool)
+                                                    .await
+                                                    .unwrap_or_else(|_| {
+                                                        panic!(
                                                         "Failed to create new guild object for {}",
                                                         guild_id
-                                                    ),
-                                                );
+                                                    )
+                                                    });
                                             }
 
                                             if msg.id == MessageId(0)

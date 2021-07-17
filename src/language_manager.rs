@@ -14,7 +14,7 @@ pub struct LanguageManager {
 
 impl LanguageManager {
     pub fn from_compiled(content: &'static str) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let new: Self = from_str(content.as_ref())?;
+        let new: Self = from_str(content)?;
 
         Ok(new)
     }
@@ -23,13 +23,13 @@ impl LanguageManager {
         self.strings
             .get(language)
             .map(|sm| sm.get(name))
-            .expect(&format!(r#"Language does not exist: "{}""#, language))
+            .unwrap_or_else(|| panic!(r#"Language does not exist: "{}""#, language))
             .unwrap_or_else(|| {
                 self.strings
                     .get(&*LOCAL_LANGUAGE)
                     .map(|sm| {
                         sm.get(name)
-                            .expect(&format!(r#"String does not exist: "{}""#, name))
+                            .unwrap_or_else(|| panic!(r#"String does not exist: "{}""#, name))
                     })
                     .expect("LOCAL_LANGUAGE is not available")
             })
