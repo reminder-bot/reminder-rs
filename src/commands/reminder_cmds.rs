@@ -214,9 +214,9 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) {
 #[command("look")]
 #[permission_level(Managed)]
 async fn look(ctx: &Context, msg: &Message, args: String) {
-    let (pool, lm) = get_ctx_data(&ctx).await;
+    let (pool, _lm) = get_ctx_data(&ctx).await;
 
-    let language = UserData::language_of(&msg.author, &pool).await;
+    let timezone = UserData::timezone_of(&msg.author, &pool).await;
 
     let flags = LookFlags::from_string(&args);
 
@@ -237,14 +237,12 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
     if reminders.is_empty() {
         let _ = msg
             .channel_id
-            .say(&ctx, lm.get(&language, "look/no_reminders"))
+            .say(&ctx, "No reminders on specified channel")
             .await;
     } else {
-        let inter = lm.get(&language, "look/inter");
-
         let display = reminders
             .iter()
-            .map(|reminder| reminder.display(&flags, inter));
+            .map(|reminder| reminder.display(&flags, &timezone));
 
         let _ = msg.channel_id.say_lines(&ctx, display).await;
     }

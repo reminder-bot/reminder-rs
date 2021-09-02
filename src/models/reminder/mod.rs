@@ -9,7 +9,8 @@ use serenity::{
     model::id::{ChannelId, GuildId, UserId},
 };
 
-use chrono::NaiveDateTime;
+use chrono::{NaiveDateTime, TimeZone};
+use chrono_tz::Tz;
 
 use crate::{
     models::reminder::{
@@ -314,18 +315,20 @@ WHERE
         }
     }
 
-    pub fn display(&self, flags: &LookFlags, inter: &str) -> String {
+    pub fn display(&self, flags: &LookFlags, timezone: &Tz) -> String {
         let time_display = match flags.time_display {
-            TimeDisplayType::Absolute => format!("<t:{}>", self.utc_time.timestamp()),
+            TimeDisplayType::Absolute => timezone
+                .timestamp(self.utc_time.timestamp(), 0)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string(),
 
             TimeDisplayType::Relative => format!("<t:{}:R>", self.utc_time.timestamp()),
         };
 
         if let Some(interval) = self.interval {
             format!(
-                "'{}' *{}* **{}**, repeating every **{}** (set by {})",
+                "'{}' *occurs next at* **{}**, repeating every **{}** (set by {})",
                 self.display_content(),
-                &inter,
                 time_display,
                 longhand_displacement(interval as u64),
                 self.set_by
@@ -334,9 +337,8 @@ WHERE
             )
         } else {
             format!(
-                "'{}' *{}* **{}** (set by {})",
+                "'{}' *occurs next at* **{}** (set by {})",
                 self.display_content(),
-                &inter,
                 time_display,
                 self.set_by
                     .map(|i| format!("<@{}>", i))
