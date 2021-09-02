@@ -9,7 +9,7 @@ use crate::{
     consts::DEFAULT_PREFIX,
     get_ctx_data,
     language_manager::LanguageManager,
-    models::{user_data::UserData, CtxGuildData},
+    models::{user_data::UserData, CtxData},
     FrameworkCtx, THEME_COLOR,
 };
 
@@ -35,7 +35,7 @@ async fn ping(ctx: &Context, msg: &Message, _args: String) {
 }
 
 async fn footer(ctx: &Context) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut CreateEmbedFooter {
-    let shard_count = ctx.cache.shard_count().await;
+    let shard_count = ctx.cache.shard_count();
     let shard = ctx.shard_id;
 
     move |f| {
@@ -145,7 +145,7 @@ async fn info(ctx: &Context, msg: &Message, _args: String) {
 
     let desc = lm
         .get(&language.await, "info")
-        .replacen("{user}", &current_user.await.name, 1)
+        .replacen("{user}", &current_user.name, 1)
         .replace("{default_prefix}", &*DEFAULT_PREFIX)
         .replace("{prefix}", &prefix.await);
 

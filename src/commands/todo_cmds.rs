@@ -14,7 +14,7 @@ use std::fmt;
 
 use crate::{
     command_help, get_ctx_data,
-    models::{user_data::UserData, CtxGuildData},
+    models::{user_data::UserData, CtxData},
 };
 use sqlx::MySqlPool;
 use std::convert::TryFrom;
@@ -362,7 +362,7 @@ impl Execute for Result<SubCommand, ()> {
         if let Ok(subcommand) = self {
             target.execute(ctx, msg, subcommand, extra).await;
         } else {
-            show_help(&ctx, msg, Some(target)).await;
+            show_help(ctx, msg, Some(target)).await;
         }
     }
 }

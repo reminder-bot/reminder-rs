@@ -2,81 +2,38 @@ use regex_command_attr::command;
 
 use serenity::{
     client::Context,
-    http::CacheHttp,
-    model::{
-        channel::Message,
-        channel::{Channel, GuildChannel},
-        guild::Guild,
-        id::{ChannelId, GuildId, UserId},
-        interactions::ButtonStyle,
-        misc::Mentionable,
-        webhook::Webhook,
-    },
-    Result as SerenityResult,
+    model::{channel::Channel, channel::Message},
 };
 
 use crate::{
     check_subscription_on_message, command_help,
     consts::{
-        CHARACTERS, MAX_TIME, MIN_INTERVAL, REGEX_CHANNEL_USER, REGEX_CONTENT_SUBSTITUTION,
-        REGEX_NATURAL_COMMAND_1, REGEX_NATURAL_COMMAND_2, REGEX_REMIND_COMMAND, THEME_COLOR,
+        REGEX_CHANNEL_USER, REGEX_NATURAL_COMMAND_1, REGEX_NATURAL_COMMAND_2, REGEX_REMIND_COMMAND,
+        THEME_COLOR,
     },
     framework::SendIterator,
     get_ctx_data,
     models::{
         channel_data::ChannelData,
         guild_data::GuildData,
-        reminder::{LookFlags, Reminder, ReminderAction},
+        reminder::{builder::ReminderScope, content::Content, look_flags::LookFlags, Reminder},
         timer::Timer,
         user_data::UserData,
-        CtxGuildData,
+        CtxData,
     },
     time_parser::{natural_parser, TimeParser},
 };
 
 use chrono::NaiveDateTime;
 
-use rand::{rngs::OsRng, seq::IteratorRandom};
-
-use sqlx::MySqlPool;
-
 use num_integer::Integer;
 
+use crate::models::reminder::builder::MultiReminderBuilder;
 use std::{
-    collections::HashSet,
-    convert::TryInto,
     default::Default,
-    env,
-    fmt::Display,
     string::ToString,
     time::{SystemTime, UNIX_EPOCH},
 };
-
-use regex::Captures;
-
-async fn create_webhook(
-    ctx: impl CacheHttp,
-    channel: GuildChannel,
-    name: impl Display,
-) -> SerenityResult<Webhook> {
-    channel
-        .create_webhook_with_avatar(
-            ctx.http(),
-            name,
-            (
-                include_bytes!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/assets/",
-                    env!(
-                        "WEBHOOK_AVATAR",
-                        "WEBHOOK_AVATAR not provided for compilation"
-                    )
-                )) as &[u8],
-                env!("WEBHOOK_AVATAR"),
-            ),
-        )
-        .await
-}
 
 #[command]
 #[supports_dm(false)]
@@ -153,7 +110,7 @@ async fn offset(ctx: &Context, msg: &Message, args: String) {
         let parser = TimeParser::new(&args, user_data.timezone());
 
         if let Ok(displacement) = parser.displacement() {
-            if let Some(guild) = msg.guild(&ctx).await {
+            if let Some(guild) = msg.guild(&ctx) {
                 let guild_data = GuildData::from_guild(guild, &pool).await.unwrap();
 
                 sqlx::query!(
@@ -263,7 +220,7 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
 
     let flags = LookFlags::from_string(&args);
 
-    let channel_opt = msg.channel_id.to_channel_cached(&ctx).await;
+    let channel_opt = msg.channel_id.to_channel_cached(&ctx);
 
     let channel_id = if let Some(Channel::Guild(channel)) = channel_opt {
         if Some(channel.guild_id) == msg.guild_id {
@@ -287,7 +244,7 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
 
         let display = reminders
             .iter()
-            .map(|reminder| reminder.display(&flags, &inter));
+            .map(|reminder| reminder.display(&flags, inter));
 
         let _ = msg.channel_id.say_lines(&ctx, display).await;
     }
@@ -545,308 +502,6 @@ enum RemindCommand {
     Interval,
 }
 
-enum ReminderScope {
-    User(u64),
-    Channel(u64),
-}
-
-impl ReminderScope {
-    fn mention(&self) -> String {
-        match self {
-            Self::User(id) => format!("<@{}>", id),
-            Self::Channel(id) => format!("<#{}>", id),
-        }
-    }
-}
-
-#[derive(PartialEq, Eq, Hash, Debug)]
-enum ReminderError {
-    LongInterval,
-    PastTime,
-    ShortInterval,
-    InvalidTag,
-    InvalidTime,
-    InvalidExpiration,
-    DiscordError(String),
-}
-
-impl std::fmt::Display for ReminderError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_response())
-    }
-}
-
-impl std::error::Error for ReminderError {}
-
-trait ToResponse {
-    fn to_response(&self) -> &'static str;
-
-    fn to_response_natural(&self) -> &'static str;
-}
-
-impl ToResponse for ReminderError {
-    fn to_response(&self) -> &'static str {
-        match self {
-            Self::LongInterval => "interval/long_interval",
-            Self::PastTime => "remind/past_time",
-            Self::ShortInterval => "interval/short_interval",
-            Self::InvalidTag => "remind/invalid_tag",
-            Self::InvalidTime => "remind/invalid_time",
-            Self::InvalidExpiration => "interval/invalid_expiration",
-            Self::DiscordError(_) => "remind/generic_error",
-        }
-    }
-
-    fn to_response_natural(&self) -> &'static str {
-        match self {
-            Self::InvalidTime => "natural/invalid_time",
-            _ => self.to_response(),
-        }
-    }
-}
-
-impl<T> ToResponse for Result<T, ReminderError> {
-    fn to_response(&self) -> &'static str {
-        match self {
-            Ok(_) => "remind/success",
-
-            Err(reminder_error) => reminder_error.to_response(),
-        }
-    }
-
-    fn to_response_natural(&self) -> &'static str {
-        match self {
-            Ok(_) => "remind/success",
-
-            Err(reminder_error) => reminder_error.to_response_natural(),
-        }
-    }
-}
-
-fn generate_uid() -> String {
-    let mut generator: OsRng = Default::default();
-
-    (0..64)
-        .map(|_| {
-            CHARACTERS
-                .chars()
-                .choose(&mut generator)
-                .unwrap()
-                .to_owned()
-                .to_string()
-        })
-        .collect::<Vec<String>>()
-        .join("")
-}
-
-#[derive(Debug)]
-enum ContentError {
-    TooManyAttachments,
-    AttachmentTooLarge,
-    AttachmentDownloadFailed,
-}
-
-impl ContentError {
-    fn to_response(&self) -> &'static str {
-        match self {
-            ContentError::TooManyAttachments => "remind/too_many_attachments",
-            ContentError::AttachmentTooLarge => "remind/attachment_too_large",
-            ContentError::AttachmentDownloadFailed => "remind/attachment_download_failed",
-        }
-    }
-}
-
-impl std::fmt::Display for ContentError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl std::error::Error for ContentError {}
-
-struct Content {
-    content: String,
-    tts: bool,
-    attachment: Option<Vec<u8>>,
-    attachment_name: Option<String>,
-}
-
-impl Content {
-    async fn build<S: ToString>(content: S, message: &Message) -> Result<Self, ContentError> {
-        if message.attachments.len() > 1 {
-            Err(ContentError::TooManyAttachments)
-        } else if let Some(attachment) = message.attachments.get(0) {
-            if attachment.size > 8_000_000 {
-                Err(ContentError::AttachmentTooLarge)
-            } else if let Ok(attachment_bytes) = attachment.download().await {
-                Ok(Self {
-                    content: content.to_string(),
-                    tts: false,
-                    attachment: Some(attachment_bytes),
-                    attachment_name: Some(attachment.filename.clone()),
-                })
-            } else {
-                Err(ContentError::AttachmentDownloadFailed)
-            }
-        } else {
-            Ok(Self {
-                content: content.to_string(),
-                tts: false,
-                attachment: None,
-                attachment_name: None,
-            })
-        }
-    }
-
-    fn substitute(&mut self, guild: Guild) {
-        if self.content.starts_with("/tts ") {
-            self.tts = true;
-            self.content = self.content.split_off(5);
-        }
-
-        self.content = REGEX_CONTENT_SUBSTITUTION
-            .replace(&self.content, |caps: &Captures| {
-                if let Some(user) = caps.name("user") {
-                    format!("<@{}>", user.as_str())
-                } else if let Some(role_name) = caps.name("role") {
-                    if let Some(role) = guild.role_by_name(role_name.as_str()) {
-                        role.mention().to_string()
-                    } else {
-                        format!("<<{}>>", role_name.as_str().to_string())
-                    }
-                } else {
-                    String::new()
-                }
-            })
-            .to_string()
-            .replace("<<everyone>>", "@everyone")
-            .replace("<<here>>", "@here");
-    }
-}
-
-#[command("countdown")]
-#[permission_level(Managed)]
-async fn countdown(ctx: &Context, msg: &Message, args: String) {
-    let (pool, lm) = get_ctx_data(&ctx).await;
-    let language = UserData::language_of(&msg.author, &pool).await;
-
-    if check_subscription_on_message(&ctx, &msg).await {
-        let timezone = UserData::timezone_of(&msg.author, &pool).await;
-
-        let split_args = args.splitn(3, ' ').collect::<Vec<&str>>();
-
-        if split_args.len() == 3 {
-            let time = split_args.get(0).unwrap();
-            let interval = split_args.get(1).unwrap();
-            let event_name = split_args.get(2).unwrap();
-
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-
-            let time_parser = TimeParser::new(*time, timezone);
-            let interval_parser = TimeParser::new(*interval, timezone);
-
-            if let Ok(target_ts) = time_parser.timestamp() {
-                if let Ok(interval) = interval_parser.displacement() {
-                    let mut first_time = target_ts;
-
-                    while first_time - interval > now as i64 {
-                        first_time -= interval;
-                    }
-
-                    let description = format!(
-                        "**{}** occurs in **<<timefrom:{}:%d days, %h:%m>>**",
-                        event_name, target_ts
-                    );
-
-                    sqlx::query!(
-                        "
-INSERT INTO reminders (
-    `uid`,
-    `name`,
-    `embed_title`,
-    `embed_description`,
-    `embed_color`,
-    `channel_id`,
-    `utc_time`,
-    `interval`,
-    `set_by`,
-    `expires`
-) VALUES (
-    ?,
-    'Countdown',
-    ?,
-    ?,
-    ?,
-    ?,
-    ?,
-    ?,
-    (SELECT id FROM users WHERE user = ?),
-    FROM_UNIXTIME(?)
-)
-                    ",
-                        generate_uid(),
-                        event_name,
-                        description,
-                        *THEME_COLOR,
-                        msg.channel_id.as_u64(),
-                        first_time,
-                        interval,
-                        msg.author.id.as_u64(),
-                        target_ts
-                    )
-                    .execute(&pool)
-                    .await
-                    .unwrap();
-
-                    let _ = msg.channel_id.send_message(&ctx, |m| {
-                        m.embed(|e| {
-                            e.title(lm.get(&language, "remind/success")).description(
-                                "A new countdown reminder has been created on this channel",
-                            )
-                        })
-                    });
-                } else {
-                    let _ = msg.channel_id.send_message(&ctx, |m| {
-                        m.embed(|e| {
-                            e.title(lm.get(&language, "remind/issue"))
-                                .description(lm.get(&language, "interval/invalid_interval"))
-                        })
-                    });
-                }
-            } else {
-                let _ = msg.channel_id.send_message(&ctx, |m| {
-                    m.embed(|e| {
-                        e.title(lm.get(&language, "remind/issue"))
-                            .description(lm.get(&language, "remind/invalid_time"))
-                    })
-                });
-            }
-        } else {
-            command_help(
-                ctx,
-                msg,
-                lm,
-                &ctx.prefix(msg.guild_id).await,
-                &language,
-                "countdown",
-            )
-            .await;
-        }
-    } else {
-        let _ = msg
-            .channel_id
-            .say(
-                &ctx,
-                lm.get(&language, "interval/donor")
-                    .replace("{prefix}", &ctx.prefix(msg.guild_id).await),
-            )
-            .await;
-    }
-}
-
 #[command("remind")]
 #[permission_level(Managed)]
 async fn remind(ctx: &Context, msg: &Message, args: String) {
@@ -923,126 +578,62 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
 
                     match content_res {
                         Ok(mut content) => {
-                            let mut ok_locations = vec![];
-                            let mut ok_reminders = vec![];
-                            let mut err_locations = vec![];
-                            let mut err_types = HashSet::new();
-
-                            for scope in scopes {
-                                let res = create_reminder(
-                                    &ctx,
-                                    &pool,
-                                    msg.author.id,
-                                    msg.guild_id,
-                                    &scope,
-                                    &time_parser,
-                                    expires_parser.as_ref(),
-                                    interval,
-                                    &mut content,
-                                )
-                                .await;
-
-                                match res {
-                                    Err(e) => {
-                                        err_locations.push(scope);
-                                        err_types.insert(e);
-                                    }
-
-                                    Ok(id) => {
-                                        ok_locations.push(scope);
-                                        ok_reminders.push(id);
-                                    }
-                                }
+                            if let Some(guild) = msg.guild(&ctx) {
+                                content.substitute(guild);
                             }
 
-                            let success_part = match ok_locations.len() {
+                            let user_data = ctx.user_data(&msg.author).await.unwrap();
+
+                            let mut builder = MultiReminderBuilder::new(ctx, msg.guild_id)
+                                .author(user_data)
+                                .content(content)
+                                .interval(interval)
+                                .expires_parser(expires_parser)
+                                .time_parser(time_parser.clone());
+
+                            builder.set_scopes(scopes);
+
+                            let (errors, successes) = builder.build().await;
+
+                            let success_part = match successes.len() {
                                 0 => "".to_string(),
-                                1 => lm
-                                    .get(&language, "remind/success")
-                                    .replace("{location}", &ok_locations[0].mention())
-                                    .replace(
-                                        "{offset}",
-                                        &format!("<t:{}:R>", time_parser.timestamp().unwrap()),
-                                    ),
-                                n => lm
-                                    .get(&language, "remind/success_bulk")
-                                    .replace("{number}", &n.to_string())
-                                    .replace(
-                                        "{location}",
-                                        &ok_locations
-                                            .iter()
-                                            .map(|l| l.mention())
-                                            .collect::<Vec<String>>()
-                                            .join(", "),
-                                    )
-                                    .replace(
-                                        "{offset}",
-                                        &format!("<t:{}:R>", time_parser.timestamp().unwrap()),
-                                    ),
+                                n => format!(
+                                    "Reminder{s} for {locations} set for <t:{offset}:R>",
+                                    s = if n > 1 { "s" } else { "" },
+                                    locations = successes
+                                        .iter()
+                                        .map(|l| l.mention())
+                                        .collect::<Vec<String>>()
+                                        .join(", "),
+                                    offset = time_parser.timestamp().unwrap()
+                                ),
                             };
 
-                            let error_part = format!(
-                                "{}\n{}",
-                                match err_locations.len() {
-                                    0 => "".to_string(),
-                                    1 => lm
-                                        .get(&language, "remind/issue")
-                                        .replace("{location}", &err_locations[0].mention()),
-                                    n => lm
-                                        .get(&language, "remind/issue_bulk")
-                                        .replace("{number}", &n.to_string())
-                                        .replace(
-                                            "{location}",
-                                            &err_locations
-                                                .iter()
-                                                .map(|l| l.mention())
-                                                .collect::<Vec<String>>()
-                                                .join(", "),
-                                        ),
-                                },
-                                err_types
-                                    .iter()
-                                    .map(|err| match err {
-                                        ReminderError::DiscordError(s) => lm
-                                            .get(&language, err.to_response())
-                                            .replace("{error}", &s),
-
-                                        _ => lm
-                                            .get(&language, err.to_response())
-                                            .replace("{min_interval}", &*MIN_INTERVAL.to_string()),
-                                    })
-                                    .collect::<Vec<String>>()
-                                    .join("\n")
-                            );
+                            let error_part = match errors.len() {
+                                0 => "".to_string(),
+                                n => format!(
+                                    "{n} reminder{s} failed to set:\n{errors}",
+                                    s = if n > 1 { "s" } else { "" },
+                                    n = n,
+                                    errors = errors
+                                        .iter()
+                                        .map(|e| e.display(false))
+                                        .collect::<Vec<String>>()
+                                        .join("\n")
+                                ),
+                            };
 
                             let _ = msg
                                 .channel_id
                                 .send_message(&ctx, |m| {
                                     m.embed(|e| {
-                                        e.title(
-                                            lm.get(&language, "remind/title").replace(
-                                                "{number}",
-                                                &ok_locations.len().to_string(),
-                                            ),
-                                        )
+                                        e.title(format!(
+                                            "{n} Reminder{s} Set",
+                                            n = successes.len(),
+                                            s = if successes.len() > 1 { "s" } else { "" }
+                                        ))
                                         .description(format!("{}\n\n{}", success_part, error_part))
                                         .color(*THEME_COLOR)
-                                    })
-                                    .components(|c| {
-                                        if ok_locations.len() == 1 {
-                                            c.create_action_row(|r| {
-                                                r.create_button(|b| {
-                                                    b.style(ButtonStyle::Danger)
-                                                        .label("Delete")
-                                                        .custom_id(ok_reminders[0].signed_action(
-                                                            msg.author.id,
-                                                            ReminderAction::Delete,
-                                                        ))
-                                                })
-                                            });
-                                        }
-
-                                        c
                                     })
                                 })
                                 .await;
@@ -1053,12 +644,9 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                                 .channel_id
                                 .send_message(ctx, |m| {
                                     m.embed(move |e| {
-                                        e.title(
-                                            lm.get(&language, "remind/title")
-                                                .replace("{number}", "0"),
-                                        )
-                                        .description(lm.get(&language, content_error.to_response()))
-                                        .color(*THEME_COLOR)
+                                        e.title("0 Reminders Set")
+                                            .description(content_error.to_string())
+                                            .color(*THEME_COLOR)
                                     })
                                 })
                                 .await;
@@ -1163,94 +751,60 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
 
                 match content_res {
                     Ok(mut content) => {
-                        let mut ok_locations = vec![];
-                        let mut err_locations = vec![];
-                        let mut err_types = HashSet::new();
-
-                        for scope in location_ids {
-                            let res = create_reminder(
-                                &ctx,
-                                &pool,
-                                msg.author.id,
-                                msg.guild_id,
-                                &scope,
-                                timestamp,
-                                expires,
-                                interval,
-                                &mut content,
-                            )
-                            .await;
-
-                            if let Err(e) = res {
-                                err_locations.push(scope);
-                                err_types.insert(e);
-                            } else {
-                                ok_locations.push(scope);
-                            }
+                        if let Some(guild) = msg.guild(&ctx) {
+                            content.substitute(guild);
                         }
 
-                        let success_part = match ok_locations.len() {
+                        let user_data = ctx.user_data(&msg.author).await.unwrap();
+
+                        let mut builder = MultiReminderBuilder::new(ctx, msg.guild_id)
+                            .author(user_data)
+                            .content(content)
+                            .interval(interval)
+                            .expires(expires)
+                            .time(timestamp);
+
+                        builder.set_scopes(location_ids);
+
+                        let (errors, successes) = builder.build().await;
+
+                        let success_part = match successes.len() {
                             0 => "".to_string(),
-                            1 => lm
-                                .get(&user_data.language, "remind/success")
-                                .replace("{location}", &ok_locations[0].mention())
-                                .replace("{offset}", &format!("<t:{}:R>", timestamp)),
-                            n => lm
-                                .get(&user_data.language, "remind/success_bulk")
-                                .replace("{number}", &n.to_string())
-                                .replace(
-                                    "{location}",
-                                    &ok_locations
-                                        .iter()
-                                        .map(|l| l.mention())
-                                        .collect::<Vec<String>>()
-                                        .join(", "),
-                                )
-                                .replace("{offset}", &format!("<t:{}:R>", timestamp)),
+                            n => format!(
+                                "Reminder{s} for {locations} set for <t:{offset}:R>",
+                                s = if n > 1 { "s" } else { "" },
+                                locations = successes
+                                    .iter()
+                                    .map(|l| l.mention())
+                                    .collect::<Vec<String>>()
+                                    .join(", "),
+                                offset = timestamp
+                            ),
                         };
 
-                        let error_part = format!(
-                            "{}\n{}",
-                            match err_locations.len() {
-                                0 => "".to_string(),
-                                1 => lm
-                                    .get(&user_data.language, "remind/issue")
-                                    .replace("{location}", &err_locations[0].mention()),
-                                n => lm
-                                    .get(&user_data.language, "remind/issue_bulk")
-                                    .replace("{number}", &n.to_string())
-                                    .replace(
-                                        "{location}",
-                                        &err_locations
-                                            .iter()
-                                            .map(|l| l.mention())
-                                            .collect::<Vec<String>>()
-                                            .join(", "),
-                                    ),
-                            },
-                            err_types
-                                .iter()
-                                .map(|err| match err {
-                                    ReminderError::DiscordError(s) => lm
-                                        .get(&user_data.language, err.to_response_natural())
-                                        .replace("{error}", &s),
-
-                                    _ => lm
-                                        .get(&user_data.language, err.to_response_natural())
-                                        .to_string(),
-                                })
-                                .collect::<Vec<String>>()
-                                .join("\n")
-                        );
+                        let error_part = match errors.len() {
+                            0 => "".to_string(),
+                            n => format!(
+                                "{n} reminder{s} failed to set:\n{errors}",
+                                s = if n > 1 { "s" } else { "" },
+                                n = n,
+                                errors = errors
+                                    .iter()
+                                    .map(|e| e.display(true))
+                                    .collect::<Vec<String>>()
+                                    .join("\n")
+                            ),
+                        };
 
                         let _ = msg
                             .channel_id
                             .send_message(&ctx, |m| {
                                 m.embed(|e| {
-                                    e.title(
-                                        lm.get(&user_data.language, "remind/title")
-                                            .replace("{number}", &ok_locations.len().to_string()),
-                                    )
+                                    e.title(format!(
+                                        "{n} Reminder{s} Set",
+                                        n = successes.len(),
+                                        s = if successes.len() > 1 { "s" } else { "" }
+                                    ))
                                     .description(format!("{}\n\n{}", success_part, error_part))
                                     .color(*THEME_COLOR)
                                 })
@@ -1263,14 +817,9 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                             .channel_id
                             .send_message(ctx, |m| {
                                 m.embed(move |e| {
-                                    e.title(
-                                        lm.get(&user_data.language, "remind/title")
-                                            .replace("{number}", "0"),
-                                    )
-                                    .description(
-                                        lm.get(&user_data.language, content_error.to_response()),
-                                    )
-                                    .color(*THEME_COLOR)
+                                    e.title("0 Reminders Set")
+                                        .description(content_error.to_string())
+                                        .color(*THEME_COLOR)
                                 })
                             })
                             .await;
@@ -1303,159 +852,6 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
                 "natural",
             )
             .await;
-        }
-    }
-}
-
-async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
-    ctx: &Context,
-    pool: &MySqlPool,
-    user_id: U,
-    guild_id: Option<GuildId>,
-    scope_id: &ReminderScope,
-    time_parser: T,
-    expires_parser: Option<T>,
-    interval: Option<i64>,
-    content: &mut Content,
-) -> Result<Reminder, ReminderError> {
-    let user_id = user_id.into();
-
-    if let Some(g_id) = guild_id {
-        if let Some(guild) = g_id.to_guild_cached(&ctx).await {
-            content.substitute(guild);
-        }
-    }
-
-    let mut nudge = 0;
-
-    let db_channel_id = match scope_id {
-        ReminderScope::User(user_id) => {
-            if let Ok(user) = UserId(*user_id).to_user(&ctx).await {
-                let user_data = UserData::from_user(&user, &ctx, &pool).await.unwrap();
-
-                if let Some(guild_id) = guild_id {
-                    if guild_id.member(&ctx, user).await.is_err() {
-                        return Err(ReminderError::InvalidTag);
-                    }
-                }
-
-                user_data.dm_channel
-            } else {
-                return Err(ReminderError::InvalidTag);
-            }
-        }
-
-        ReminderScope::Channel(channel_id) => {
-            let channel = ChannelId(*channel_id).to_channel(&ctx).await.unwrap();
-
-            if channel.clone().guild().map(|gc| gc.guild_id) != guild_id {
-                return Err(ReminderError::InvalidTag);
-            }
-
-            let mut channel_data = ChannelData::from_channel(channel.clone(), &pool)
-                .await
-                .unwrap();
-
-            nudge = channel_data.nudge;
-
-            if let Some(guild_channel) = channel.guild() {
-                if channel_data.webhook_token.is_none() || channel_data.webhook_id.is_none() {
-                    match create_webhook(&ctx, guild_channel, "Reminder").await {
-                        Ok(webhook) => {
-                            channel_data.webhook_id = Some(webhook.id.as_u64().to_owned());
-                            channel_data.webhook_token = webhook.token;
-
-                            channel_data.commit_changes(&pool).await;
-                        }
-
-                        Err(e) => {
-                            return Err(ReminderError::DiscordError(e.to_string()));
-                        }
-                    }
-                }
-            }
-
-            channel_data.id
-        }
-    };
-
-    // validate time, channel
-    if interval.map_or(false, |inner| inner < *MIN_INTERVAL) {
-        Err(ReminderError::ShortInterval)
-    } else if interval.map_or(false, |inner| inner > *MAX_TIME) {
-        Err(ReminderError::LongInterval)
-    } else {
-        match time_parser.try_into() {
-            Ok(time_pre) => {
-                match expires_parser.map(|t| t.try_into()).transpose() {
-                    Ok(expires) => {
-                        let time = time_pre + nudge as i64;
-
-                        let unix_time = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs() as i64;
-
-                        if time >= unix_time - 10 {
-                            let uid = generate_uid();
-
-                            sqlx::query!(
-                                "
-INSERT INTO reminders (
-    uid,
-    content,
-    tts,
-    attachment,
-    attachment_name,
-    channel_id,
-    `utc_time`,
-    expires,
-    `interval`,
-    set_by
-) VALUES (
-    ?,
-    ?,
-    ?,
-    ?,
-    ?,
-    ?,
-    DATE_ADD(FROM_UNIXTIME(0), INTERVAL ? SECOND),
-    DATE_ADD(FROM_UNIXTIME(0), INTERVAL ? SECOND),
-    ?,
-    (SELECT id FROM users WHERE user = ? LIMIT 1)
-)
-                            ",
-                                uid,
-                                content.content,
-                                content.tts,
-                                content.attachment,
-                                content.attachment_name,
-                                db_channel_id,
-                                time,
-                                expires,
-                                interval,
-                                user_id
-                            )
-                            .execute(pool)
-                            .await
-                            .unwrap();
-
-                            let reminder = Reminder::from_uid(ctx, uid).await.unwrap();
-
-                            Ok(reminder)
-                        } else if time < 0 {
-                            // case required for if python returns -1
-                            Err(ReminderError::InvalidTime)
-                        } else {
-                            Err(ReminderError::PastTime)
-                        }
-                    }
-
-                    Err(_) => Err(ReminderError::InvalidExpiration),
-                }
-            }
-
-            Err(_) => Err(ReminderError::InvalidTime),
         }
     }
 }

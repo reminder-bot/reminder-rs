@@ -1,3 +1,9 @@
+pub mod builder;
+pub mod content;
+pub mod errors;
+mod helper;
+pub mod look_flags;
+
 use serenity::{
     client::Context,
     model::id::{ChannelId, GuildId, UserId},
@@ -6,32 +12,45 @@ use serenity::{
 use chrono::NaiveDateTime;
 
 use crate::{
-    consts::{DAY, HOUR, MINUTE, REGEX_CHANNEL},
+    models::reminder::{
+        errors::InteractionError,
+        helper::longhand_displacement,
+        look_flags::{LookFlags, TimeDisplayType},
+    },
     SQLPool,
 };
 
-use num_integer::Integer;
 use ring::hmac;
-use std::convert::{TryFrom, TryInto};
-use std::env;
 
-fn longhand_displacement(seconds: u64) -> String {
-    let (days, seconds) = seconds.div_rem(&DAY);
-    let (hours, seconds) = seconds.div_rem(&HOUR);
-    let (minutes, seconds) = seconds.div_rem(&MINUTE);
+use sqlx::MySqlPool;
+use std::{
+    convert::{TryFrom, TryInto},
+    env,
+};
 
-    let mut sections = vec![];
+#[derive(Clone, Copy)]
+pub enum ReminderAction {
+    Delete,
+}
 
-    for (var, name) in [days, hours, minutes, seconds]
-        .iter()
-        .zip(["days", "hours", "minutes", "seconds"].iter())
-    {
-        if *var > 0 {
-            sections.push(format!("{} {}", var, name));
+impl ToString for ReminderAction {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Delete => String::from("del"),
         }
     }
+}
 
-    sections.join(", ")
+impl TryFrom<&str> for ReminderAction {
+    type Error = ();
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "del" => Ok(Self::Delete),
+
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -49,9 +68,7 @@ pub struct Reminder {
 }
 
 impl Reminder {
-    pub async fn from_uid(ctx: &Context, uid: String) -> Option<Self> {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
+    pub async fn from_uid(pool: &MySqlPool, uid: String) -> Option<Self> {
         sqlx::query_as_unchecked!(
             Self,
             "
@@ -81,7 +98,7 @@ WHERE
             ",
             uid
         )
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .ok()
     }
@@ -178,7 +195,7 @@ LIMIT
         let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
         if let Some(guild_id) = guild_id {
-            let guild_opt = guild_id.to_guild_cached(&ctx).await;
+            let guild_opt = guild_id.to_guild_cached(&ctx);
 
             if let Some(guild) = guild_opt {
                 let channels = guild
@@ -333,7 +350,7 @@ WHERE
         member_id: U,
         payload: String,
     ) -> Result<(Self, ReminderAction), InteractionError> {
-        let sections = payload.split(".").collect::<Vec<&str>>();
+        let sections = payload.split('.').collect::<Vec<&str>>();
 
         if sections.len() != 3 {
             Err(InteractionError::InvalidFormat)
@@ -395,113 +412,5 @@ DELETE FROM reminders WHERE id = ?
         .execute(&pool)
         .await
         .unwrap();
-    }
-}
-
-#[derive(Debug)]
-pub enum InteractionError {
-    InvalidFormat,
-    InvalidBase64,
-    InvalidSize,
-    NoReminder,
-    SignatureMismatch,
-    InvalidAction,
-}
-
-impl ToString for InteractionError {
-    fn to_string(&self) -> String {
-        match self {
-            InteractionError::InvalidFormat => {
-                String::from("The interaction data was improperly formatted")
-            }
-            InteractionError::InvalidBase64 => String::from("The interaction data was invalid"),
-            InteractionError::InvalidSize => String::from("The interaction data was invalid"),
-            InteractionError::NoReminder => String::from("Reminder could not be found"),
-            InteractionError::SignatureMismatch => {
-                String::from("Only the user who did the command can use interactions")
-            }
-            InteractionError::InvalidAction => String::from("The action was invalid"),
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum ReminderAction {
-    Delete,
-}
-
-impl ToString for ReminderAction {
-    fn to_string(&self) -> String {
-        match self {
-            Self::Delete => String::from("del"),
-        }
-    }
-}
-
-impl TryFrom<&str> for ReminderAction {
-    type Error = ();
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "del" => Ok(Self::Delete),
-
-            _ => Err(()),
-        }
-    }
-}
-
-enum TimeDisplayType {
-    Absolute,
-    Relative,
-}
-
-pub struct LookFlags {
-    pub limit: u16,
-    pub show_disabled: bool,
-    pub channel_id: Option<ChannelId>,
-    time_display: TimeDisplayType,
-}
-
-impl Default for LookFlags {
-    fn default() -> Self {
-        Self {
-            limit: u16::MAX,
-            show_disabled: true,
-            channel_id: None,
-            time_display: TimeDisplayType::Relative,
-        }
-    }
-}
-
-impl LookFlags {
-    pub fn from_string(args: &str) -> Self {
-        let mut new_flags: Self = Default::default();
-
-        for arg in args.split(' ') {
-            match arg {
-                "enabled" => {
-                    new_flags.show_disabled = false;
-                }
-
-                "time" => {
-                    new_flags.time_display = TimeDisplayType::Absolute;
-                }
-
-                param => {
-                    if let Ok(val) = param.parse::<u16>() {
-                        new_flags.limit = val;
-                    } else if let Some(channel) = REGEX_CHANNEL
-                        .captures(&arg)
-                        .map(|cap| cap.get(1))
-                        .flatten()
-                        .map(|c| c.as_str().parse::<u64>().unwrap())
-                    {
-                        new_flags.channel_id = Some(ChannelId(channel));
-                    }
-                }
-            }
-        }
-
-        new_flags
     }
 }

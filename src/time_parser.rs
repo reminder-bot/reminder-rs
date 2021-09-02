@@ -26,11 +26,13 @@ impl Display for InvalidTime {
 
 impl std::error::Error for InvalidTime {}
 
+#[derive(Copy, Clone)]
 enum ParseType {
     Explicit,
     Displacement,
 }
 
+#[derive(Clone)]
 pub struct TimeParser {
     timezone: Tz,
     inverted: bool,

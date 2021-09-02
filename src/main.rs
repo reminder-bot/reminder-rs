@@ -19,7 +19,9 @@ use serenity::{
         channel::Message,
         guild::{Guild, GuildUnavailable},
         id::{GuildId, UserId},
-        interactions::{Interaction, InteractionData, InteractionType},
+        interactions::{
+            Interaction, InteractionApplicationCommandCallbackDataFlags, InteractionResponseType,
+        },
     },
     prelude::{Context, EventHandler, TypeMapKey},
     utils::shard_id,
@@ -36,7 +38,11 @@ use crate::{
     consts::{CNC_GUILD, DEFAULT_PREFIX, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
     language_manager::LanguageManager,
-    models::{guild_data::GuildData, user_data::UserData},
+    models::{
+        guild_data::GuildData,
+        reminder::{Reminder, ReminderAction},
+        user_data::UserData,
+    },
 };
 
 use inflector::Inflector;
@@ -46,12 +52,9 @@ use dashmap::DashMap;
 
 use tokio::sync::RwLock;
 
-use crate::models::reminder::{Reminder, ReminderAction};
 use chrono::Utc;
+
 use chrono_tz::Tz;
-use serenity::model::prelude::{
-    InteractionApplicationCommandCallbackDataFlags, InteractionResponseType,
-};
 
 struct GuildDataCache;
 
@@ -187,13 +190,12 @@ DELETE FROM channels WHERE channel = ?
             }
 
             if let Ok(token) = env::var("DISCORDBOTS_TOKEN") {
-                let shard_count = ctx.cache.shard_count().await;
+                let shard_count = ctx.cache.shard_count();
                 let current_shard_id = shard_id(guild_id, shard_count);
 
                 let guild_count = ctx
                     .cache
                     .guilds()
-                    .await
                     .iter()
                     .filter(|g| shard_id(g.as_u64().to_owned(), shard_count) == current_shard_id)
                     .count() as u64;
@@ -215,7 +217,7 @@ DELETE FROM channels WHERE channel = ?
                     .post(
                         format!(
                             "https://top.gg/api/bots/{}/stats",
-                            ctx.cache.current_user_id().await.as_u64()
+                            ctx.cache.current_user_id().as_u64()
                         )
                         .as_str(),
                     )
@@ -268,113 +270,117 @@ DELETE FROM guilds WHERE guild = ?
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         let (pool, lm) = get_ctx_data(&&ctx).await;
 
-        match interaction.kind {
-            InteractionType::ApplicationCommand => {}
-            InteractionType::MessageComponent => {
-                if let (Some(InteractionData::MessageComponent(data)), Some(member)) =
-                    (interaction.clone().data, interaction.clone().member)
-                {
-                    if data.custom_id.starts_with("timezone:") {
-                        let mut user_data = UserData::from_user(&member.user, &ctx, &pool)
-                            .await
-                            .unwrap();
-                        let new_timezone = data.custom_id.replace("timezone:", "").parse::<Tz>();
+        match interaction {
+            Interaction::MessageComponent(component) => {
+                if component.data.custom_id.starts_with("timezone:") {
+                    let mut user_data = UserData::from_user(&component.user, &ctx, &pool)
+                        .await
+                        .unwrap();
+                    let new_timezone = component
+                        .data
+                        .custom_id
+                        .replace("timezone:", "")
+                        .parse::<Tz>();
 
-                        if let Ok(timezone) = new_timezone {
-                            user_data.timezone = timezone.to_string();
-                            user_data.commit_changes(&pool).await;
+                    if let Ok(timezone) = new_timezone {
+                        user_data.timezone = timezone.to_string();
+                        user_data.commit_changes(&pool).await;
 
-                            let _ = interaction.create_interaction_response(&ctx, |r| {
-                                r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                    .interaction_response_data(|d| {
-                                        let footer_text = lm.get(&user_data.language, "timezone/footer").replacen(
-                                            "{timezone}",
-                                            &user_data.timezone,
+                        let _ = component.create_interaction_response(&ctx, |r| {
+                            r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                .interaction_response_data(|d| {
+                                    let footer_text = lm.get(&user_data.language, "timezone/footer").replacen(
+                                        "{timezone}",
+                                        &user_data.timezone,
+                                        1,
+                                    );
+
+                                    let now = Utc::now().with_timezone(&user_data.timezone());
+
+                                    let content = lm
+                                        .get(&user_data.language, "timezone/set_p")
+                                        .replacen("{timezone}", &user_data.timezone, 1)
+                                        .replacen(
+                                            "{time}",
+                                            &now.format("%H:%M").to_string(),
                                             1,
                                         );
 
-                                        let now = Utc::now().with_timezone(&user_data.timezone());
+                                    d.create_embed(|e| e.title(lm.get(&user_data.language, "timezone/set_p_title"))
+                                        .color(*THEME_COLOR)
+                                        .description(content)
+                                        .footer(|f| f.text(footer_text)))
+                                        .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL);
 
-                                        let content = lm
-                                            .get(&user_data.language, "timezone/set_p")
-                                            .replacen("{timezone}", &user_data.timezone, 1)
-                                            .replacen(
-                                                "{time}",
-                                                &now.format("%H:%M").to_string(),
-                                                1,
-                                            );
+                                    d
+                                })
+                        }).await;
+                    }
+                } else if component.data.custom_id.starts_with("lang:") {
+                    let mut user_data = UserData::from_user(&component.user, &ctx, &pool)
+                        .await
+                        .unwrap();
+                    let lang_code = component.data.custom_id.replace("lang:", "");
 
-                                        d.create_embed(|e| e.title(lm.get(&user_data.language, "timezone/set_p_title"))
+                    if let Some(lang) = lm.get_language(&lang_code) {
+                        user_data.language = lang.to_string();
+                        user_data.commit_changes(&pool).await;
+
+                        let _ = component
+                            .create_interaction_response(&ctx, |r| {
+                                r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                    .interaction_response_data(|d| {
+                                        d.create_embed(|e| {
+                                            e.title(
+                                                lm.get(&user_data.language, "lang/set_p_title"),
+                                            )
                                             .color(*THEME_COLOR)
-                                            .description(content)
-                                            .footer(|f| f.text(footer_text)))
-                                            .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL);
-
-                                        d
+                                            .description(
+                                                lm.get(&user_data.language, "lang/set_p"),
+                                            )
+                                        })
+                                        .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
                                     })
-                            }).await;
-                        }
-                    } else if data.custom_id.starts_with("lang:") {
-                        let mut user_data = UserData::from_user(&member.user, &ctx, &pool)
-                            .await
-                            .unwrap();
-                        let lang_code = data.custom_id.replace("lang:", "");
+                            })
+                            .await;
+                    }
+                } else {
+                    match Reminder::from_interaction(
+                        &ctx,
+                        component.user.id,
+                        component.data.custom_id.clone(),
+                    )
+                    .await
+                    {
+                        Ok((reminder, action)) => {
+                            let response = match action {
+                                ReminderAction::Delete => {
+                                    reminder.delete(&ctx).await;
+                                    "Reminder has been deleted"
+                                }
+                            };
 
-                        if let Some(lang) = lm.get_language(&lang_code) {
-                            user_data.language = lang.to_string();
-                            user_data.commit_changes(&pool).await;
-
-                            let _ = interaction
+                            let _ = component
                                 .create_interaction_response(&ctx, |r| {
                                     r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                        .interaction_response_data(|d| {
-                                            d.create_embed(|e| {
-                                                e.title(
-                                                    lm.get(&user_data.language, "lang/set_p_title"),
-                                                )
-                                                .color(*THEME_COLOR)
-                                                .description(
-                                                    lm.get(&user_data.language, "lang/set_p"),
-                                                )
-                                            })
+                                        .interaction_response_data(|d| d
+                                            .content(response)
                                             .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
-                                        })
+                                        )
                                 })
                                 .await;
                         }
-                    } else {
-                        match Reminder::from_interaction(&ctx, member.user.id, data.custom_id).await
-                        {
-                            Ok((reminder, action)) => {
-                                let response = match action {
-                                    ReminderAction::Delete => {
-                                        reminder.delete(&ctx).await;
-                                        "Reminder has been deleted"
-                                    }
-                                };
 
-                                let _ = interaction
-                                    .create_interaction_response(&ctx, |r| {
-                                        r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                            .interaction_response_data(|d| d
-                                                .content(response)
-                                                .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
-                                            )
-                                    })
-                                    .await;
-                            }
-
-                            Err(ie) => {
-                                let _ = interaction
-                                    .create_interaction_response(&ctx, |r| {
-                                        r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                            .interaction_response_data(|d| d
-                                                .content(ie.to_string())
-                                                .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
-                                            )
-                                    })
-                                    .await;
-                            }
+                        Err(ie) => {
+                            let _ = component
+                                .create_interaction_response(&ctx, |r| {
+                                    r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                        .interaction_response_data(|d| d
+                                            .content(ie.to_string())
+                                            .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
+                                        )
+                                })
+                                .await;
                         }
                     }
                 }
@@ -424,7 +430,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("natural", &reminder_cmds::NATURAL_COMMAND)
         .add_command("n", &reminder_cmds::NATURAL_COMMAND)
         .add_command("", &reminder_cmds::NATURAL_COMMAND)
-        .add_command("countdown", &reminder_cmds::COUNTDOWN_COMMAND)
         // management commands
         .add_command("look", &reminder_cmds::LOOK_COMMAND)
         .add_command("del", &reminder_cmds::DELETE_COMMAND)
@@ -574,7 +579,7 @@ pub async fn check_subscription_on_message(
     msg: &Message,
 ) -> bool {
     check_subscription(&cache_http, &msg.author).await
-        || if let Some(guild) = msg.guild(&cache_http).await {
+        || if let Some(guild) = msg.guild(&cache_http) {
             check_subscription(&cache_http, guild.owner_id).await
         } else {
             false
@@ -616,8 +621,8 @@ async fn command_help(
             m.embed(move |e| {
                 e.title(format!("{} Help", command_name.to_title_case()))
                     .description(
-                        lm.get(&language, &format!("help/{}", command_name))
-                            .replace("{prefix}", &prefix),
+                        lm.get(language, &format!("help/{}", command_name))
+                            .replace("{prefix}", prefix),
                     )
                     .footer(|f| {
                         f.text(concat!(
