@@ -1,5 +1,10 @@
-use regex_command_attr::command;
+use std::{collections::HashMap, iter};
 
+use chrono::offset::Utc;
+use chrono_tz::{Tz, TZ_VARIANTS};
+use inflector::Inflector;
+use levenshtein::levenshtein;
+use regex_command_attr::command;
 use serenity::{
     builder::CreateActionRow,
     client::Context,
@@ -11,14 +16,6 @@ use serenity::{
     },
 };
 
-use chrono_tz::{Tz, TZ_VARIANTS};
-
-use chrono::offset::Utc;
-
-use inflector::Inflector;
-
-use levenshtein::levenshtein;
-
 use crate::{
     command_help,
     consts::{REGEX_ALIAS, REGEX_CHANNEL, REGEX_COMMANDS, REGEX_ROLE, THEME_COLOR},
@@ -27,8 +24,6 @@ use crate::{
     models::{channel_data::ChannelData, guild_data::GuildData, user_data::UserData, CtxData},
     FrameworkCtx, PopularTimezones,
 };
-
-use std::{collections::HashMap, iter};
 
 #[command]
 #[supports_dm(false)]

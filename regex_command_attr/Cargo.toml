@@ -1,9 +1,10 @@
 [package]
 name = "regex_command_attr"
-version = "0.2.0"
+version = "0.3.6"
 authors = ["acdenisSK <acdenissk69@gmail.com>", "jellywx <judesouthworth@pm.me>"]
 edition = "2018"
-description = "Procedural macros for command creation for the RegexFramework for serenity."
+description = "Procedural macros for command creation for the Serenity library."
+license = "ISC"
 
 [lib]
 proc-macro = true

@@ -4,13 +4,19 @@ pub mod errors;
 mod helper;
 pub mod look_flags;
 
-use serenity::{
-    client::Context,
-    model::id::{ChannelId, GuildId, UserId},
+use std::{
+    convert::{TryFrom, TryInto},
+    env,
 };
 
 use chrono::{NaiveDateTime, TimeZone};
 use chrono_tz::Tz;
+use ring::hmac;
+use serenity::{
+    client::Context,
+    model::id::{ChannelId, GuildId, UserId},
+};
+use sqlx::MySqlPool;
 
 use crate::{
     models::reminder::{
@@ -19,14 +25,6 @@ use crate::{
         look_flags::{LookFlags, TimeDisplayType},
     },
     SQLPool,
-};
-
-use ring::hmac;
-
-use sqlx::MySqlPool;
-use std::{
-    convert::{TryFrom, TryInto},
-    env,
 };
 
 #[derive(Clone, Copy)]

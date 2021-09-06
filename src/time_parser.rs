@@ -1,14 +1,15 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use std::fmt::{Display, Formatter, Result as FmtResult};
-
-use crate::consts::{LOCAL_TIMEZONE, PYTHON_LOCATION};
+use std::{
+    convert::TryFrom,
+    fmt::{Display, Formatter, Result as FmtResult},
+    str::from_utf8,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use chrono_tz::Tz;
-use std::convert::TryFrom;
-use std::str::from_utf8;
 use tokio::process::Command;
+
+use crate::consts::{LOCAL_TIMEZONE, PYTHON_LOCATION};
 
 #[derive(Debug)]
 pub enum InvalidTime {

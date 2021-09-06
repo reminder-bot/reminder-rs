@@ -1,8 +1,15 @@
-use regex_command_attr::command;
+use std::{
+    default::Default,
+    string::ToString,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
+use chrono::NaiveDateTime;
+use num_integer::Integer;
+use regex_command_attr::command;
 use serenity::{
     client::Context,
-    model::{channel::Channel, channel::Message},
+    model::channel::{Channel, Message},
 };
 
 use crate::{
@@ -16,23 +23,17 @@ use crate::{
     models::{
         channel_data::ChannelData,
         guild_data::GuildData,
-        reminder::{builder::ReminderScope, content::Content, look_flags::LookFlags, Reminder},
+        reminder::{
+            builder::{MultiReminderBuilder, ReminderScope},
+            content::Content,
+            look_flags::LookFlags,
+            Reminder,
+        },
         timer::Timer,
         user_data::UserData,
         CtxData,
     },
     time_parser::{natural_parser, TimeParser},
-};
-
-use chrono::NaiveDateTime;
-
-use num_integer::Integer;
-
-use crate::models::reminder::builder::MultiReminderBuilder;
-use std::{
-    default::Default,
-    string::ToString,
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 #[command]

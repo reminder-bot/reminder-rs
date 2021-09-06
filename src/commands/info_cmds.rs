@@ -1,40 +1,20 @@
-use regex_command_attr::command;
-
-use serenity::{builder::CreateEmbedFooter, client::Context, model::channel::Message};
-
-use chrono::offset::Utc;
-
-use crate::{
-    command_help,
-    consts::DEFAULT_PREFIX,
-    get_ctx_data,
-    language_manager::LanguageManager,
-    models::{user_data::UserData, CtxData},
-    FrameworkCtx, THEME_COLOR,
-};
-
 use std::{
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-#[command]
-#[can_blacklist(false)]
-async fn ping(ctx: &Context, msg: &Message, _args: String) {
-    let now = SystemTime::now();
-    let since_epoch = now
-        .duration_since(UNIX_EPOCH)
-        .expect("Time calculated as going backwards. Very bad");
+use chrono::offset::Utc;
+use regex_command_attr::command;
+use serenity::{builder::CreateEmbedFooter, client::Context, model::channel::Message};
 
-    let delta = since_epoch.as_millis() as i64 - msg.timestamp.timestamp_millis();
+use crate::{
+    consts::DEFAULT_PREFIX,
+    framework::{CommandInvoke, CreateGenericResponse},
+    models::{user_data::UserData, CtxData},
+    FrameworkCtx, THEME_COLOR,
+};
 
-    let _ = msg
-        .channel_id
-        .say(&ctx, format!("Time taken to receive message: {}ms", delta))
-        .await;
-}
-
-async fn footer(ctx: &Context) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut CreateEmbedFooter {
+fn footer(ctx: &Context) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut CreateEmbedFooter {
     let shard_count = ctx.cache.shard_count();
     let shard = ctx.shard_id;
 
@@ -49,173 +29,105 @@ async fn footer(ctx: &Context) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut Cr
 }
 
 #[command]
-#[can_blacklist(false)]
-async fn help(ctx: &Context, msg: &Message, args: String) {
-    async fn default_help(
-        ctx: &Context,
-        msg: &Message,
-        lm: Arc<LanguageManager>,
-        prefix: &str,
-        language: &str,
-    ) {
-        let desc = lm.get(language, "help/desc").replace("{prefix}", prefix);
-        let footer = footer(ctx).await;
-
-        let _ = msg
-            .channel_id
-            .send_message(ctx, |m| {
-                m.embed(move |e| {
-                    e.title("Help Menu")
-                        .description(desc)
-                        .field(
-                            lm.get(language, "help/setup_title"),
-                            "`lang` `timezone` `meridian`",
-                            true,
-                        )
-                        .field(
-                            lm.get(language, "help/mod_title"),
-                            "`prefix` `blacklist` `restrict` `alias`",
-                            true,
-                        )
-                        .field(
-                            lm.get(language, "help/reminder_title"),
-                            "`remind` `interval` `natural` `look` `countdown`",
-                            true,
-                        )
-                        .field(
-                            lm.get(language, "help/reminder_mod_title"),
-                            "`del` `offset` `pause` `nudge`",
-                            true,
-                        )
-                        .field(
-                            lm.get(language, "help/info_title"),
-                            "`help` `info` `donate` `clock`",
-                            true,
-                        )
-                        .field(
-                            lm.get(language, "help/todo_title"),
-                            "`todo` `todos` `todoc`",
-                            true,
-                        )
-                        .field(lm.get(language, "help/other_title"), "`timer`", true)
-                        .footer(footer)
-                        .color(*THEME_COLOR)
-                })
-            })
-            .await;
-    }
-
-    let (pool, lm) = get_ctx_data(&ctx).await;
-
-    let language = UserData::language_of(&msg.author, &pool);
-    let prefix = ctx.prefix(msg.guild_id);
-
-    if !args.is_empty() {
-        let framework = ctx
-            .data
-            .read()
-            .await
-            .get::<FrameworkCtx>()
-            .cloned()
-            .expect("Could not get FrameworkCtx from data");
-
-        let matched = framework
-            .commands
-            .get(args.as_str())
-            .map(|inner| inner.name);
-
-        if let Some(command_name) = matched {
-            command_help(ctx, msg, lm, &prefix.await, &language.await, command_name).await
-        } else {
-            default_help(ctx, msg, lm, &prefix.await, &language.await).await;
-        }
-    } else {
-        default_help(ctx, msg, lm, &prefix.await, &language.await).await;
-    }
-}
-
-#[command]
-async fn info(ctx: &Context, msg: &Message, _args: String) {
-    let (pool, lm) = get_ctx_data(&ctx).await;
-
-    let language = UserData::language_of(&msg.author, &pool);
-    let prefix = ctx.prefix(msg.guild_id);
+#[aliases("invite")]
+#[description("Get information about the bot")]
+#[group("Info")]
+async fn info(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
+    let prefix = ctx.prefix(invoke.guild_id()).await;
     let current_user = ctx.cache.current_user();
-    let footer = footer(ctx).await;
+    let footer = footer(ctx);
 
-    let desc = lm
-        .get(&language.await, "info")
-        .replacen("{user}", &current_user.name, 1)
-        .replace("{default_prefix}", &*DEFAULT_PREFIX)
-        .replace("{prefix}", &prefix.await);
-
-    let _ = msg
-        .channel_id
-        .send_message(ctx, |m| {
-            m.embed(move |e| {
+    invoke
+        .respond(
+            ctx.http.clone(),
+            CreateGenericResponse::new().embed(|e| {
                 e.title("Info")
-                    .description(desc)
+                    .description(format!(
+                        "Default prefix: `{default_prefix}`
+Reset prefix: `@{user} prefix {default_prefix}`
+Help: `{prefix}help`
+
+**Welcome to Reminder Bot!**
+Developer: <@203532103185465344>
+Icon: <@253202252821430272>
+Find me on https://discord.jellywx.com and on https://github.com/JellyWX :)
+
+Invite the bot: https://invite.reminder-bot.com/
+Use our dashboard: https://reminder-bot.com/",
+                        default_prefix = *DEFAULT_PREFIX,
+                        user = current_user.name,
+                        prefix = prefix
+                    ))
                     .footer(footer)
                     .color(*THEME_COLOR)
-            })
-        })
+            }),
+        )
         .await;
 }
 
 #[command]
-async fn donate(ctx: &Context, msg: &Message, _args: String) {
-    let (pool, lm) = get_ctx_data(&ctx).await;
+#[description("Details on supporting the bot and Patreon benefits")]
+#[group("Info")]
+async fn donate(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
+    let footer = footer(ctx);
 
-    let language = UserData::language_of(&msg.author, &pool).await;
-    let desc = lm.get(&language, "donate");
-    let footer = footer(ctx).await;
-
-    let _ = msg
-        .channel_id
-        .send_message(ctx, |m| {
-            m.embed(move |e| {
+    invoke
+        .respond(
+            ctx.http.clone(),
+            CreateGenericResponse::new().embed(|e| {
                 e.title("Donate")
-                    .description(desc)
+                    .description("Thinking of adding a monthly contribution? Click below for my Patreon and official bot server :)
+
+**https://www.patreon.com/jellywx/**
+**https://discord.jellywx.com/**
+
+When you subscribe, Patreon will automatically rank you up on our Discord server (make sure you link your Patreon and Discord accounts!)
+With your new rank, you'll be able to:
+• Set repeating reminders with `interval`, `natural` or the dashboard
+• Use unlimited uploads on SoundFX
+
+(Also, members of servers you __own__ will be able to set repeating reminders via commands)
+
+Just $2 USD/month!
+
+*Please note, you must be in the JellyWX Discord server to receive Patreon features*")
                     .footer(footer)
                     .color(*THEME_COLOR)
-            })
-        })
+            }),
+        )
         .await;
 }
 
 #[command]
-async fn dashboard(ctx: &Context, msg: &Message, _args: String) {
-    let footer = footer(ctx).await;
+#[description("Get the link to the online dashboard")]
+#[group("Info")]
+async fn dashboard(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
+    let footer = footer(ctx);
 
-    let _ = msg
-        .channel_id
-        .send_message(ctx, |m| {
-            m.embed(move |e| {
+    invoke
+        .respond(
+            ctx.http.clone(),
+            CreateGenericResponse::new().embed(|e| {
                 e.title("Dashboard")
-                    .description("https://reminder-bot.com/dashboard")
+                    .description("**https://reminder-bot.com/dashboard**")
                     .footer(footer)
                     .color(*THEME_COLOR)
-            })
-        })
+            }),
+        )
         .await;
 }
 
 #[command]
-async fn clock(ctx: &Context, msg: &Message, _args: String) {
-    let (pool, lm) = get_ctx_data(&ctx).await;
+#[description("View the current time in your selected timezone")]
+#[group("Info")]
+async fn clock(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
+    let ud = ctx.user_data(&msg.author).await.unwrap();
+    let now = Utc::now().with_timezone(ud.timezone());
 
-    let language = UserData::language_of(&msg.author, &pool).await;
-    let timezone = UserData::timezone_of(&msg.author, &pool).await;
-
-    let now = Utc::now().with_timezone(&timezone);
-
-    let clock_display = lm.get(&language, "clock/time");
-
-    let _ = msg
-        .channel_id
-        .say(
-            &ctx,
-            clock_display.replacen("{}", &now.format("%H:%M").to_string(), 1),
+    invoke
+        .respond(
+            ctx.http.clone(),
+            CreateGenericResponse::new().content(format!("Current time: {}", now.format("%H:%M"))),
         )
         .await;
 }

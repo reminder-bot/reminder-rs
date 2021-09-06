@@ -1,5 +1,6 @@
-use regex_command_attr::command;
+use std::{convert::TryFrom, fmt};
 
+use regex_command_attr::command;
 use serenity::{
     async_trait,
     client::Context,
@@ -9,15 +10,12 @@ use serenity::{
         id::{ChannelId, GuildId, UserId},
     },
 };
-
-use std::fmt;
+use sqlx::MySqlPool;
 
 use crate::{
     command_help, get_ctx_data,
     models::{user_data::UserData, CtxData},
 };
-use sqlx::MySqlPool;
-use std::convert::TryFrom;
 
 #[derive(Debug)]
 struct TodoNotFound;

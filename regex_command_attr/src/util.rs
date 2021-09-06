@@ -1,6 +1,5 @@
 use proc_macro::TokenStream;
-use proc_macro2::Span;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
     braced, bracketed, parenthesized,
@@ -155,6 +154,23 @@ pub fn populate_fut_lifetimes_on_refs(args: &mut Vec<Argument>) {
     for arg in args {
         if let Type::Reference(reference) = &mut arg.kind {
             reference.lifetime = Some(Lifetime::new("'fut", Span::call_site()));
+        }
+    }
+}
+
+pub fn append_line(desc: &mut String, mut line: String) {
+    if line.starts_with(' ') {
+        line.remove(0);
+    }
+
+    match line.rfind("\\$") {
+        Some(i) => {
+            desc.push_str(line[..i].trim_end());
+            desc.push(' ');
+        }
+        None => {
+            desc.push_str(&line);
+            desc.push('\n');
         }
     }
 }

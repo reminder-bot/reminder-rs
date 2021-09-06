@@ -4,10 +4,17 @@ extern crate lazy_static;
 mod commands;
 mod consts;
 mod framework;
-mod language_manager;
 mod models;
 mod time_parser;
 
+use std::{collections::HashMap, env, sync::Arc, time::Instant};
+
+use chrono::Utc;
+use chrono_tz::Tz;
+use dashmap::DashMap;
+use dotenv::dotenv;
+use inflector::Inflector;
+use log::info;
 use serenity::{
     async_trait,
     cache::Cache,
@@ -15,8 +22,7 @@ use serenity::{
     futures::TryFutureExt,
     http::{client::Http, CacheHttp},
     model::{
-        channel::GuildChannel,
-        channel::Message,
+        channel::{GuildChannel, Message},
         guild::{Guild, GuildUnavailable},
         id::{GuildId, UserId},
         interactions::{
@@ -26,35 +32,19 @@ use serenity::{
     prelude::{Context, EventHandler, TypeMapKey},
     utils::shard_id,
 };
-
 use sqlx::mysql::MySqlPool;
-
-use dotenv::dotenv;
-
-use std::{collections::HashMap, env, sync::Arc, time::Instant};
+use tokio::sync::RwLock;
 
 use crate::{
-    commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
+    commands::info_cmds,
     consts::{CNC_GUILD, DEFAULT_PREFIX, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
-    language_manager::LanguageManager,
     models::{
         guild_data::GuildData,
         reminder::{Reminder, ReminderAction},
         user_data::UserData,
     },
 };
-
-use inflector::Inflector;
-use log::info;
-
-use dashmap::DashMap;
-
-use tokio::sync::RwLock;
-
-use chrono::Utc;
-
-use chrono_tz::Tz;
 
 struct GuildDataCache;
 
@@ -266,128 +256,6 @@ DELETE FROM guilds WHERE guild = ?
         .await
         .unwrap();
     }
-
-    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        let (pool, lm) = get_ctx_data(&&ctx).await;
-
-        match interaction {
-            Interaction::MessageComponent(component) => {
-                if component.data.custom_id.starts_with("timezone:") {
-                    let mut user_data = UserData::from_user(&component.user, &ctx, &pool)
-                        .await
-                        .unwrap();
-                    let new_timezone = component
-                        .data
-                        .custom_id
-                        .replace("timezone:", "")
-                        .parse::<Tz>();
-
-                    if let Ok(timezone) = new_timezone {
-                        user_data.timezone = timezone.to_string();
-                        user_data.commit_changes(&pool).await;
-
-                        let _ = component.create_interaction_response(&ctx, |r| {
-                            r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                .interaction_response_data(|d| {
-                                    let footer_text = lm.get(&user_data.language, "timezone/footer").replacen(
-                                        "{timezone}",
-                                        &user_data.timezone,
-                                        1,
-                                    );
-
-                                    let now = Utc::now().with_timezone(&user_data.timezone());
-
-                                    let content = lm
-                                        .get(&user_data.language, "timezone/set_p")
-                                        .replacen("{timezone}", &user_data.timezone, 1)
-                                        .replacen(
-                                            "{time}",
-                                            &now.format("%H:%M").to_string(),
-                                            1,
-                                        );
-
-                                    d.create_embed(|e| e.title(lm.get(&user_data.language, "timezone/set_p_title"))
-                                        .color(*THEME_COLOR)
-                                        .description(content)
-                                        .footer(|f| f.text(footer_text)))
-                                        .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL);
-
-                                    d
-                                })
-                        }).await;
-                    }
-                } else if component.data.custom_id.starts_with("lang:") {
-                    let mut user_data = UserData::from_user(&component.user, &ctx, &pool)
-                        .await
-                        .unwrap();
-                    let lang_code = component.data.custom_id.replace("lang:", "");
-
-                    if let Some(lang) = lm.get_language(&lang_code) {
-                        user_data.language = lang.to_string();
-                        user_data.commit_changes(&pool).await;
-
-                        let _ = component
-                            .create_interaction_response(&ctx, |r| {
-                                r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                    .interaction_response_data(|d| {
-                                        d.create_embed(|e| {
-                                            e.title(
-                                                lm.get(&user_data.language, "lang/set_p_title"),
-                                            )
-                                            .color(*THEME_COLOR)
-                                            .description(
-                                                lm.get(&user_data.language, "lang/set_p"),
-                                            )
-                                        })
-                                        .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
-                                    })
-                            })
-                            .await;
-                    }
-                } else {
-                    match Reminder::from_interaction(
-                        &ctx,
-                        component.user.id,
-                        component.data.custom_id.clone(),
-                    )
-                    .await
-                    {
-                        Ok((reminder, action)) => {
-                            let response = match action {
-                                ReminderAction::Delete => {
-                                    reminder.delete(&ctx).await;
-                                    "Reminder has been deleted"
-                                }
-                            };
-
-                            let _ = component
-                                .create_interaction_response(&ctx, |r| {
-                                    r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                        .interaction_response_data(|d| d
-                                            .content(response)
-                                            .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
-                                        )
-                                })
-                                .await;
-                        }
-
-                        Err(ie) => {
-                            let _ = component
-                                .create_interaction_response(&ctx, |r| {
-                                    r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                        .interaction_response_data(|d| d
-                                            .content(ie.to_string())
-                                            .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
-                                        )
-                                })
-                                .await;
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
 }
 
 #[tokio::main]
@@ -414,14 +282,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .ignore_bots(env::var("IGNORE_BOTS").map_or(true, |var| var == "1"))
         .dm_enabled(dm_enabled)
         // info commands
-        .add_command("ping", &info_cmds::PING_COMMAND)
-        .add_command("help", &info_cmds::HELP_COMMAND)
-        .add_command("info", &info_cmds::INFO_COMMAND)
-        .add_command("invite", &info_cmds::INFO_COMMAND)
-        .add_command("donate", &info_cmds::DONATE_COMMAND)
-        .add_command("dashboard", &info_cmds::DASHBOARD_COMMAND)
-        .add_command("clock", &info_cmds::CLOCK_COMMAND)
+        //.add_command("help", &info_cmds::HELP_COMMAND)
+        .add_command(&info_cmds::INFO_COMMAND)
+        .add_command(&info_cmds::DONATE_COMMAND)
+        //.add_command("dashboard", &info_cmds::DASHBOARD_COMMAND)
+        //.add_command("clock", &info_cmds::CLOCK_COMMAND)
         // reminder commands
+        /*
         .add_command("timer", &reminder_cmds::TIMER_COMMAND)
         .add_command("remind", &reminder_cmds::REMIND_COMMAND)
         .add_command("r", &reminder_cmds::REMIND_COMMAND)
@@ -452,6 +319,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("nudge", &reminder_cmds::NUDGE_COMMAND)
         .add_command("alias", &moderation_cmds::ALIAS_COMMAND)
         .add_command("a", &moderation_cmds::ALIAS_COMMAND)
+        */
         .build();
 
     let framework_arc = Arc::new(framework);
@@ -460,13 +328,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .intents(if dm_enabled {
             GatewayIntents::GUILD_MESSAGES
                 | GatewayIntents::GUILDS
-                | GatewayIntents::GUILD_MESSAGE_REACTIONS
                 | GatewayIntents::DIRECT_MESSAGES
-                | GatewayIntents::DIRECT_MESSAGE_REACTIONS
         } else {
-            GatewayIntents::GUILD_MESSAGES
-                | GatewayIntents::GUILDS
-                | GatewayIntents::GUILD_MESSAGE_REACTIONS
+            GatewayIntents::GUILD_MESSAGES | GatewayIntents::GUILDS
         })
         .application_id(application_id.0)
         .event_handler(Handler)
@@ -481,13 +345,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             &env::var("DATABASE_URL").expect("Missing DATABASE_URL from environment"),
         )
         .await
-        .unwrap();
-
-        let language_manager = LanguageManager::from_compiled(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/assets/",
-            env!("STRINGS_FILE")
-        )))
         .unwrap();
 
         let popular_timezones = sqlx::query!(
@@ -508,7 +365,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         data.insert::<PopularTimezones>(Arc::new(popular_timezones));
         data.insert::<ReqwestClient>(Arc::new(reqwest::Client::new()));
         data.insert::<FrameworkCtx>(framework_arc.clone());
-        data.insert::<LanguageManager>(Arc::new(language_manager))
     }
 
     if let Ok((Some(lower), Some(upper))) = env::var("SHARD_RANGE").map(|sr| {
@@ -584,55 +440,4 @@ pub async fn check_subscription_on_message(
         } else {
             false
         }
-}
-
-pub async fn get_ctx_data(ctx: &&Context) -> (MySqlPool, Arc<LanguageManager>) {
-    let pool;
-    let lm;
-
-    {
-        let data = ctx.data.read().await;
-
-        pool = data
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool");
-
-        lm = data
-            .get::<LanguageManager>()
-            .cloned()
-            .expect("Could not get LanguageManager");
-    }
-
-    (pool, lm)
-}
-
-async fn command_help(
-    ctx: &Context,
-    msg: &Message,
-    lm: Arc<LanguageManager>,
-    prefix: &str,
-    language: &str,
-    command_name: &str,
-) {
-    let _ = msg
-        .channel_id
-        .send_message(ctx, |m| {
-            m.embed(move |e| {
-                e.title(format!("{} Help", command_name.to_title_case()))
-                    .description(
-                        lm.get(language, &format!("help/{}", command_name))
-                            .replace("{prefix}", prefix),
-                    )
-                    .footer(|f| {
-                        f.text(concat!(
-                            env!("CARGO_PKG_NAME"),
-                            " ver ",
-                            env!("CARGO_PKG_VERSION")
-                        ))
-                    })
-                    .color(*THEME_COLOR)
-            })
-        })
-        .await;
 }

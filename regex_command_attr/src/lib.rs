@@ -1,14 +1,10 @@
 #![deny(rust_2018_idioms)]
-// FIXME: Remove this in a foreseeable future.
-// Currently exists for backwards compatibility to previous Rust versions.
-#![recursion_limit = "128"]
-
-#[allow(unused_extern_crates)]
-extern crate proc_macro;
+#![deny(broken_intra_doc_links)]
 
 use proc_macro::TokenStream;
+use proc_macro2::Ident;
 use quote::quote;
-use syn::{parse::Error, parse_macro_input, spanned::Spanned, Lit};
+use syn::{parse::Error, parse_macro_input, parse_quote, spanned::Spanned, Lit, Type};
 
 pub(crate) mod attributes;
 pub(crate) mod consts;
@@ -41,7 +37,7 @@ macro_rules! match_options {
 pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
     let mut fun = parse_macro_input!(input as CommandFun);
 
-    let lit_name = if !attr.is_empty() {
+    let _name = if !attr.is_empty() {
         parse_macro_input!(attr as Lit).to_str()
     } else {
         fun.name.to_string()
@@ -56,17 +52,40 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         let name = values.name.to_string();
         let name = &name[..];
 
-        match_options!(name, values, options, span => [
-            permission_level;
-            supports_dm;
-            can_blacklist
-        ]);
+        match name {
+            "arg" => options
+                .cmd_args
+                .push(propagate_err!(attributes::parse(values))),
+            "example" => {
+                options
+                    .examples
+                    .push(propagate_err!(attributes::parse(values)));
+            }
+            "description" => {
+                let line: String = propagate_err!(attributes::parse(values));
+                util::append_line(&mut options.description, line);
+            }
+            _ => {
+                match_options!(name, values, options, span => [
+                    aliases;
+                    group;
+                    required_permissions;
+                    can_blacklist;
+                    supports_dm
+                ]);
+            }
+        }
     }
 
     let Options {
-        permission_level,
-        supports_dm,
+        aliases,
+        description,
+        group,
+        examples,
+        required_permissions,
         can_blacklist,
+        supports_dm,
+        mut cmd_args,
     } = options;
 
     let visibility = fun.visibility;
@@ -78,25 +97,88 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
     let cooked = fun.cooked.clone();
 
     let command_path = quote!(crate::framework::Command);
+    let arg_path = quote!(crate::framework::Arg);
 
     populate_fut_lifetimes_on_refs(&mut fun.args);
     let args = fun.args;
 
-    (quote! {
-        #(#cooked)*
-        pub static #n: #command_path = #command_path {
-            func: #name,
-            name: #lit_name,
-            required_perms: #permission_level,
-            supports_dm: #supports_dm,
-            can_blacklist: #can_blacklist,
-        };
+    let arg_idents = cmd_args
+        .iter()
+        .map(|arg| {
+            n.with_suffix(arg.name.replace(" ", "_").replace("-", "_").as_str())
+                .with_suffix(ARG)
+        })
+        .collect::<Vec<Ident>>();
 
+    let mut tokens = cmd_args
+        .iter_mut()
+        .map(|arg| {
+            let Arg {
+                name,
+                description,
+                kind,
+                required,
+            } = arg;
+
+            let an = n.with_suffix(name.as_str()).with_suffix(ARG);
+
+            quote! {
+                #(#cooked)*
+                #[allow(missing_docs)]
+                pub static #an: #arg_path = #arg_path {
+                    name: #name,
+                    description: #description,
+                    kind: #kind,
+                    required: #required,
+                };
+            }
+        })
+        .fold(quote! {}, |mut a, b| {
+            a.extend(b);
+            a
+        });
+
+    let variant = if args.len() == 2 {
+        quote!(crate::framework::CommandFnType::Multi)
+    } else {
+        let string: Type = parse_quote!(std::string::String);
+
+        let final_arg = args.get(2).unwrap();
+
+        if final_arg.kind == string {
+            quote!(crate::framework::CommandFnType::Text)
+        } else {
+            quote!(crate::framework::CommandFnType::Slash)
+        }
+    };
+
+    tokens.extend(quote! {
+        #(#cooked)*
+        #[allow(missing_docs)]
+        pub static #n: #command_path = #command_path {
+            fun: #variant(#name),
+            names: &[#_name, #(#aliases),*],
+            desc: #description,
+            group: #group,
+            examples: &[#(#examples),*],
+            required_permissions: #required_permissions,
+            can_blacklist: #can_blacklist,
+            supports_dm: #supports_dm,
+            args: &[#(&#arg_idents),*],
+        };
+    });
+
+    tokens.extend(quote! {
+        #(#cooked)*
+        #[allow(missing_docs)]
         #visibility fn #name<'fut> (#(#args),*) -> ::serenity::futures::future::BoxFuture<'fut, ()> {
             use ::serenity::futures::future::FutureExt;
 
-            async move { #(#body)* }.boxed()
+            async move {
+                #(#body)*;
+            }.boxed()
         }
-    })
-    .into()
+    });
+
+    tokens.into()
 }

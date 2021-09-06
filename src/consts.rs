@@ -74,9 +74,6 @@ lazy_static! {
     pub static ref LOCAL_TIMEZONE: String =
         env::var("LOCAL_TIMEZONE").unwrap_or_else(|_| "UTC".to_string());
 
-    pub static ref LOCAL_LANGUAGE: String =
-        env::var("LOCAL_LANGUAGE").unwrap_or_else(|_| "EN".to_string());
-
     pub static ref DEFAULT_PREFIX: String =
         env::var("DEFAULT_PREFIX").unwrap_or_else(|_| "$".to_string());
 

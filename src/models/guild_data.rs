@@ -1,8 +1,6 @@
-use serenity::model::guild::Guild;
-
-use sqlx::MySqlPool;
-
 use log::error;
+use serenity::model::guild::Guild;
+use sqlx::MySqlPool;
 
 use crate::consts::DEFAULT_PREFIX;
 

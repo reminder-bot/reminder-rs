@@ -1,6 +1,5 @@
-use serenity::model::{channel::Message, guild::Guild, misc::Mentionable};
-
 use regex::Captures;
+use serenity::model::{channel::Message, guild::Guild, misc::Mentionable};
 
 use crate::{consts::REGEX_CONTENT_SUBSTITUTION, models::reminder::errors::ContentError};
 

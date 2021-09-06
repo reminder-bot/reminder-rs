@@ -1,6 +1,5 @@
-use sqlx::MySqlPool;
-
 use chrono::NaiveDateTime;
+use sqlx::MySqlPool;
 
 pub struct Timer {
     pub name: String,

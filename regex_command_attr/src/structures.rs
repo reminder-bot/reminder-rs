@@ -1,13 +1,13 @@
-use crate::util::{Argument, Parenthesised};
-use proc_macro2::Span;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use syn::{
     braced,
     parse::{Error, Parse, ParseStream, Result},
     spanned::Spanned,
-    Attribute, Block, FnArg, Ident, Pat, Path, PathSegment, Stmt, Token, Visibility,
+    Attribute, Block, FnArg, Ident, Pat, Stmt, Token, Visibility,
 };
+
+use crate::util::{Argument, Parenthesised};
 
 fn parse_argument(arg: FnArg) -> Result<Argument> {
     match arg {
@@ -53,7 +53,7 @@ fn parse_argument(arg: FnArg) -> Result<Argument> {
 /// Test if the attribute is cooked.
 fn is_cooked(attr: &Attribute) -> bool {
     const COOKED_ATTRIBUTE_NAMES: &[&str] = &[
-        "cfg", "cfg_attr", "doc", "derive", "inline", "allow", "warn", "deny", "forbid",
+        "cfg", "cfg_attr", "derive", "inline", "allow", "warn", "deny", "forbid",
     ];
 
     COOKED_ATTRIBUTE_NAMES.iter().any(|n| attr.path.is_ident(n))
@@ -97,17 +97,6 @@ pub struct CommandFun {
 impl Parse for CommandFun {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let mut attributes = input.call(Attribute::parse_outer)?;
-
-        // `#[doc = "..."]` is a cooked attribute but it is special-cased for commands.
-        for attr in &mut attributes {
-            // Rename documentation comment attributes (`#[doc = "..."]`) to `#[description = "..."]`.
-            if attr.path.is_ident("doc") {
-                attr.path = Path::from(PathSegment::from(Ident::new(
-                    "description",
-                    Span::call_site(),
-                )));
-            }
-        }
 
         let cooked = remove_cooked(&mut attributes);
 
@@ -155,7 +144,7 @@ impl ToTokens for CommandFun {
 
         stream.extend(quote! {
             #(#cooked)*
-            #visibility async fn #name (#(#args),*) -> () {
+            #visibility async fn #name (#(#args),*) {
                 #(#body)*
             }
         });
@@ -211,21 +200,98 @@ impl ToTokens for PermissionLevel {
     }
 }
 
+#[derive(Debug)]
+pub(crate) enum ApplicationCommandOptionType {
+    SubCommand,
+    SubCommandGroup,
+    String,
+    Integer,
+    Boolean,
+    User,
+    Channel,
+    Role,
+    Mentionable,
+    Unknown,
+}
+
+impl ApplicationCommandOptionType {
+    pub fn from_str(s: String) -> Self {
+        match s.as_str() {
+            "SubCommand" => Self::SubCommand,
+            "SubCommandGroup" => Self::SubCommandGroup,
+            "String" => Self::String,
+            "Integer" => Self::Integer,
+            "Boolean" => Self::Boolean,
+            "User" => Self::User,
+            "Channel" => Self::Channel,
+            "Role" => Self::Role,
+            "Mentionable" => Self::Mentionable,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl ToTokens for ApplicationCommandOptionType {
+    fn to_tokens(&self, stream: &mut TokenStream2) {
+        let path = quote!(
+            serenity::model::interactions::application_command::ApplicationCommandOptionType
+        );
+        let variant = match self {
+            ApplicationCommandOptionType::SubCommand => quote!(SubCommand),
+            ApplicationCommandOptionType::SubCommandGroup => quote!(SubCommandGroup),
+            ApplicationCommandOptionType::String => quote!(String),
+            ApplicationCommandOptionType::Integer => quote!(Integer),
+            ApplicationCommandOptionType::Boolean => quote!(Boolean),
+            ApplicationCommandOptionType::User => quote!(User),
+            ApplicationCommandOptionType::Channel => quote!(Channel),
+            ApplicationCommandOptionType::Role => quote!(Role),
+            ApplicationCommandOptionType::Mentionable => quote!(Mentionable),
+            ApplicationCommandOptionType::Unknown => quote!(Unknown),
+        };
+
+        stream.extend(quote! {
+            #path::#variant
+        });
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct Arg {
+    pub name: String,
+    pub description: String,
+    pub kind: ApplicationCommandOptionType,
+    pub required: bool,
+}
+
+impl Default for Arg {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            description: String::new(),
+            kind: ApplicationCommandOptionType::String,
+            required: false,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
-pub struct Options {
-    pub permission_level: PermissionLevel,
-    pub supports_dm: bool,
+pub(crate) struct Options {
+    pub aliases: Vec<String>,
+    pub description: String,
+    pub group: String,
+    pub examples: Vec<String>,
+    pub required_permissions: PermissionLevel,
     pub can_blacklist: bool,
+    pub supports_dm: bool,
+    pub cmd_args: Vec<Arg>,
 }
 
 impl Options {
     #[inline]
     pub fn new() -> Self {
-        let mut options = Self::default();
-
-        options.can_blacklist = true;
-        options.supports_dm = true;
-
-        options
+        Self {
+            group: "Other".to_string(),
+            ..Default::default()
+        }
     }
 }

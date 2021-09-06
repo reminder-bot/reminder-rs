@@ -4,21 +4,17 @@ pub mod reminder;
 pub mod timer;
 pub mod user_data;
 
+use std::sync::Arc;
+
+use guild_data::GuildData;
 use serenity::{
     async_trait,
     model::id::{GuildId, UserId},
     prelude::Context,
 };
-
-use crate::{consts::DEFAULT_PREFIX, GuildDataCache, SQLPool};
-
-use guild_data::GuildData;
-
-use crate::models::user_data::UserData;
-
-use std::sync::Arc;
-
 use tokio::sync::RwLock;
+
+use crate::{consts::DEFAULT_PREFIX, models::user_data::UserData, GuildDataCache, SQLPool};
 
 #[async_trait]
 pub trait CtxData {

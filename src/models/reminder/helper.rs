@@ -1,8 +1,7 @@
-use crate::consts::{CHARACTERS, DAY, HOUR, MINUTE};
-
 use num_integer::Integer;
-
 use rand::{rngs::OsRng, seq::IteratorRandom};
+
+use crate::consts::{CHARACTERS, DAY, HOUR, MINUTE};
 
 pub fn longhand_displacement(seconds: u64) -> String {
     let (days, seconds) = seconds.div_rem(&DAY);

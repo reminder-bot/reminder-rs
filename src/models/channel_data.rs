@@ -1,8 +1,6 @@
-use serenity::model::channel::Channel;
-
-use sqlx::MySqlPool;
-
 use chrono::NaiveDateTime;
+use serenity::model::channel::Channel;
+use sqlx::MySqlPool;
 
 pub struct ChannelData {
     pub id: u32,

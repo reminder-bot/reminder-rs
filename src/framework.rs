@@ -1,31 +1,35 @@
+use std::{
+    collections::{HashMap, HashSet},
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
+
+use log::{error, info, warn};
+use regex::{Match, Regex, RegexBuilder};
 use serenity::{
     async_trait,
+    builder::{CreateComponents, CreateEmbed},
+    cache::Cache,
     client::Context,
-    constants::MESSAGE_CODE_LIMIT,
     framework::Framework,
     futures::prelude::future::BoxFuture,
     http::Http,
     model::{
         channel::{Channel, GuildChannel, Message},
         guild::{Guild, Member},
-        id::{ChannelId, MessageId},
+        id::{ChannelId, GuildId, MessageId, UserId},
+        interactions::{
+            application_command::{ApplicationCommandInteraction, ApplicationCommandOptionType},
+            InteractionResponseType,
+        },
     },
-    Result as SerenityResult,
+    FutureExt, Result as SerenityResult,
 };
-
-use log::{error, info, warn};
-
-use regex::{Match, Regex, RegexBuilder};
-
-use std::{collections::HashMap, fmt};
 
 use crate::{
-    language_manager::LanguageManager,
-    models::{channel_data::ChannelData, guild_data::GuildData, user_data::UserData, CtxData},
+    models::{channel_data::ChannelData, guild_data::GuildData, CtxData},
     LimitExecutors, SQLPool,
 };
-
-type CommandFn = for<'fut> fn(&'fut Context, &'fut Message, String) -> BoxFuture<'fut, ()>;
 
 #[derive(Debug, PartialEq)]
 pub enum PermissionLevel {
@@ -34,29 +38,334 @@ pub enum PermissionLevel {
     Restricted,
 }
 
-pub struct Command {
-    pub name: &'static str,
-    pub required_perms: PermissionLevel,
-    pub supports_dm: bool,
-    pub can_blacklist: bool,
-    pub func: CommandFn,
+pub struct Args {
+    pub args: HashMap<String, String>,
 }
+
+impl Args {
+    pub fn named<D: ToString>(&self, name: D) -> Option<&String> {
+        let name = name.to_string();
+
+        self.args.get(&name)
+    }
+}
+
+pub struct CreateGenericResponse {
+    content: String,
+    embed: Option<CreateEmbed>,
+    components: Option<CreateComponents>,
+}
+
+impl CreateGenericResponse {
+    pub fn new() -> Self {
+        Self {
+            content: "".to_string(),
+            embed: None,
+            components: None,
+        }
+    }
+
+    pub fn content<D: ToString>(mut self, content: D) -> Self {
+        self.content = content.to_string();
+
+        self
+    }
+
+    pub fn embed<F: FnOnce(&mut CreateEmbed) -> &mut CreateEmbed>(mut self, f: F) -> Self {
+        let mut embed = CreateEmbed::default();
+        f(&mut embed);
+
+        self.embed = Some(embed);
+        self
+    }
+
+    pub fn components<F: FnOnce(&mut CreateComponents) -> &mut CreateComponents>(
+        mut self,
+        f: F,
+    ) -> Self {
+        let mut components = CreateComponents::default();
+        f(&mut components);
+
+        self.components = Some(components);
+        self
+    }
+}
+
+#[async_trait]
+pub trait CommandInvoke {
+    fn channel_id(&self) -> ChannelId;
+    fn guild_id(&self) -> Option<GuildId>;
+    fn guild(&self, cache: Arc<Cache>) -> Option<Guild>;
+    fn author_id(&self) -> UserId;
+    async fn member(&self, context: &Context) -> SerenityResult<Member>;
+    fn msg(&self) -> Option<Message>;
+    fn interaction(&self) -> Option<ApplicationCommandInteraction>;
+    async fn respond(
+        &self,
+        http: Arc<Http>,
+        generic_response: CreateGenericResponse,
+    ) -> SerenityResult<()>;
+    async fn followup(
+        &self,
+        http: Arc<Http>,
+        generic_response: CreateGenericResponse,
+    ) -> SerenityResult<()>;
+}
+
+#[async_trait]
+impl CommandInvoke for Message {
+    fn channel_id(&self) -> ChannelId {
+        self.channel_id
+    }
+
+    fn guild_id(&self) -> Option<GuildId> {
+        self.guild_id
+    }
+
+    fn guild(&self, cache: Arc<Cache>) -> Option<Guild> {
+        self.guild(cache)
+    }
+
+    fn author_id(&self) -> UserId {
+        self.author.id
+    }
+
+    async fn member(&self, context: &Context) -> SerenityResult<Member> {
+        self.member(context).await
+    }
+
+    fn msg(&self) -> Option<Message> {
+        Some(self.clone())
+    }
+
+    fn interaction(&self) -> Option<ApplicationCommandInteraction> {
+        None
+    }
+
+    async fn respond(
+        &self,
+        http: Arc<Http>,
+        generic_response: CreateGenericResponse,
+    ) -> SerenityResult<()> {
+        self.channel_id
+            .send_message(http, |m| {
+                m.content(generic_response.content);
+
+                if let Some(embed) = generic_response.embed {
+                    m.set_embed(embed.clone());
+                }
+
+                if let Some(components) = generic_response.components {
+                    m.components(|c| {
+                        *c = components;
+                        c
+                    });
+                }
+
+                m
+            })
+            .await
+            .map(|_| ())
+    }
+
+    async fn followup(
+        &self,
+        http: Arc<Http>,
+        generic_response: CreateGenericResponse,
+    ) -> SerenityResult<()> {
+        self.channel_id
+            .send_message(http, |m| {
+                m.content(generic_response.content);
+
+                if let Some(embed) = generic_response.embed {
+                    m.set_embed(embed.clone());
+                }
+
+                if let Some(components) = generic_response.components {
+                    m.components(|c| {
+                        *c = components;
+                        c
+                    });
+                }
+
+                m
+            })
+            .await
+            .map(|_| ())
+    }
+}
+
+#[async_trait]
+impl CommandInvoke for ApplicationCommandInteraction {
+    fn channel_id(&self) -> ChannelId {
+        self.channel_id
+    }
+
+    fn guild_id(&self) -> Option<GuildId> {
+        self.guild_id
+    }
+
+    fn guild(&self, cache: Arc<Cache>) -> Option<Guild> {
+        if let Some(guild_id) = self.guild_id {
+            guild_id.to_guild_cached(cache)
+        } else {
+            None
+        }
+    }
+
+    fn author_id(&self) -> UserId {
+        self.member.as_ref().unwrap().user.id
+    }
+
+    async fn member(&self, _: &Context) -> SerenityResult<Member> {
+        Ok(self.member.clone().unwrap())
+    }
+
+    fn msg(&self) -> Option<Message> {
+        None
+    }
+
+    fn interaction(&self) -> Option<ApplicationCommandInteraction> {
+        Some(self.clone())
+    }
+
+    async fn respond(
+        &self,
+        http: Arc<Http>,
+        generic_response: CreateGenericResponse,
+    ) -> SerenityResult<()> {
+        self.create_interaction_response(http, |r| {
+            r.kind(InteractionResponseType::ChannelMessageWithSource)
+                .interaction_response_data(|d| {
+                    d.content(generic_response.content);
+
+                    if let Some(embed) = generic_response.embed {
+                        d.add_embed(embed.clone());
+                    }
+
+                    if let Some(components) = generic_response.components {
+                        d.components(|c| {
+                            *c = components;
+                            c
+                        });
+                    }
+
+                    d
+                })
+        })
+        .await
+        .map(|_| ())
+    }
+
+    async fn followup(
+        &self,
+        http: Arc<Http>,
+        generic_response: CreateGenericResponse,
+    ) -> SerenityResult<()> {
+        self.create_followup_message(http, |d| {
+            d.content(generic_response.content);
+
+            if let Some(embed) = generic_response.embed {
+                d.add_embed(embed.clone());
+            }
+
+            if let Some(components) = generic_response.components {
+                d.components(|c| {
+                    *c = components;
+                    c
+                });
+            }
+
+            d
+        })
+        .await
+        .map(|_| ())
+    }
+}
+
+#[derive(Debug)]
+pub struct Arg {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub kind: ApplicationCommandOptionType,
+    pub required: bool,
+}
+
+type SlashCommandFn = for<'fut> fn(
+    &'fut Context,
+    &'fut (dyn CommandInvoke + Sync + Send),
+    Args,
+) -> BoxFuture<'fut, ()>;
+
+type TextCommandFn = for<'fut> fn(
+    &'fut Context,
+    &'fut (dyn CommandInvoke + Sync + Send),
+    String,
+) -> BoxFuture<'fut, ()>;
+
+type MultiCommandFn =
+    for<'fut> fn(&'fut Context, &'fut (dyn CommandInvoke + Sync + Send)) -> BoxFuture<'fut, ()>;
+
+pub enum CommandFnType {
+    Slash(SlashCommandFn),
+    Text(TextCommandFn),
+    Multi(MultiCommandFn),
+}
+
+impl CommandFnType {
+    pub fn text(&self) -> Option<&TextCommandFn> {
+        match self {
+            CommandFnType::Text(t) => Some(t),
+            _ => None,
+        }
+    }
+}
+
+pub struct Command {
+    pub fun: CommandFnType,
+
+    pub names: &'static [&'static str],
+
+    pub desc: &'static str,
+    pub examples: &'static [&'static str],
+    pub group: &'static str,
+
+    pub required_permissions: PermissionLevel,
+    pub args: &'static [&'static Arg],
+
+    pub can_blacklist: bool,
+    pub supports_dm: bool,
+}
+
+impl Hash for Command {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.names[0].hash(state)
+    }
+}
+
+impl PartialEq for Command {
+    fn eq(&self, other: &Self) -> bool {
+        self.names[0] == other.names[0]
+    }
+}
+
+impl Eq for Command {}
 
 impl Command {
     async fn check_permissions(&self, ctx: &Context, guild: &Guild, member: &Member) -> bool {
-        if self.required_perms == PermissionLevel::Unrestricted {
+        if self.required_permissions == PermissionLevel::Unrestricted {
             true
         } else {
             let permissions = guild.member_permissions(&ctx, &member.user).await.unwrap();
 
             if permissions.manage_guild()
                 || (permissions.manage_messages()
-                    && self.required_perms == PermissionLevel::Managed)
+                    && self.required_permissions == PermissionLevel::Managed)
             {
                 return true;
             }
 
-            if self.required_perms == PermissionLevel::Managed {
+            if self.required_permissions == PermissionLevel::Managed {
                 let pool = ctx
                     .data
                     .read()
@@ -83,7 +392,7 @@ WHERE
         WHERE
             guild = ?)
                     ",
-                    self.name,
+                    self.names[0],
                     guild.id.as_u64()
                 )
                 .fetch_all(&pool)
@@ -123,62 +432,9 @@ WHERE
     }
 }
 
-impl fmt::Debug for Command {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Command")
-            .field("name", &self.name)
-            .field("required_perms", &self.required_perms)
-            .field("supports_dm", &self.supports_dm)
-            .field("can_blacklist", &self.can_blacklist)
-            .finish()
-    }
-}
-
-#[async_trait]
-pub trait SendIterator {
-    async fn say_lines(
-        self,
-        http: impl AsRef<Http> + Send + Sync + 'async_trait,
-        content: impl Iterator<Item = String> + Send + 'async_trait,
-    ) -> SerenityResult<()>;
-}
-
-#[async_trait]
-impl SendIterator for ChannelId {
-    async fn say_lines(
-        self,
-        http: impl AsRef<Http> + Send + Sync + 'async_trait,
-        content: impl Iterator<Item = String> + Send + 'async_trait,
-    ) -> SerenityResult<()> {
-        let mut current_content = String::new();
-
-        for line in content {
-            if current_content.len() + line.len() > MESSAGE_CODE_LIMIT as usize {
-                self.send_message(&http, |m| {
-                    m.allowed_mentions(|am| am.empty_parse())
-                        .content(&current_content)
-                })
-                .await?;
-
-                current_content = line;
-            } else {
-                current_content = format!("{}\n{}", current_content, line);
-            }
-        }
-        if !current_content.is_empty() {
-            self.send_message(&http, |m| {
-                m.allowed_mentions(|am| am.empty_parse())
-                    .content(&current_content)
-            })
-            .await?;
-        }
-
-        Ok(())
-    }
-}
-
 pub struct RegexFramework {
-    pub commands: HashMap<String, &'static Command>,
+    pub commands_map: HashMap<String, &'static Command>,
+    pub commands: HashSet<&'static Command>,
     command_matcher: Regex,
     dm_regex_matcher: Regex,
     default_prefix: String,
@@ -186,12 +442,23 @@ pub struct RegexFramework {
     ignore_bots: bool,
     case_insensitive: bool,
     dm_enabled: bool,
+    default_text_fun: TextCommandFn,
+}
+
+fn drop_text<'fut>(
+    _: &'fut Context,
+    _: &'fut (dyn CommandInvoke + Sync + Send),
+    _: String,
+) -> std::pin::Pin<std::boxed::Box<(dyn std::future::Future<Output = ()> + std::marker::Send + 'fut)>>
+{
+    async move {}.boxed()
 }
 
 impl RegexFramework {
     pub fn new<T: Into<u64>>(client_id: T) -> Self {
         Self {
-            commands: HashMap::new(),
+            commands_map: HashMap::new(),
+            commands: HashSet::new(),
             command_matcher: Regex::new(r#"^$"#).unwrap(),
             dm_regex_matcher: Regex::new(r#"^$"#).unwrap(),
             default_prefix: "".to_string(),
@@ -199,6 +466,7 @@ impl RegexFramework {
             ignore_bots: true,
             case_insensitive: true,
             dm_enabled: true,
+            default_text_fun: drop_text,
         }
     }
 
@@ -226,8 +494,12 @@ impl RegexFramework {
         self
     }
 
-    pub fn add_command<S: ToString>(mut self, name: S, command: &'static Command) -> Self {
-        self.commands.insert(name.to_string(), command);
+    pub fn add_command(mut self, command: &'static Command) -> Self {
+        self.commands.insert(command);
+
+        for name in command.names {
+            self.commands_map.insert(name.to_string(), command);
+        }
 
         self
     }
@@ -237,8 +509,11 @@ impl RegexFramework {
             let command_names;
 
             {
-                let mut command_names_vec =
-                    self.commands.keys().map(|k| &k[..]).collect::<Vec<&str>>();
+                let mut command_names_vec = self
+                    .commands_map
+                    .keys()
+                    .map(|k| &k[..])
+                    .collect::<Vec<&str>>();
 
                 command_names_vec.sort_unstable_by_key(|a| a.len());
 
@@ -265,7 +540,7 @@ impl RegexFramework {
 
             {
                 let mut command_names_vec = self
-                    .commands
+                    .commands_map
                     .iter()
                     .filter_map(|(key, command)| {
                         if command.supports_dm {
@@ -359,15 +634,11 @@ impl Framework for RegexFramework {
 
                 if let Some(full_match) = self.command_matcher.captures(&msg.content) {
                     if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
-                        let lm = data.get::<LanguageManager>().unwrap();
-
-                        let language = UserData::language_of(&msg.author, &pool);
-
                         match check_self_permissions(&ctx, &guild, &channel).await {
                             Ok(perms) => match perms {
                                 PermissionCheck::All => {
                                     let command = self
-                                        .commands
+                                        .commands_map
                                         .get(
                                             &full_match
                                                 .name("cmd")
@@ -394,8 +665,6 @@ impl Framework for RegexFramework {
                                         let member = guild.member(&ctx, &msg.author).await.unwrap();
 
                                         if command.check_permissions(&ctx, &guild, &member).await {
-                                            dbg!(command.name);
-
                                             {
                                                 let guild_id = guild.id.as_u64().to_owned();
 
@@ -413,30 +682,34 @@ impl Framework for RegexFramework {
                                                 || !ctx.check_executing(msg.author.id).await
                                             {
                                                 ctx.set_executing(msg.author.id).await;
-                                                (command.func)(&ctx, &msg, args).await;
+
+                                                match command.fun {
+                                                    CommandFnType::Text(t) => t(&ctx, &msg, args),
+                                                    CommandFnType::Multi(m) => m(&ctx, &msg),
+                                                    _ => (self.default_text_fun)(&ctx, &msg, args),
+                                                }
+                                                .await;
+
                                                 ctx.drop_executing(msg.author.id).await;
                                             }
-                                        } else if command.required_perms
+                                        } else if command.required_permissions
                                             == PermissionLevel::Restricted
                                         {
                                             let _ = msg
                                                 .channel_id
                                                 .say(
                                                     &ctx,
-                                                    lm.get(&language.await, "no_perms_restricted"),
+                                                    "You must have the `Manage Server` permission to use this command.",
                                                 )
                                                 .await;
-                                        } else if command.required_perms == PermissionLevel::Managed
+                                        } else if command.required_permissions
+                                            == PermissionLevel::Managed
                                         {
                                             let _ = msg
                                                 .channel_id
                                                 .say(
                                                     &ctx,
-                                                    lm.get(&language.await, "no_perms_managed")
-                                                        .replace(
-                                                            "{prefix}",
-                                                            &ctx.prefix(msg.guild_id).await,
-                                                        ),
+                                                    "You must have `Manage Messages` or have a role capable of sending reminders to that channel. Please talk to your server admin, and ask them to use the `/restrict` command to specify allowed roles.",
                                                 )
                                                 .await;
                                         }
@@ -444,18 +717,21 @@ impl Framework for RegexFramework {
                                 }
 
                                 PermissionCheck::Basic(manage_webhooks, embed_links) => {
-                                    let response = lm
-                                        .get(&language.await, "no_perms_general")
-                                        .replace(
-                                            "{manage_webhooks}",
-                                            if manage_webhooks { "✅" } else { "❌" },
-                                        )
-                                        .replace(
-                                            "{embed_links}",
-                                            if embed_links { "✅" } else { "❌" },
-                                        );
+                                    let _ = msg
+                                        .channel_id
+                                        .say(
+                                            &ctx,
+                                            format!(
+                                                "Please ensure the bot has the correct permissions:
 
-                                    let _ = msg.channel_id.say(&ctx, response).await;
+✅     **Send Message**
+{}     **Embed Links**
+{}     **Manage Webhooks**",
+                                                if manage_webhooks { "✅" } else { "❌" },
+                                                if embed_links { "✅" } else { "❌" },
+                                            ),
+                                        )
+                                        .await;
                                 }
 
                                 PermissionCheck::None => {
@@ -477,7 +753,7 @@ impl Framework for RegexFramework {
             else if self.dm_enabled {
                 if let Some(full_match) = self.dm_regex_matcher.captures(&msg.content[..]) {
                     let command = self
-                        .commands
+                        .commands_map
                         .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
                         .unwrap();
                     let args = full_match
@@ -486,11 +762,16 @@ impl Framework for RegexFramework {
                         .unwrap_or("")
                         .to_string();
 
-                    dbg!(command.name);
-
                     if msg.id == MessageId(0) || !ctx.check_executing(msg.author.id).await {
                         ctx.set_executing(msg.author.id).await;
-                        (command.func)(&ctx, &msg, args).await;
+
+                        match command.fun {
+                            CommandFnType::Text(t) => t(&ctx, &msg, args),
+                            CommandFnType::Multi(m) => m(&ctx, &msg),
+                            _ => (self.default_text_fun)(&ctx, &msg, args),
+                        }
+                        .await;
+
                         ctx.drop_executing(msg.author.id).await;
                     }
                 }

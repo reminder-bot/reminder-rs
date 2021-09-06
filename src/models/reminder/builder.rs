@@ -1,3 +1,7 @@
+use std::{collections::HashSet, fmt::Display};
+
+use chrono::{Duration, NaiveDateTime, Utc};
+use chrono_tz::Tz;
 use serenity::{
     client::Context,
     http::CacheHttp,
@@ -8,9 +12,7 @@ use serenity::{
     },
     Result as SerenityResult,
 };
-
-use chrono::{Duration, NaiveDateTime, Utc};
-use chrono_tz::Tz;
+use sqlx::MySqlPool;
 
 use crate::{
     consts::{MAX_TIME, MIN_INTERVAL},
@@ -22,10 +24,6 @@ use crate::{
     time_parser::TimeParser,
     SQLPool,
 };
-
-use sqlx::MySqlPool;
-
-use std::{collections::HashSet, fmt::Display};
 
 async fn create_webhook(
     ctx: impl CacheHttp,
