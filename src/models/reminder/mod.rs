@@ -329,18 +329,14 @@ WHERE
                 self.display_content(),
                 time_display,
                 longhand_displacement(interval as u64),
-                self.set_by
-                    .map(|i| format!("<@{}>", i))
-                    .unwrap_or_else(|| "unknown".to_string())
+                self.set_by.map(|i| format!("<@{}>", i)).unwrap_or_else(|| "unknown".to_string())
             )
         } else {
             format!(
                 "'{}' *occurs next at* **{}** (set by {})",
                 self.display_content(),
                 time_display,
-                self.set_by
-                    .map(|i| format!("<@{}>", i))
-                    .unwrap_or_else(|| "unknown".to_string())
+                self.set_by.map(|i| format!("<@{}>", i)).unwrap_or_else(|| "unknown".to_string())
             )
         }
     }
@@ -380,9 +376,7 @@ WHERE
     pub fn signed_action<U: Into<u64>>(&self, member_id: U, action: ReminderAction) -> String {
         let s_key = hmac::Key::new(
             hmac::HMAC_SHA256,
-            env::var("SECRET_KEY")
-                .expect("No SECRET_KEY provided")
-                .as_bytes(),
+            env::var("SECRET_KEY").expect("No SECRET_KEY provided").as_bytes(),
         );
 
         let mut context = hmac::Context::with_key(&s_key);

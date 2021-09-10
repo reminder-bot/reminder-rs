@@ -20,41 +20,28 @@ fn parse_argument(arg: FnArg) -> Result<Argument> {
                     let name = id.ident;
                     let mutable = id.mutability;
 
-                    Ok(Argument {
-                        mutable,
-                        name,
-                        kind: *kind,
-                    })
+                    Ok(Argument { mutable, name, kind: *kind })
                 }
                 Pat::Wild(wild) => {
                     let token = wild.underscore_token;
 
                     let name = Ident::new("_", token.spans[0]);
 
-                    Ok(Argument {
-                        mutable: None,
-                        name,
-                        kind: *kind,
-                    })
+                    Ok(Argument { mutable: None, name, kind: *kind })
                 }
-                _ => Err(Error::new(
-                    pat.span(),
-                    format_args!("unsupported pattern: {:?}", pat),
-                )),
+                _ => Err(Error::new(pat.span(), format_args!("unsupported pattern: {:?}", pat))),
             }
         }
-        FnArg::Receiver(_) => Err(Error::new(
-            arg.span(),
-            format_args!("`self` arguments are prohibited: {:?}", arg),
-        )),
+        FnArg::Receiver(_) => {
+            Err(Error::new(arg.span(), format_args!("`self` arguments are prohibited: {:?}", arg)))
+        }
     }
 }
 
 /// Test if the attribute is cooked.
 fn is_cooked(attr: &Attribute) -> bool {
-    const COOKED_ATTRIBUTE_NAMES: &[&str] = &[
-        "cfg", "cfg_attr", "derive", "inline", "allow", "warn", "deny", "forbid",
-    ];
+    const COOKED_ATTRIBUTE_NAMES: &[&str] =
+        &["cfg", "cfg_attr", "derive", "inline", "allow", "warn", "deny", "forbid"];
 
     COOKED_ATTRIBUTE_NAMES.iter().any(|n| attr.path.is_ident(n))
 }
@@ -115,32 +102,15 @@ impl Parse for CommandFun {
         braced!(bcont in input);
         let body = bcont.call(Block::parse_within)?;
 
-        let args = args
-            .into_iter()
-            .map(parse_argument)
-            .collect::<Result<Vec<_>>>()?;
+        let args = args.into_iter().map(parse_argument).collect::<Result<Vec<_>>>()?;
 
-        Ok(Self {
-            attributes,
-            cooked,
-            visibility,
-            name,
-            args,
-            body,
-        })
+        Ok(Self { attributes, cooked, visibility, name, args, body })
     }
 }
 
 impl ToTokens for CommandFun {
     fn to_tokens(&self, stream: &mut TokenStream2) {
-        let Self {
-            attributes: _,
-            cooked,
-            visibility,
-            name,
-            args,
-            body,
-        } = self;
+        let Self { attributes: _, cooked, visibility, name, args, body } = self;
 
         stream.extend(quote! {
             #(#cooked)*
@@ -211,6 +181,7 @@ pub(crate) enum ApplicationCommandOptionType {
     Channel,
     Role,
     Mentionable,
+    Number,
     Unknown,
 }
 
@@ -226,6 +197,7 @@ impl ApplicationCommandOptionType {
             "Channel" => Self::Channel,
             "Role" => Self::Role,
             "Mentionable" => Self::Mentionable,
+            "Number" => Self::Number,
             _ => Self::Unknown,
         }
     }
@@ -246,6 +218,7 @@ impl ToTokens for ApplicationCommandOptionType {
             ApplicationCommandOptionType::Channel => quote!(Channel),
             ApplicationCommandOptionType::Role => quote!(Role),
             ApplicationCommandOptionType::Mentionable => quote!(Mentionable),
+            ApplicationCommandOptionType::Number => quote!(Number),
             ApplicationCommandOptionType::Unknown => quote!(Unknown),
         };
 
@@ -289,9 +262,6 @@ pub(crate) struct Options {
 impl Options {
     #[inline]
     pub fn new() -> Self {
-        Self {
-            group: "Other".to_string(),
-            ..Default::default()
-        }
+        Self { group: "Other".to_string(), ..Default::default() }
     }
 }

@@ -53,13 +53,9 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         let name = &name[..];
 
         match name {
-            "arg" => options
-                .cmd_args
-                .push(propagate_err!(attributes::parse(values))),
+            "arg" => options.cmd_args.push(propagate_err!(attributes::parse(values))),
             "example" => {
-                options
-                    .examples
-                    .push(propagate_err!(attributes::parse(values)));
+                options.examples.push(propagate_err!(attributes::parse(values)));
             }
             "description" => {
                 let line: String = propagate_err!(attributes::parse(values));
@@ -105,20 +101,14 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
     let arg_idents = cmd_args
         .iter()
         .map(|arg| {
-            n.with_suffix(arg.name.replace(" ", "_").replace("-", "_").as_str())
-                .with_suffix(ARG)
+            n.with_suffix(arg.name.replace(" ", "_").replace("-", "_").as_str()).with_suffix(ARG)
         })
         .collect::<Vec<Ident>>();
 
     let mut tokens = cmd_args
         .iter_mut()
         .map(|arg| {
-            let Arg {
-                name,
-                description,
-                kind,
-                required,
-            } = arg;
+            let Arg { name, description, kind, required } = arg;
 
             let an = n.with_suffix(name.as_str()).with_suffix(ARG);
 
@@ -141,7 +131,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
     let variant = if args.len() == 2 {
         quote!(crate::framework::CommandFnType::Multi)
     } else {
-        let string: Type = parse_quote!(std::string::String);
+        let string: Type = parse_quote!(String);
 
         let final_arg = args.get(2).unwrap();
 

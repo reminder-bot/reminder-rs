@@ -38,10 +38,7 @@ async fn create_webhook(
                 include_bytes!(concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/assets/",
-                    env!(
-                        "WEBHOOK_AVATAR",
-                        "WEBHOOK_AVATAR not provided for compilation"
-                    )
+                    env!("WEBHOOK_AVATAR", "WEBHOOK_AVATAR not provided for compilation")
                 )) as &[u8],
                 env!("WEBHOOK_AVATAR"),
             ),
@@ -230,14 +227,7 @@ impl<'a> MultiReminderBuilder<'a> {
     }
 
     pub async fn build(mut self) -> (HashSet<ReminderError>, HashSet<ReminderScope>) {
-        let pool = self
-            .ctx
-            .data
-            .read()
-            .await
-            .get::<SQLPool>()
-            .cloned()
-            .unwrap();
+        let pool = self.ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
         let mut errors = HashSet::new();
 
@@ -296,7 +286,7 @@ impl<'a> MultiReminderBuilder<'a> {
                                 Err(ReminderError::InvalidTag)
                             } else {
                                 let mut channel_data =
-                                    ChannelData::from_channel(channel, &pool).await.unwrap();
+                                    ChannelData::from_channel(&channel, &pool).await.unwrap();
 
                                 if channel_data.webhook_id.is_none()
                                     || channel_data.webhook_token.is_none()

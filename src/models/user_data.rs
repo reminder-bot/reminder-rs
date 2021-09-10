@@ -52,7 +52,8 @@ SELECT timezone FROM users WHERE user = ?
             "
 SELECT id, user, name, dm_channel, IF(timezone IS NULL, ?, timezone) AS timezone FROM users WHERE user = ?
             ",
-            *LOCAL_TIMEZONE, user_id
+            *LOCAL_TIMEZONE,
+            user_id
         )
         .fetch_one(pool)
         .await
@@ -77,9 +78,14 @@ INSERT IGNORE INTO channels (channel) VALUES (?)
                 sqlx::query!(
                     "
 INSERT INTO users (user, name, dm_channel, timezone) VALUES (?, ?, (SELECT id FROM channels WHERE channel = ?), ?)
-                    ", user_id, user.name, dm_id, *LOCAL_TIMEZONE)
-                    .execute(&pool_c)
-                    .await?;
+                    ",
+                    user_id,
+                    user.name,
+                    dm_id,
+                    *LOCAL_TIMEZONE
+                )
+                .execute(&pool_c)
+                .await?;
 
                 Ok(sqlx::query_as_unchecked!(
                     Self,
@@ -96,7 +102,7 @@ SELECT id, user, name, dm_channel, timezone FROM users WHERE user = ?
                 error!("Error querying for user: {:?}", e);
 
                 Err(Box::new(e))
-            },
+            }
         }
     }
 

@@ -10,9 +10,8 @@ pub fn longhand_displacement(seconds: u64) -> String {
 
     let mut sections = vec![];
 
-    for (var, name) in [days, hours, minutes, seconds]
-        .iter()
-        .zip(["days", "hours", "minutes", "seconds"].iter())
+    for (var, name) in
+        [days, hours, minutes, seconds].iter().zip(["days", "hours", "minutes", "seconds"].iter())
     {
         if *var > 0 {
             sections.push(format!("{} {}", var, name));
@@ -26,14 +25,7 @@ pub fn generate_uid() -> String {
     let mut generator: OsRng = Default::default();
 
     (0..64)
-        .map(|_| {
-            CHARACTERS
-                .chars()
-                .choose(&mut generator)
-                .unwrap()
-                .to_owned()
-                .to_string()
-        })
+        .map(|_| CHARACTERS.chars().choose(&mut generator).unwrap().to_owned().to_string())
         .collect::<Vec<String>>()
         .join("")
 }

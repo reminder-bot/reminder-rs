@@ -31,7 +31,7 @@ use serenity::{
 };
 
 use crate::{
-    models::{channel_data::ChannelData, guild_data::GuildData, CtxData},
+    models::{channel_data::ChannelData, CtxData},
     LimitExecutors, SQLPool,
 };
 
@@ -50,11 +50,7 @@ pub struct CreateGenericResponse {
 
 impl CreateGenericResponse {
     pub fn new() -> Self {
-        Self {
-            content: "".to_string(),
-            embed: None,
-            components: None,
-        }
+        Self { content: "".to_string(), embed: None, components: None }
     }
 
     pub fn content<D: ToString>(mut self, content: D) -> Self {
@@ -227,8 +223,8 @@ impl CommandInvoke for ApplicationCommandInteraction {
         generic_response: CreateGenericResponse,
     ) -> SerenityResult<()> {
         self.create_interaction_response(http, |r| {
-            r.kind(InteractionResponseType::ChannelMessageWithSource)
-                .interaction_response_data(|d| {
+            r.kind(InteractionResponseType::ChannelMessageWithSource).interaction_response_data(
+                |d| {
                     d.content(generic_response.content);
 
                     if let Some(embed) = generic_response.embed {
@@ -243,7 +239,8 @@ impl CommandInvoke for ApplicationCommandInteraction {
                     }
 
                     d
-                })
+                },
+            )
         })
         .await
         .map(|_| ())
@@ -305,10 +302,10 @@ pub enum CommandFnType {
 }
 
 impl CommandFnType {
-    pub fn text(&self) -> Option<&TextCommandFn> {
+    pub fn is_slash(&self) -> bool {
         match self {
-            CommandFnType::Text(t) => Some(t),
-            _ => None,
+            CommandFnType::Text(_) => false,
+            _ => true,
         }
     }
 }
@@ -391,11 +388,8 @@ WHERE
                 .await
                 {
                     Ok(rows) => {
-                        let role_ids = member
-                            .roles
-                            .iter()
-                            .map(|r| *r.as_u64())
-                            .collect::<Vec<u64>>();
+                        let role_ids =
+                            member.roles.iter().map(|r| *r.as_u64()).collect::<Vec<u64>>();
 
                         for row in rows {
                             if role_ids.contains(&row.role) {
@@ -409,10 +403,7 @@ WHERE
                     Err(sqlx::Error::RowNotFound) => false,
 
                     Err(e) => {
-                        warn!(
-                            "Unexpected error occurred querying command_restrictions: {:?}",
-                            e
-                        );
+                        warn!("Unexpected error occurred querying command_restrictions: {:?}", e);
 
                         false
                     }
@@ -513,11 +504,8 @@ impl RegexFramework {
             let command_names;
 
             {
-                let mut command_names_vec = self
-                    .commands_map
-                    .keys()
-                    .map(|k| &k[..])
-                    .collect::<Vec<&str>>();
+                let mut command_names_vec =
+                    self.commands_map.keys().map(|k| &k[..]).collect::<Vec<&str>>();
 
                 command_names_vec.sort_unstable_by_key(|a| a.len());
 
@@ -527,9 +515,10 @@ impl RegexFramework {
             info!("Command names: {}", command_names);
 
             {
-                let match_string = r#"^(?:(?:<@ID>\s*)|(?:<@!ID>\s*)|(?P<prefix>\S{1,5}?))(?P<cmd>COMMANDS)(?:$|\s+(?P<args>.*))$"#
-                    .replace("COMMANDS", command_names.as_str())
-                    .replace("ID", self.client_id.to_string().as_str());
+                let match_string =
+                    r#"^(?:(?:<@ID>\s*)|(?:<@!ID>\s*)|(?P<prefix>\S{1,5}?))(?P<cmd>COMMANDS)(?:$|\s+(?P<args>.*))$"#
+                        .replace("COMMANDS", command_names.as_str())
+                        .replace("ID", self.client_id.to_string().as_str());
 
                 self.command_matcher = RegexBuilder::new(match_string.as_str())
                     .case_insensitive(self.case_insensitive)
@@ -546,13 +535,9 @@ impl RegexFramework {
                 let mut command_names_vec = self
                     .commands_map
                     .iter()
-                    .filter_map(|(key, command)| {
-                        if command.supports_dm {
-                            Some(&key[..])
-                        } else {
-                            None
-                        }
-                    })
+                    .filter_map(
+                        |(key, command)| if command.supports_dm { Some(&key[..]) } else { None },
+                    )
                     .collect::<Vec<&str>>();
 
                 command_names_vec.sort_unstable_by_key(|a| a.len());
@@ -583,30 +568,7 @@ impl RegexFramework {
             None => {
                 ApplicationCommand::set_global_application_commands(&http, |commands| {
                     for command in &self.commands {
-                        commands.create_application_command(|c| {
-                            c.name(command.names[0]).description(command.desc);
-
-                            for arg in command.args {
-                                c.create_option(|o| {
-                                    o.name(arg.name)
-                                        .description(arg.description)
-                                        .kind(arg.kind)
-                                        .required(arg.required)
-                                });
-                            }
-
-                            c
-                        });
-                    }
-
-                    commands
-                })
-                .await;
-            }
-            Some(debug_guild) => {
-                debug_guild
-                    .set_application_commands(&http, |commands| {
-                        for command in &self.commands {
+                        if command.fun.is_slash() {
                             commands.create_application_command(|c| {
                                 c.name(command.names[0]).description(command.desc);
 
@@ -622,10 +584,38 @@ impl RegexFramework {
                                 c
                             });
                         }
+                    }
+
+                    commands
+                })
+                .await;
+            }
+            Some(debug_guild) => {
+                debug_guild
+                    .set_application_commands(&http, |commands| {
+                        for command in &self.commands {
+                            if command.fun.is_slash() {
+                                commands.create_application_command(|c| {
+                                    c.name(command.names[0]).description(command.desc);
+
+                                    for arg in command.args {
+                                        c.create_option(|o| {
+                                            o.name(arg.name)
+                                                .description(arg.description)
+                                                .kind(arg.kind)
+                                                .required(arg.required)
+                                        });
+                                    }
+
+                                    c
+                                });
+                            }
+                        }
 
                         commands
                     })
-                    .await;
+                    .await
+                    .unwrap();
             }
         }
 
@@ -636,10 +626,7 @@ impl RegexFramework {
         let command = {
             self.commands_map
                 .get(&interaction.data.name)
-                .expect(&format!(
-                    "Received invalid command: {}",
-                    interaction.data.name
-                ))
+                .expect(&format!("Received invalid command: {}", interaction.data.name))
         };
 
         let guild = interaction.guild(ctx.cache.clone()).unwrap();
@@ -648,12 +635,7 @@ impl RegexFramework {
         if command.check_permissions(&ctx, &guild, &member).await {
             let mut args = HashMap::new();
 
-            for arg in interaction
-                .data
-                .options
-                .iter()
-                .filter(|o| o.value.is_some())
-            {
+            for arg in interaction.data.options.iter().filter(|o| o.value.is_some()) {
                 args.insert(
                     arg.name.clone(),
                     match arg.value.clone().unwrap() {
@@ -696,7 +678,9 @@ impl RegexFramework {
                 .respond(
                     ctx.http.clone(),
                     CreateGenericResponse::new().content(
-                        "You must have `Manage Messages` or have a role capable of sending reminders to that channel. Please talk to your server admin, and ask them to use the `/restrict` command to specify allowed roles.",
+                        "You must have `Manage Messages` or have a role capable of sending reminders to that channel. \
+                         Please talk to your server admin, and ask them to use the `/restrict` command to specify \
+                         allowed roles.",
                     ),
                 )
                 .await;
@@ -725,18 +709,13 @@ impl Framework for RegexFramework {
 
             let basic_perms = channel_perms.send_messages();
 
-            Ok(
-                if basic_perms && guild_perms.manage_webhooks() && channel_perms.embed_links() {
-                    PermissionCheck::All
-                } else if basic_perms {
-                    PermissionCheck::Basic(
-                        guild_perms.manage_webhooks(),
-                        channel_perms.embed_links(),
-                    )
-                } else {
-                    PermissionCheck::None
-                },
-            )
+            Ok(if basic_perms && guild_perms.manage_webhooks() && channel_perms.embed_links() {
+                PermissionCheck::All
+            } else if basic_perms {
+                PermissionCheck::Basic(guild_perms.manage_webhooks(), channel_perms.embed_links())
+            } else {
+                PermissionCheck::None
+            })
         }
 
         async fn check_prefix(ctx: &Context, guild: &Guild, prefix_opt: Option<Match<'_>>) -> bool {
@@ -758,10 +737,7 @@ impl Framework for RegexFramework {
             {
                 let data = ctx.data.read().await;
 
-                let pool = data
-                    .get::<SQLPool>()
-                    .cloned()
-                    .expect("Could not get SQLPool from data");
+                let pool = data.get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
 
                 if let Some(full_match) = self.command_matcher.captures(&msg.content) {
                     if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
@@ -779,12 +755,10 @@ impl Framework for RegexFramework {
                                         )
                                         .unwrap();
 
-                                    let channel_data = ChannelData::from_channel(
-                                        msg.channel(&ctx).await.unwrap(),
-                                        &pool,
-                                    )
-                                    .await
-                                    .unwrap();
+                                    let channel = msg.channel(&ctx).await.unwrap();
+
+                                    let channel_data =
+                                        ChannelData::from_channel(&channel, &pool).await.unwrap();
 
                                     if !command.can_blacklist || !channel_data.blacklisted {
                                         let args = full_match
@@ -796,19 +770,6 @@ impl Framework for RegexFramework {
                                         let member = guild.member(&ctx, &msg.author).await.unwrap();
 
                                         if command.check_permissions(&ctx, &guild, &member).await {
-                                            {
-                                                let guild_id = guild.id.as_u64().to_owned();
-
-                                                GuildData::from_guild(guild, &pool)
-                                                    .await
-                                                    .unwrap_or_else(|_| {
-                                                        panic!(
-                                                        "Failed to create new guild object for {}",
-                                                        guild_id
-                                                    )
-                                                    });
-                                            }
-
                                             if msg.id == MessageId(0)
                                                 || !ctx.check_executing(msg.author.id).await
                                             {
@@ -840,7 +801,10 @@ impl Framework for RegexFramework {
                                                 .channel_id
                                                 .say(
                                                     &ctx,
-                                                    "You must have `Manage Messages` or have a role capable of sending reminders to that channel. Please talk to your server admin, and ask them to use the `/restrict` command to specify allowed roles.",
+                                                    "You must have `Manage Messages` or have a role capable of \
+                                                     sending reminders to that channel. Please talk to your server \
+                                                     admin, and ask them to use the `/restrict` command to specify \
+                                                     allowed roles.",
                                                 )
                                                 .await;
                                         }
@@ -887,11 +851,8 @@ impl Framework for RegexFramework {
                         .commands_map
                         .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
                         .unwrap();
-                    let args = full_match
-                        .name("args")
-                        .map(|m| m.as_str())
-                        .unwrap_or("")
-                        .to_string();
+                    let args =
+                        full_match.name("args").map(|m| m.as_str()).unwrap_or("").to_string();
 
                     if msg.id == MessageId(0) || !ctx.check_executing(msg.author.id).await {
                         ctx.set_executing(msg.author.id).await;

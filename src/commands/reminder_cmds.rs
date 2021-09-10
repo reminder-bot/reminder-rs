@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     default::Default,
     string::ToString,
     time::{SystemTime, UNIX_EPOCH},
@@ -13,13 +14,12 @@ use serenity::{
 };
 
 use crate::{
-    check_subscription_on_message, command_help,
+    check_subscription_on_message,
     consts::{
         REGEX_CHANNEL_USER, REGEX_NATURAL_COMMAND_1, REGEX_NATURAL_COMMAND_2, REGEX_REMIND_COMMAND,
         THEME_COLOR,
     },
-    framework::SendIterator,
-    get_ctx_data,
+    framework::{CommandInvoke, CreateGenericResponse},
     models::{
         channel_data::ChannelData,
         guild_data::GuildData,
@@ -34,44 +34,35 @@ use crate::{
         CtxData,
     },
     time_parser::{natural_parser, TimeParser},
+    SQLPool,
 };
 
-#[command]
+#[command("pause")]
+#[description("Pause all reminders on the current channel until a certain time or indefinitely")]
+#[arg(
+    name = "until",
+    description = "When to pause until (hint: try 'next Wednesday', or '10 minutes')",
+    kind = "String",
+    required = false
+)]
 #[supports_dm(false)]
-#[permission_level(Restricted)]
-async fn pause(ctx: &Context, msg: &Message, args: String) {
-    let (pool, lm) = get_ctx_data(&ctx).await;
+#[required_permissions(Restricted)]
+async fn pause(
+    ctx: &Context,
+    invoke: &(dyn CommandInvoke + Send + Sync),
+    args: HashMap<String, String>,
+) {
+    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
-    let language = UserData::language_of(&msg.author, &pool).await;
-    let timezone = UserData::timezone_of(&msg.author, &pool).await;
+    let timezone = UserData::timezone_of(&invoke.author_id(), &pool).await;
 
-    let mut channel = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool)
-        .await
-        .unwrap();
+    let mut channel = ctx.channel_data(invoke.channel_id()).await.unwrap();
 
-    if args.is_empty() {
-        channel.paused = !channel.paused;
-        channel.paused_until = None;
+    match args.get("until") {
+        Some(until) => {
+            let parsed = natural_parser(until, &timezone.to_string()).await;
 
-        channel.commit_changes(&pool).await;
-
-        if channel.paused {
-            let _ = msg
-                .channel_id
-                .say(&ctx, lm.get(&language, "pause/paused_indefinite"))
-                .await;
-        } else {
-            let _ = msg
-                .channel_id
-                .say(&ctx, lm.get(&language, "pause/unpaused"))
-                .await;
-        }
-    } else {
-        let parser = TimeParser::new(&args, timezone);
-        let pause_until = parser.timestamp();
-
-        match pause_until {
-            Ok(timestamp) => {
+            if let Some(timestamp) = parsed {
                 let dt = NaiveDateTime::from_timestamp(timestamp, 0);
 
                 channel.paused = true;
@@ -79,23 +70,53 @@ async fn pause(ctx: &Context, msg: &Message, args: String) {
 
                 channel.commit_changes(&pool).await;
 
-                let content = lm
-                    .get(&language, "pause/paused_until")
-                    .replace("{}", &format!("<t:{}:D>", timestamp));
-
-                let _ = msg.channel_id.say(&ctx, content).await;
+                let _ = invoke
+                    .respond(
+                        ctx.http.clone(),
+                        CreateGenericResponse::new().content(format!(
+                            "Reminders in this channel have been silenced until **<t:{}:D>**",
+                            timestamp
+                        )),
+                    )
+                    .await;
+            } else {
+                let _ = invoke
+                    .respond(
+                        ctx.http.clone(),
+                        CreateGenericResponse::new()
+                            .content("Time could not be processed. Please write the time as clearly as possible"),
+                    )
+                    .await;
             }
+        }
+        None => {
+            channel.paused = !channel.paused;
+            channel.paused_until = None;
 
-            Err(_) => {
-                let _ = msg
-                    .channel_id
-                    .say(&ctx, lm.get(&language, "pause/invalid_time"))
+            channel.commit_changes(&pool).await;
+
+            if channel.paused {
+                let _ = invoke
+                    .respond(
+                        ctx.http.clone(),
+                        CreateGenericResponse::new()
+                            .content("Reminders in this channel have been silenced indefinitely"),
+                    )
+                    .await;
+            } else {
+                let _ = invoke
+                    .respond(
+                        ctx.http.clone(),
+                        CreateGenericResponse::new()
+                            .content("Reminders in this channel have been unsilenced"),
+                    )
                     .await;
             }
         }
     }
 }
 
+/*
 #[command]
 #[permission_level(Restricted)]
 async fn offset(ctx: &Context, msg: &Message, args: String) {
@@ -150,10 +171,8 @@ UPDATE reminders SET `utc_time` = `utc_time` + ? WHERE reminders.channel_id = ?
 
             let _ = msg.channel_id.say(&ctx, response).await;
         } else {
-            let _ = msg
-                .channel_id
-                .say(&ctx, lm.get(&user_data.language, "offset/invalid_time"))
-                .await;
+            let _ =
+                msg.channel_id.say(&ctx, lm.get(&user_data.language, "offset/invalid_time")).await;
         }
     }
 }
@@ -166,9 +185,8 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) {
     let language = UserData::language_of(&msg.author, &pool).await;
     let timezone = UserData::timezone_of(&msg.author, &pool).await;
 
-    let mut channel = ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool)
-        .await
-        .unwrap();
+    let mut channel =
+        ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool).await.unwrap();
 
     if args.is_empty() {
         let content = lm
@@ -183,10 +201,7 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) {
         match nudge_time {
             Ok(displacement) => {
                 if displacement < i16::MIN as i64 || displacement > i16::MAX as i64 {
-                    let _ = msg
-                        .channel_id
-                        .say(&ctx, lm.get(&language, "nudge/invalid_time"))
-                        .await;
+                    let _ = msg.channel_id.say(&ctx, lm.get(&language, "nudge/invalid_time")).await;
                 } else {
                     channel.nudge = displacement as i16;
 
@@ -203,10 +218,7 @@ async fn nudge(ctx: &Context, msg: &Message, args: String) {
             }
 
             Err(_) => {
-                let _ = msg
-                    .channel_id
-                    .say(&ctx, lm.get(&language, "nudge/invalid_time"))
-                    .await;
+                let _ = msg.channel_id.say(&ctx, lm.get(&language, "nudge/invalid_time")).await;
             }
         }
     }
@@ -236,14 +248,9 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
     let reminders = Reminder::from_channel(ctx, channel_id, &flags).await;
 
     if reminders.is_empty() {
-        let _ = msg
-            .channel_id
-            .say(&ctx, "No reminders on specified channel")
-            .await;
+        let _ = msg.channel_id.say(&ctx, "No reminders on specified channel").await;
     } else {
-        let display = reminders
-            .iter()
-            .map(|reminder| reminder.display(&flags, &timezone));
+        let display = reminders.iter().map(|reminder| reminder.display(&flags, &timezone));
 
         let _ = msg.channel_id.say_lines(&ctx, display).await;
     }
@@ -256,10 +263,7 @@ async fn delete(ctx: &Context, msg: &Message, _args: String) {
 
     let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
 
-    let _ = msg
-        .channel_id
-        .say(&ctx, lm.get(&user_data.language, "del/listing"))
-        .await;
+    let _ = msg.channel_id.say(&ctx, lm.get(&user_data.language, "del/listing")).await;
 
     let mut reminder_ids: Vec<u32> = vec![];
 
@@ -278,23 +282,13 @@ async fn delete(ctx: &Context, msg: &Message, _args: String) {
     });
 
     let _ = msg.channel_id.say_lines(&ctx, enumerated_reminders).await;
-    let _ = msg
-        .channel_id
-        .say(&ctx, lm.get(&user_data.language, "del/listed"))
-        .await;
+    let _ = msg.channel_id.say(&ctx, lm.get(&user_data.language, "del/listed")).await;
 
-    let reply = msg
-        .channel_id
-        .await_reply(&ctx)
-        .author_id(msg.author.id)
-        .channel_id(msg.channel_id)
-        .await;
+    let reply =
+        msg.channel_id.await_reply(&ctx).author_id(msg.author.id).channel_id(msg.channel_id).await;
 
     if let Some(content) = reply.map(|m| m.content.replace(",", " ")) {
-        let parts = content
-            .split(' ')
-            .filter(|i| !i.is_empty())
-            .collect::<Vec<&str>>();
+        let parts = content.split(' ').filter(|i| !i.is_empty()).collect::<Vec<&str>>();
 
         let valid_parts = parts
             .iter()
@@ -352,9 +346,7 @@ INSERT INTO events (event_name, bulk_count, guild_id, user_id) VALUES ('delete',
 
             let _ = msg.channel_id.say(&ctx, content).await;
         } else {
-            let content = lm
-                .get(&user_data.language, "del/count")
-                .replacen("{}", "0", 1);
+            let content = lm.get(&user_data.language, "del/count").replacen("{}", "0", 1);
 
             let _ = msg.channel_id.say(&ctx, content).await;
         }
@@ -365,10 +357,7 @@ INSERT INTO events (event_name, bulk_count, guild_id, user_id) VALUES ('delete',
 #[permission_level(Managed)]
 async fn timer(ctx: &Context, msg: &Message, args: String) {
     fn time_difference(start_time: NaiveDateTime) -> String {
-        let unix_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64;
+        let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
         let now = NaiveDateTime::from_timestamp(unix_time, 0);
 
         let delta = (now - start_time).num_seconds();
@@ -415,10 +404,7 @@ async fn timer(ctx: &Context, msg: &Message, args: String) {
             let count = Timer::count_from_owner(owner, &pool).await;
 
             if count >= 25 {
-                let _ = msg
-                    .channel_id
-                    .say(&ctx, lm.get(&language, "timer/limit"))
-                    .await;
+                let _ = msg.channel_id.say(&ctx, lm.get(&language, "timer/limit")).await;
             } else {
                 let name = args_iter
                     .next()
@@ -428,10 +414,7 @@ async fn timer(ctx: &Context, msg: &Message, args: String) {
                 if name.len() <= 32 {
                     Timer::create(&name, owner, &pool).await;
 
-                    let _ = msg
-                        .channel_id
-                        .say(&ctx, lm.get(&language, "timer/success"))
-                        .await;
+                    let _ = msg.channel_id.say(&ctx, lm.get(&language, "timer/success")).await;
                 } else {
                     let _ = msg
                         .channel_id
@@ -469,21 +452,12 @@ DELETE FROM timers WHERE owner = ? AND name = ?
                     .await
                     .unwrap();
 
-                    let _ = msg
-                        .channel_id
-                        .say(&ctx, lm.get(&language, "timer/deleted"))
-                        .await;
+                    let _ = msg.channel_id.say(&ctx, lm.get(&language, "timer/deleted")).await;
                 } else {
-                    let _ = msg
-                        .channel_id
-                        .say(&ctx, lm.get(&language, "timer/not_found"))
-                        .await;
+                    let _ = msg.channel_id.say(&ctx, lm.get(&language, "timer/not_found")).await;
                 }
             } else {
-                let _ = msg
-                    .channel_id
-                    .say(&ctx, lm.get(&language, "timer/help"))
-                    .await;
+                let _ = msg.channel_id.say(&ctx, lm.get(&language, "timer/help")).await;
             }
         }
 
@@ -547,9 +521,8 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
 
             let time_parser = TimeParser::new(captures.name("time").unwrap().as_str(), timezone);
 
-            let expires_parser = captures
-                .name("expires")
-                .map(|mat| TimeParser::new(mat.as_str(), timezone));
+            let expires_parser =
+                captures.name("expires").map(|mat| TimeParser::new(mat.as_str(), timezone));
 
             let interval_parser = captures
                 .name("interval")
@@ -854,3 +827,4 @@ async fn natural(ctx: &Context, msg: &Message, args: String) {
         }
     }
 }
+*/

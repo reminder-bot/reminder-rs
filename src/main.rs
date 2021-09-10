@@ -33,7 +33,7 @@ use sqlx::mysql::MySqlPool;
 use tokio::sync::RwLock;
 
 use crate::{
-    commands::info_cmds,
+    commands::{info_cmds, moderation_cmds, reminder_cmds},
     consts::{CNC_GUILD, DEFAULT_PREFIX, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
     models::guild_data::GuildData,
@@ -79,28 +79,17 @@ trait LimitExecutors {
 #[async_trait]
 impl LimitExecutors for Context {
     async fn check_executing(&self, user: UserId) -> bool {
-        let currently_executing = self
-            .data
-            .read()
-            .await
-            .get::<CurrentlyExecuting>()
-            .cloned()
-            .unwrap();
+        let currently_executing =
+            self.data.read().await.get::<CurrentlyExecuting>().cloned().unwrap();
 
         let lock = currently_executing.read().await;
 
-        lock.get(&user)
-            .map_or(false, |now| now.elapsed().as_secs() < 4)
+        lock.get(&user).map_or(false, |now| now.elapsed().as_secs() < 4)
     }
 
     async fn set_executing(&self, user: UserId) {
-        let currently_executing = self
-            .data
-            .read()
-            .await
-            .get::<CurrentlyExecuting>()
-            .cloned()
-            .unwrap();
+        let currently_executing =
+            self.data.read().await.get::<CurrentlyExecuting>().cloned().unwrap();
 
         let mut lock = currently_executing.write().await;
 
@@ -108,13 +97,8 @@ impl LimitExecutors for Context {
     }
 
     async fn drop_executing(&self, user: UserId) {
-        let currently_executing = self
-            .data
-            .read()
-            .await
-            .get::<CurrentlyExecuting>()
-            .cloned()
-            .unwrap();
+        let currently_executing =
+            self.data.read().await.get::<CurrentlyExecuting>().cloned().unwrap();
 
         let mut lock = currently_executing.write().await;
 
@@ -171,11 +155,9 @@ DELETE FROM channels WHERE channel = ?
                     .cloned()
                     .expect("Could not get SQLPool from data");
 
-                GuildData::from_guild(guild, &pool)
-                    .await
-                    .unwrap_or_else(|_| {
-                        panic!("Failed to create new guild object for {}", guild_id)
-                    });
+                GuildData::from_guild(guild, &pool).await.unwrap_or_else(|_| {
+                    panic!("Failed to create new guild object for {}", guild_id)
+                });
             }
 
             if let Ok(token) = env::var("DISCORDBOTS_TOKEN") {
@@ -236,13 +218,7 @@ DELETE FROM channels WHERE channel = ?
             .cloned()
             .expect("Could not get SQLPool from data");
 
-        let guild_data_cache = ctx
-            .data
-            .read()
-            .await
-            .get::<GuildDataCache>()
-            .cloned()
-            .unwrap();
+        let guild_data_cache = ctx.data.read().await.get::<GuildDataCache>().cloned().unwrap();
         guild_data_cache.remove(&deleted_guild.id);
 
         sqlx::query!(
@@ -292,10 +268,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let http = Http::new_with_token(&token);
 
-    let logged_in_id = http
-        .get_current_user()
-        .map_ok(|user| user.id.as_u64().to_owned())
-        .await?;
+    let logged_in_id = http.get_current_user().map_ok(|user| user.id.as_u64().to_owned()).await?;
     let application_id = http.get_current_application_info().await?.id;
 
     let dm_enabled = env::var("DM_ENABLED").map_or(true, |var| var == "1");
@@ -305,9 +278,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .case_insensitive(env::var("CASE_INSENSITIVE").map_or(true, |var| var == "1"))
         .ignore_bots(env::var("IGNORE_BOTS").map_or(true, |var| var == "1"))
         .debug_guild(env::var("DEBUG_GUILD").map_or(None, |g| {
-            Some(GuildId(
-                g.parse::<u64>().expect("DEBUG_GUILD must be a guild ID"),
-            ))
+            Some(GuildId(g.parse::<u64>().expect("DEBUG_GUILD must be a guild ID")))
         }))
         .dm_enabled(dm_enabled)
         // info commands
@@ -329,6 +300,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // management commands
         .add_command("look", &reminder_cmds::LOOK_COMMAND)
         .add_command("del", &reminder_cmds::DELETE_COMMAND)
+        */
+        .add_command(&reminder_cmds::PAUSE_COMMAND)
+        /*
+        .add_command("offset", &reminder_cmds::OFFSET_COMMAND)
+        .add_command("nudge", &reminder_cmds::NUDGE_COMMAND)
         // to-do commands
         .add_command("todo", &todo_cmds::TODO_USER_COMMAND)
         .add_command("todo user", &todo_cmds::TODO_USER_COMMAND)
@@ -337,15 +313,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("todos", &todo_cmds::TODO_GUILD_COMMAND)
         .add_command("todo server", &todo_cmds::TODO_GUILD_COMMAND)
         .add_command("todo guild", &todo_cmds::TODO_GUILD_COMMAND)
+        */
         // moderation commands
-        .add_command("blacklist", &moderation_cmds::BLACKLIST_COMMAND)
-        .add_command("restrict", &moderation_cmds::RESTRICT_COMMAND)
-        .add_command("timezone", &moderation_cmds::TIMEZONE_COMMAND)
-        .add_command("prefix", &moderation_cmds::PREFIX_COMMAND)
-        .add_command("lang", &moderation_cmds::LANGUAGE_COMMAND)
-        .add_command("pause", &reminder_cmds::PAUSE_COMMAND)
-        .add_command("offset", &reminder_cmds::OFFSET_COMMAND)
-        .add_command("nudge", &reminder_cmds::NUDGE_COMMAND)
+        .add_command(&moderation_cmds::BLACKLIST_COMMAND)
+        .add_command(&moderation_cmds::RESTRICT_COMMAND)
+        .add_command(&moderation_cmds::TIMEZONE_COMMAND)
+        .add_command(&moderation_cmds::PREFIX_COMMAND)
+        /*
         .add_command("alias", &moderation_cmds::ALIAS_COMMAND)
         .add_command("a", &moderation_cmds::ALIAS_COMMAND)
         */
@@ -397,9 +371,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     if let Ok((Some(lower), Some(upper))) = env::var("SHARD_RANGE").map(|sr| {
-        let mut split = sr
-            .split(',')
-            .map(|val| val.parse::<u64>().expect("SHARD_RANGE not an integer"));
+        let mut split =
+            sr.split(',').map(|val| val.parse::<u64>().expect("SHARD_RANGE not an integer"));
 
         (split.next(), split.next())
     }) {
@@ -409,24 +382,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .flatten()
             .expect("No SHARD_COUNT provided, but SHARD_RANGE was provided");
 
-        assert!(
-            lower < upper,
-            "SHARD_RANGE lower limit is not less than the upper limit"
-        );
+        assert!(lower < upper, "SHARD_RANGE lower limit is not less than the upper limit");
 
-        info!(
-            "Starting client fragment with shards {}-{}/{}",
-            lower, upper, total_shards
-        );
+        info!("Starting client fragment with shards {}-{}/{}", lower, upper, total_shards);
 
-        client
-            .start_shard_range([lower, upper], total_shards)
-            .await?;
-    } else if let Ok(total_shards) = env::var("SHARD_COUNT").map(|shard_count| {
-        shard_count
-            .parse::<u64>()
-            .expect("SHARD_COUNT not an integer")
-    }) {
+        client.start_shard_range([lower, upper], total_shards).await?;
+    } else if let Ok(total_shards) = env::var("SHARD_COUNT")
+        .map(|shard_count| shard_count.parse::<u64>().expect("SHARD_COUNT not an integer"))
+    {
         info!("Starting client with {} shards", total_shards);
 
         client.start_shards(total_shards).await?;
@@ -441,9 +404,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 pub async fn check_subscription(cache_http: impl CacheHttp, user_id: impl Into<UserId>) -> bool {
     if let Some(subscription_guild) = *CNC_GUILD {
-        let guild_member = GuildId(subscription_guild)
-            .member(cache_http, user_id)
-            .await;
+        let guild_member = GuildId(subscription_guild).member(cache_http, user_id).await;
 
         if let Ok(member) = guild_member {
             for role in member.roles {

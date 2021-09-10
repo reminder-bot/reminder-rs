@@ -12,12 +12,7 @@ pub struct Content {
 
 impl Content {
     pub fn new() -> Self {
-        Self {
-            content: "".to_string(),
-            tts: false,
-            attachment: None,
-            attachment_name: None,
-        }
+        Self { content: "".to_string(), tts: false, attachment: None, attachment_name: None }
     }
 
     pub async fn build<S: ToString>(content: S, message: &Message) -> Result<Self, ContentError> {

@@ -98,10 +98,7 @@ impl TimeParser {
     }
 
     fn process_explicit(&self) -> Result<i64, InvalidTime> {
-        let mut time = Utc::now()
-            .with_timezone(&self.timezone)
-            .with_second(0)
-            .unwrap();
+        let mut time = Utc::now().with_timezone(&self.timezone).with_second(0).unwrap();
 
         let mut segments = self.time_string.rsplit('-');
         // this segment will always exist even if split fails
@@ -109,11 +106,9 @@ impl TimeParser {
 
         let h_m_s = hms.split(':');
 
-        for (t, setter) in h_m_s.take(3).zip(&[
-            DateTime::with_hour,
-            DateTime::with_minute,
-            DateTime::with_second,
-        ]) {
+        for (t, setter) in
+            h_m_s.take(3).zip(&[DateTime::with_hour, DateTime::with_minute, DateTime::with_second])
+        {
             time = setter(&time, t.parse().map_err(|_| InvalidTime::ParseErrorHMS)?)
                 .map_or_else(|| Err(InvalidTime::ParseErrorHMS), Ok)?;
         }
@@ -125,9 +120,7 @@ impl TimeParser {
             let month = d_m_y.next();
             let year = d_m_y.next();
 
-            for (t, setter) in [day, month]
-                .iter()
-                .zip(&[DateTime::with_day, DateTime::with_month])
+            for (t, setter) in [day, month].iter().zip(&[DateTime::with_day, DateTime::with_month])
             {
                 if let Some(t) = t {
                     time = setter(&time, t.parse().map_err(|_| InvalidTime::ParseErrorDMY)?)

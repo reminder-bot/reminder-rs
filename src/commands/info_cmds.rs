@@ -40,15 +40,15 @@ async fn info(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
                     .description(format!(
                         "Default prefix: `{default_prefix}`
 Reset prefix: `@{user} prefix {default_prefix}`
-Help: `{prefix}help`
-
-**Welcome to Reminder Bot!**
+Help: `{prefix}help`**Welcome \
+                         to Reminder Bot!**
 Developer: <@203532103185465344>
 Icon: <@253202252821430272>
-Find me on https://discord.jellywx.com and on https://github.com/JellyWX :)
+Find me on https://discord.jellywx.com \
+                         and on https://github.com/JellyWX :)
 
-Invite the bot: https://invite.reminder-bot.com/
-Use our dashboard: https://reminder-bot.com/",
+Invite the bot: https://invite.reminder-bot.com/Use our dashboard: \
+                         https://reminder-bot.com/",
                         default_prefix = *DEFAULT_PREFIX,
                         user = current_user.name,
                         prefix = prefix
