@@ -14,15 +14,19 @@ use serenity::{
     framework::Framework,
     futures::prelude::future::BoxFuture,
     http::Http,
+    json::Value,
     model::{
         channel::{Channel, GuildChannel, Message},
         guild::{Guild, Member},
         id::{ChannelId, GuildId, MessageId, UserId},
         interactions::{
-            application_command::{ApplicationCommandInteraction, ApplicationCommandOptionType},
+            application_command::{
+                ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandOptionType,
+            },
             InteractionResponseType,
         },
     },
+    prelude::TypeMapKey,
     FutureExt, Result as SerenityResult,
 };
 
@@ -36,18 +40,6 @@ pub enum PermissionLevel {
     Unrestricted,
     Managed,
     Restricted,
-}
-
-pub struct Args {
-    pub args: HashMap<String, String>,
-}
-
-impl Args {
-    pub fn named<D: ToString>(&self, name: D) -> Option<&String> {
-        let name = name.to_string();
-
-        self.args.get(&name)
-    }
 }
 
 pub struct CreateGenericResponse {
@@ -294,7 +286,7 @@ pub struct Arg {
 type SlashCommandFn = for<'fut> fn(
     &'fut Context,
     &'fut (dyn CommandInvoke + Sync + Send),
-    Args,
+    HashMap<String, String>,
 ) -> BoxFuture<'fut, ()>;
 
 type TextCommandFn = for<'fut> fn(
@@ -443,6 +435,11 @@ pub struct RegexFramework {
     case_insensitive: bool,
     dm_enabled: bool,
     default_text_fun: TextCommandFn,
+    debug_guild: Option<GuildId>,
+}
+
+impl TypeMapKey for RegexFramework {
+    type Value = Arc<RegexFramework>;
 }
 
 fn drop_text<'fut>(
@@ -467,6 +464,7 @@ impl RegexFramework {
             case_insensitive: true,
             dm_enabled: true,
             default_text_fun: drop_text,
+            debug_guild: None,
         }
     }
 
@@ -500,6 +498,12 @@ impl RegexFramework {
         for name in command.names {
             self.commands_map.insert(name.to_string(), command);
         }
+
+        self
+    }
+
+    pub fn debug_guild(mut self, guild_id: Option<GuildId>) -> Self {
+        self.debug_guild = guild_id;
 
         self
     }
@@ -570,6 +574,133 @@ impl RegexFramework {
         }
 
         self
+    }
+
+    pub async fn build_slash(&self, http: impl AsRef<Http>) {
+        info!("Building slash commands...");
+
+        match self.debug_guild {
+            None => {
+                ApplicationCommand::set_global_application_commands(&http, |commands| {
+                    for command in &self.commands {
+                        commands.create_application_command(|c| {
+                            c.name(command.names[0]).description(command.desc);
+
+                            for arg in command.args {
+                                c.create_option(|o| {
+                                    o.name(arg.name)
+                                        .description(arg.description)
+                                        .kind(arg.kind)
+                                        .required(arg.required)
+                                });
+                            }
+
+                            c
+                        });
+                    }
+
+                    commands
+                })
+                .await;
+            }
+            Some(debug_guild) => {
+                debug_guild
+                    .set_application_commands(&http, |commands| {
+                        for command in &self.commands {
+                            commands.create_application_command(|c| {
+                                c.name(command.names[0]).description(command.desc);
+
+                                for arg in command.args {
+                                    c.create_option(|o| {
+                                        o.name(arg.name)
+                                            .description(arg.description)
+                                            .kind(arg.kind)
+                                            .required(arg.required)
+                                    });
+                                }
+
+                                c
+                            });
+                        }
+
+                        commands
+                    })
+                    .await;
+            }
+        }
+
+        info!("Slash commands built!");
+    }
+
+    pub async fn execute(&self, ctx: Context, interaction: ApplicationCommandInteraction) {
+        let command = {
+            self.commands_map
+                .get(&interaction.data.name)
+                .expect(&format!(
+                    "Received invalid command: {}",
+                    interaction.data.name
+                ))
+        };
+
+        let guild = interaction.guild(ctx.cache.clone()).unwrap();
+        let member = interaction.clone().member.unwrap();
+
+        if command.check_permissions(&ctx, &guild, &member).await {
+            let mut args = HashMap::new();
+
+            for arg in interaction
+                .data
+                .options
+                .iter()
+                .filter(|o| o.value.is_some())
+            {
+                args.insert(
+                    arg.name.clone(),
+                    match arg.value.clone().unwrap() {
+                        Value::Bool(b) => {
+                            if b {
+                                arg.name.clone()
+                            } else {
+                                String::new()
+                            }
+                        }
+                        Value::Number(n) => n.to_string(),
+                        Value::String(s) => s,
+                        _ => String::new(),
+                    },
+                );
+            }
+
+            if !ctx.check_executing(interaction.author_id()).await {
+                ctx.set_executing(interaction.author_id()).await;
+
+                match command.fun {
+                    CommandFnType::Slash(t) => t(&ctx, &interaction, args).await,
+                    CommandFnType::Multi(m) => m(&ctx, &interaction).await,
+                    _ => (),
+                }
+
+                ctx.drop_executing(interaction.author_id()).await;
+            }
+        } else if command.required_permissions == PermissionLevel::Restricted {
+            let _ = interaction
+                .respond(
+                    ctx.http.clone(),
+                    CreateGenericResponse::new().content(
+                        "You must have the `Manage Server` permission to use this command.",
+                    ),
+                )
+                .await;
+        } else if command.required_permissions == PermissionLevel::Managed {
+            let _ = interaction
+                .respond(
+                    ctx.http.clone(),
+                    CreateGenericResponse::new().content(
+                        "You must have `Manage Messages` or have a role capable of sending reminders to that channel. Please talk to your server admin, and ask them to use the `/restrict` command to specify allowed roles.",
+                    ),
+                )
+                .await;
+        }
     }
 }
 

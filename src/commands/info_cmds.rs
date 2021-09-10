@@ -1,17 +1,12 @@
-use std::{
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
-
 use chrono::offset::Utc;
 use regex_command_attr::command;
-use serenity::{builder::CreateEmbedFooter, client::Context, model::channel::Message};
+use serenity::{builder::CreateEmbedFooter, client::Context};
 
 use crate::{
     consts::DEFAULT_PREFIX,
     framework::{CommandInvoke, CreateGenericResponse},
-    models::{user_data::UserData, CtxData},
-    FrameworkCtx, THEME_COLOR,
+    models::CtxData,
+    THEME_COLOR,
 };
 
 fn footer(ctx: &Context) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut CreateEmbedFooter {
@@ -121,8 +116,8 @@ async fn dashboard(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
 #[description("View the current time in your selected timezone")]
 #[group("Info")]
 async fn clock(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
-    let ud = ctx.user_data(&msg.author).await.unwrap();
-    let now = Utc::now().with_timezone(ud.timezone());
+    let ud = ctx.user_data(&invoke.author_id()).await.unwrap();
+    let now = Utc::now().with_timezone(&ud.timezone());
 
     invoke
         .respond(

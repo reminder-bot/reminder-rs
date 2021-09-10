@@ -9,11 +9,9 @@ mod time_parser;
 
 use std::{collections::HashMap, env, sync::Arc, time::Instant};
 
-use chrono::Utc;
 use chrono_tz::Tz;
 use dashmap::DashMap;
 use dotenv::dotenv;
-use inflector::Inflector;
 use log::info;
 use serenity::{
     async_trait,
@@ -23,11 +21,10 @@ use serenity::{
     http::{client::Http, CacheHttp},
     model::{
         channel::{GuildChannel, Message},
+        gateway::{Activity, Ready},
         guild::{Guild, GuildUnavailable},
         id::{GuildId, UserId},
-        interactions::{
-            Interaction, InteractionApplicationCommandCallbackDataFlags, InteractionResponseType,
-        },
+        interactions::Interaction,
     },
     prelude::{Context, EventHandler, TypeMapKey},
     utils::shard_id,
@@ -39,11 +36,7 @@ use crate::{
     commands::info_cmds,
     consts::{CNC_GUILD, DEFAULT_PREFIX, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
-    models::{
-        guild_data::GuildData,
-        reminder::{Reminder, ReminderAction},
-        user_data::UserData,
-    },
+    models::guild_data::GuildData,
 };
 
 struct GuildDataCache;
@@ -62,12 +55,6 @@ struct ReqwestClient;
 
 impl TypeMapKey for ReqwestClient {
     type Value = Arc<reqwest::Client>;
-}
-
-struct FrameworkCtx;
-
-impl TypeMapKey for FrameworkCtx {
-    type Value = Arc<RegexFramework>;
 }
 
 struct PopularTimezones;
@@ -139,6 +126,18 @@ struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
+    async fn cache_ready(&self, ctx: Context, _: Vec<GuildId>) {
+        let framework = ctx
+            .data
+            .read()
+            .await
+            .get::<RegexFramework>()
+            .cloned()
+            .expect("RegexFramework not found in context");
+
+        framework.build_slash(ctx).await;
+    }
+
     async fn channel_delete(&self, ctx: Context, channel: &GuildChannel) {
         let pool = ctx
             .data
@@ -256,6 +255,31 @@ DELETE FROM guilds WHERE guild = ?
         .await
         .unwrap();
     }
+
+    async fn ready(&self, ctx: Context, _: Ready) {
+        ctx.set_activity(Activity::watching("for /remind")).await;
+    }
+
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        match interaction {
+            Interaction::ApplicationCommand(application_command) => {
+                if application_command.guild_id.is_none() {
+                    return;
+                }
+
+                let framework = ctx
+                    .data
+                    .read()
+                    .await
+                    .get::<RegexFramework>()
+                    .cloned()
+                    .expect("RegexFramework not found in context");
+
+                framework.execute(ctx, application_command).await;
+            }
+            _ => {}
+        }
+    }
 }
 
 #[tokio::main]
@@ -280,13 +304,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .default_prefix(DEFAULT_PREFIX.clone())
         .case_insensitive(env::var("CASE_INSENSITIVE").map_or(true, |var| var == "1"))
         .ignore_bots(env::var("IGNORE_BOTS").map_or(true, |var| var == "1"))
+        .debug_guild(env::var("DEBUG_GUILD").map_or(None, |g| {
+            Some(GuildId(
+                g.parse::<u64>().expect("DEBUG_GUILD must be a guild ID"),
+            ))
+        }))
         .dm_enabled(dm_enabled)
         // info commands
         //.add_command("help", &info_cmds::HELP_COMMAND)
         .add_command(&info_cmds::INFO_COMMAND)
         .add_command(&info_cmds::DONATE_COMMAND)
-        //.add_command("dashboard", &info_cmds::DASHBOARD_COMMAND)
-        //.add_command("clock", &info_cmds::CLOCK_COMMAND)
+        .add_command(&info_cmds::DASHBOARD_COMMAND)
+        .add_command(&info_cmds::CLOCK_COMMAND)
         // reminder commands
         /*
         .add_command("timer", &reminder_cmds::TIMER_COMMAND)
@@ -364,7 +393,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         data.insert::<SQLPool>(pool);
         data.insert::<PopularTimezones>(Arc::new(popular_timezones));
         data.insert::<ReqwestClient>(Arc::new(reqwest::Client::new()));
-        data.insert::<FrameworkCtx>(framework_arc.clone());
+        data.insert::<RegexFramework>(framework_arc.clone());
     }
 
     if let Ok((Some(lower), Some(upper))) = env::var("SHARD_RANGE").map(|sr| {
