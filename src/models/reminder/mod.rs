@@ -11,7 +11,6 @@ use std::{
 
 use chrono::{NaiveDateTime, TimeZone};
 use chrono_tz::Tz;
-use ring::hmac;
 use serenity::{
     client::Context,
     model::id::{ChannelId, GuildId, UserId},
@@ -26,31 +25,6 @@ use crate::{
     },
     SQLPool,
 };
-
-#[derive(Clone, Copy)]
-pub enum ReminderAction {
-    Delete,
-}
-
-impl ToString for ReminderAction {
-    fn to_string(&self) -> String {
-        match self {
-            Self::Delete => String::from("del"),
-        }
-    }
-}
-
-impl TryFrom<&str> for ReminderAction {
-    type Error = ();
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "del" => Ok(Self::Delete),
-
-            _ => Err(()),
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct Reminder {
@@ -178,12 +152,9 @@ WHERE
     FIND_IN_SET(reminders.enabled, ?)
 ORDER BY
     reminders.utc_time
-LIMIT
-    ?
             ",
             channel_id.as_u64(),
             enabled,
-            flags.limit
         )
         .fetch_all(&pool)
         .await
@@ -339,59 +310,6 @@ WHERE
                 self.set_by.map(|i| format!("<@{}>", i)).unwrap_or_else(|| "unknown".to_string())
             )
         }
-    }
-
-    pub async fn from_interaction<U: Into<u64>>(
-        ctx: &Context,
-        member_id: U,
-        payload: String,
-    ) -> Result<(Self, ReminderAction), InteractionError> {
-        let sections = payload.split('.').collect::<Vec<&str>>();
-
-        if sections.len() != 3 {
-            Err(InteractionError::InvalidFormat)
-        } else {
-            let action = ReminderAction::try_from(sections[0])
-                .map_err(|_| InteractionError::InvalidAction)?;
-
-            let reminder_id = u32::from_le_bytes(
-                base64::decode(sections[1])
-                    .map_err(|_| InteractionError::InvalidBase64)?
-                    .try_into()
-                    .map_err(|_| InteractionError::InvalidSize)?,
-            );
-
-            if let Some(reminder) = Self::from_id(ctx, reminder_id).await {
-                if reminder.signed_action(member_id, action) == payload {
-                    Ok((reminder, action))
-                } else {
-                    Err(InteractionError::SignatureMismatch)
-                }
-            } else {
-                Err(InteractionError::NoReminder)
-            }
-        }
-    }
-
-    pub fn signed_action<U: Into<u64>>(&self, member_id: U, action: ReminderAction) -> String {
-        let s_key = hmac::Key::new(
-            hmac::HMAC_SHA256,
-            env::var("SECRET_KEY").expect("No SECRET_KEY provided").as_bytes(),
-        );
-
-        let mut context = hmac::Context::with_key(&s_key);
-
-        context.update(&self.id.to_le_bytes());
-        context.update(&member_id.into().to_le_bytes());
-
-        let signature = context.sign();
-
-        format!(
-            "{}.{}.{}",
-            action.to_string(),
-            base64::encode(self.id.to_le_bytes()),
-            base64::encode(&signature)
-        )
     }
 
     pub async fn delete(&self, ctx: &Context) {

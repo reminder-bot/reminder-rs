@@ -1,6 +1,7 @@
 pub const DAY: u64 = 86_400;
 pub const HOUR: u64 = 3_600;
 pub const MINUTE: u64 = 60;
+pub const EMBED_DESCRIPTION_MAX_LENGTH: usize = 4000;
 
 pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
 

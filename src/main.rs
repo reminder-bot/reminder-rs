@@ -1,7 +1,9 @@
+#![feature(int_roundings)]
 #[macro_use]
 extern crate lazy_static;
 
 mod commands;
+mod component_models;
 mod consts;
 mod framework;
 mod models;
@@ -34,6 +36,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     commands::{info_cmds, moderation_cmds, reminder_cmds},
+    component_models::ComponentDataModel,
     consts::{CNC_GUILD, DEFAULT_PREFIX, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
     models::guild_data::GuildData,
@@ -253,6 +256,10 @@ DELETE FROM guilds WHERE guild = ?
 
                 framework.execute(ctx, application_command).await;
             }
+            Interaction::MessageComponent(component) => {
+                let component_model = ComponentDataModel::from_custom_id(&component.data.custom_id);
+                component_model.act(component).await;
+            }
             _ => {}
         }
     }
@@ -298,13 +305,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("n", &reminder_cmds::NATURAL_COMMAND)
         .add_command("", &reminder_cmds::NATURAL_COMMAND)
         // management commands
-        .add_command("look", &reminder_cmds::LOOK_COMMAND)
         .add_command("del", &reminder_cmds::DELETE_COMMAND)
         */
+        .add_command(&reminder_cmds::LOOK_COMMAND)
         .add_command(&reminder_cmds::PAUSE_COMMAND)
+        .add_command(&reminder_cmds::OFFSET_COMMAND)
+        .add_command(&reminder_cmds::NUDGE_COMMAND)
         /*
-        .add_command("offset", &reminder_cmds::OFFSET_COMMAND)
-        .add_command("nudge", &reminder_cmds::NUDGE_COMMAND)
         // to-do commands
         .add_command("todo", &todo_cmds::TODO_USER_COMMAND)
         .add_command("todo user", &todo_cmds::TODO_USER_COMMAND)

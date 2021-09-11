@@ -17,6 +17,7 @@ use serenity::{
 };
 
 use crate::{
+    component_models::{ComponentDataModel, Restrict},
     consts::{REGEX_ALIAS, REGEX_COMMANDS, THEME_COLOR},
     framework::{CommandInvoke, CreateGenericResponse, PermissionLevel},
     models::{channel_data::ChannelData, guild_data::GuildData, user_data::UserData, CtxData},
@@ -264,6 +265,8 @@ async fn restrict(
 
     let len = restrictable_commands.len();
 
+    let restrict_pl = ComponentDataModel::Restrict(Restrict { role_id: role });
+
     invoke
         .respond(
             ctx.http.clone(),
@@ -273,7 +276,7 @@ async fn restrict(
                     c.create_action_row(|row| {
                         row.create_select_menu(|select| {
                             select
-                                .custom_id("test_id")
+                                .custom_id(restrict_pl.to_custom_id())
                                 .options(|options| {
                                     for command in restrictable_commands {
                                         options.create_option(|opt| {

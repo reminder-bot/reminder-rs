@@ -10,14 +10,19 @@ use num_integer::Integer;
 use regex_command_attr::command;
 use serenity::{
     client::Context,
-    model::channel::{Channel, Message},
+    futures::StreamExt,
+    model::{
+        channel::{Channel, Message},
+        id::ChannelId,
+        misc::Mentionable,
+    },
 };
 
 use crate::{
     check_subscription_on_message,
     consts::{
-        REGEX_CHANNEL_USER, REGEX_NATURAL_COMMAND_1, REGEX_NATURAL_COMMAND_2, REGEX_REMIND_COMMAND,
-        THEME_COLOR,
+        EMBED_DESCRIPTION_MAX_LENGTH, REGEX_CHANNEL_USER, REGEX_NATURAL_COMMAND_1,
+        REGEX_NATURAL_COMMAND_2, REGEX_REMIND_COMMAND, THEME_COLOR,
     },
     framework::{CommandInvoke, CreateGenericResponse},
     models::{
@@ -26,7 +31,7 @@ use crate::{
         reminder::{
             builder::{MultiReminderBuilder, ReminderScope},
             content::Content,
-            look_flags::LookFlags,
+            look_flags::{LookFlags, TimeDisplayType},
             Reminder,
         },
         timer::Timer,
@@ -116,146 +121,249 @@ async fn pause(
     }
 }
 
-/*
-#[command]
-#[permission_level(Restricted)]
-async fn offset(ctx: &Context, msg: &Message, args: String) {
-    let (pool, lm) = get_ctx_data(&ctx).await;
+#[command("offset")]
+#[description("Move all reminders in the current server by a certain amount of time. Times get added together")]
+#[arg(
+    name = "hours",
+    description = "Number of hours to offset by",
+    kind = "Integer",
+    required = false
+)]
+#[arg(
+    name = "minutes",
+    description = "Number of minutes to offset by",
+    kind = "Integer",
+    required = false
+)]
+#[arg(
+    name = "seconds",
+    description = "Number of seconds to offset by",
+    kind = "Integer",
+    required = false
+)]
+#[required_permissions(Restricted)]
+async fn offset(
+    ctx: &Context,
+    invoke: &(dyn CommandInvoke + Send + Sync),
+    args: HashMap<String, String>,
+) {
+    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+    let combined_time = args.get("hours").map_or(0, |h| h.parse::<i64>().unwrap() * 3600)
+        + args.get("minutes").map_or(0, |m| m.parse::<i64>().unwrap() * 60)
+        + args.get("seconds").map_or(0, |s| s.parse::<i64>().unwrap());
 
-    if args.is_empty() {
-        let prefix = ctx.prefix(msg.guild_id).await;
-
-        command_help(ctx, msg, lm, &prefix, &user_data.language, "offset").await;
+    if combined_time == 0 {
+        let _ = invoke
+            .respond(
+                ctx.http.clone(),
+                CreateGenericResponse::new()
+                    .content("Please specify one of `hours`, `minutes` or `seconds`"),
+            )
+            .await;
     } else {
-        let parser = TimeParser::new(&args, user_data.timezone());
+        if let Some(guild) = invoke.guild(ctx.cache.clone()) {
+            let channels = guild
+                .channels
+                .iter()
+                .filter(|(channel_id, channel)| match channel {
+                    Channel::Guild(guild_channel) => guild_channel.is_text_based(),
+                    _ => false,
+                })
+                .map(|(id, _)| id.0.to_string())
+                .collect::<Vec<String>>()
+                .join(",");
 
-        if let Ok(displacement) = parser.displacement() {
-            if let Some(guild) = msg.guild(&ctx) {
-                let guild_data = GuildData::from_guild(guild, &pool).await.unwrap();
-
-                sqlx::query!(
-                    "
+            sqlx::query!(
+                "
 UPDATE reminders
-    INNER JOIN `channels`
-        ON `channels`.id = reminders.channel_id
-    SET
-        reminders.`utc_time` = reminders.`utc_time` + ?
-    WHERE channels.guild_id = ?
-                    ",
-                    displacement,
-                    guild_data.id
-                )
-                .execute(&pool)
-                .await
-                .unwrap();
-            } else {
-                sqlx::query!(
-                    "
-UPDATE reminders SET `utc_time` = `utc_time` + ? WHERE reminders.channel_id = ?
-                    ",
-                    displacement,
-                    user_data.dm_channel
-                )
-                .execute(&pool)
-                .await
-                .unwrap();
-            }
-
-            let response = lm.get(&user_data.language, "offset/success").replacen(
-                "{}",
-                &displacement.to_string(),
-                1,
-            );
-
-            let _ = msg.channel_id.say(&ctx, response).await;
+INNER JOIN
+    `channels` ON `channels`.id = reminders.channel_id
+SET reminders.`utc_time` = reminders.`utc_time` + ?
+WHERE FIND_IN_SET(channels.`channel`, ?)",
+                combined_time,
+                channels
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
         } else {
-            let _ =
-                msg.channel_id.say(&ctx, lm.get(&user_data.language, "offset/invalid_time")).await;
+            sqlx::query!(
+                "UPDATE reminders INNER JOIN `channels` ON `channels`.id = reminders.channel_id SET reminders.`utc_time` = reminders.`utc_time` + ? WHERE channels.`channel` = ?",
+                combined_time,
+                invoke.channel_id().0
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
         }
+
+        let _ = invoke
+            .respond(
+                ctx.http.clone(),
+                CreateGenericResponse::new()
+                    .content(format!("All reminders offset by {} seconds", combined_time)),
+            )
+            .await;
     }
 }
 
-#[command]
-#[permission_level(Restricted)]
-async fn nudge(ctx: &Context, msg: &Message, args: String) {
-    let (pool, lm) = get_ctx_data(&ctx).await;
+#[command("nudge")]
+#[description("Nudge all future reminders on this channel by a certain amount (don't use for DST! See `/offset`)")]
+#[arg(
+    name = "minutes",
+    description = "Number of minutes to nudge new reminders by",
+    kind = "Integer",
+    required = false
+)]
+#[arg(
+    name = "seconds",
+    description = "Number of seconds to nudge new reminders by",
+    kind = "Integer",
+    required = false
+)]
+#[required_permissions(Restricted)]
+async fn nudge(
+    ctx: &Context,
+    invoke: &(dyn CommandInvoke + Send + Sync),
+    args: HashMap<String, String>,
+) {
+    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
-    let language = UserData::language_of(&msg.author, &pool).await;
-    let timezone = UserData::timezone_of(&msg.author, &pool).await;
+    let combined_time = args.get("minutes").map_or(0, |m| m.parse::<i64>().unwrap() * 60)
+        + args.get("seconds").map_or(0, |s| s.parse::<i64>().unwrap());
 
-    let mut channel =
-        ChannelData::from_channel(msg.channel(&ctx).await.unwrap(), &pool).await.unwrap();
-
-    if args.is_empty() {
-        let content = lm
-            .get(&language, "nudge/no_argument")
-            .replace("{nudge}", &format!("{}s", &channel.nudge.to_string()));
-
-        let _ = msg.channel_id.say(&ctx, content).await;
+    if combined_time < i16::MIN as i64 || combined_time > i16::MAX as i64 {
+        let _ = invoke
+            .respond(
+                ctx.http.clone(),
+                CreateGenericResponse::new().content("Nudge times must be less than 500 minutes"),
+            )
+            .await;
     } else {
-        let parser = TimeParser::new(&args, timezone);
-        let nudge_time = parser.displacement();
+        let mut channel_data = ctx.channel_data(invoke.channel_id()).await.unwrap();
 
-        match nudge_time {
-            Ok(displacement) => {
-                if displacement < i16::MIN as i64 || displacement > i16::MAX as i64 {
-                    let _ = msg.channel_id.say(&ctx, lm.get(&language, "nudge/invalid_time")).await;
-                } else {
-                    channel.nudge = displacement as i16;
+        channel_data.nudge = combined_time as i16;
+        channel_data.commit_changes(&pool).await;
 
-                    channel.commit_changes(&pool).await;
-
-                    let response = lm.get(&language, "nudge/success").replacen(
-                        "{}",
-                        &displacement.to_string(),
-                        1,
-                    );
-
-                    let _ = msg.channel_id.say(&ctx, response).await;
-                }
-            }
-
-            Err(_) => {
-                let _ = msg.channel_id.say(&ctx, lm.get(&language, "nudge/invalid_time")).await;
-            }
-        }
+        let _ = invoke
+            .respond(
+                ctx.http.clone(),
+                CreateGenericResponse::new().content(format!(
+                    "Future reminders will be nudged by {} seconds",
+                    combined_time
+                )),
+            )
+            .await;
     }
 }
 
 #[command("look")]
-#[permission_level(Managed)]
-async fn look(ctx: &Context, msg: &Message, args: String) {
-    let (pool, _lm) = get_ctx_data(&ctx).await;
+#[description("View reminders on a specific channel")]
+#[arg(
+    name = "channel",
+    description = "The channel to view reminders on",
+    kind = "Channel",
+    required = false
+)]
+#[arg(
+    name = "disabled",
+    description = "Whether to show disabled reminders or not",
+    kind = "Boolean",
+    required = false
+)]
+#[arg(
+    name = "relative",
+    description = "Whether to display times as relative or exact times",
+    kind = "Boolean",
+    required = false
+)]
+#[required_permissions(Managed)]
+async fn look(
+    ctx: &Context,
+    invoke: &(dyn CommandInvoke + Send + Sync),
+    args: HashMap<String, String>,
+) {
+    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
-    let timezone = UserData::timezone_of(&msg.author, &pool).await;
+    let timezone = UserData::timezone_of(&invoke.author_id(), &pool).await;
 
-    let flags = LookFlags::from_string(&args);
+    let flags = LookFlags {
+        show_disabled: args.get("disabled").map(|b| b == "true").unwrap_or(true),
+        channel_id: args.get("channel").map(|c| ChannelId(c.parse::<u64>().unwrap())),
+        time_display: args.get("relative").map_or(TimeDisplayType::Relative, |b| {
+            if b == "true" {
+                TimeDisplayType::Relative
+            } else {
+                TimeDisplayType::Absolute
+            }
+        }),
+    };
 
-    let channel_opt = msg.channel_id.to_channel_cached(&ctx);
+    let channel_opt = invoke.channel_id().to_channel_cached(&ctx);
 
     let channel_id = if let Some(Channel::Guild(channel)) = channel_opt {
-        if Some(channel.guild_id) == msg.guild_id {
-            flags.channel_id.unwrap_or(msg.channel_id)
+        if Some(channel.guild_id) == invoke.guild_id() {
+            flags.channel_id.unwrap_or(invoke.channel_id())
         } else {
-            msg.channel_id
+            invoke.channel_id()
         }
     } else {
-        msg.channel_id
+        invoke.channel_id()
     };
 
     let reminders = Reminder::from_channel(ctx, channel_id, &flags).await;
 
     if reminders.is_empty() {
-        let _ = msg.channel_id.say(&ctx, "No reminders on specified channel").await;
+        let _ = invoke
+            .respond(
+                ctx.http.clone(),
+                CreateGenericResponse::new().content("No reminders on specified channel"),
+            )
+            .await;
     } else {
-        let display = reminders.iter().map(|reminder| reminder.display(&flags, &timezone));
+        let mut char_count = 0;
 
-        let _ = msg.channel_id.say_lines(&ctx, display).await;
+        let display = reminders
+            .iter()
+            .map(|reminder| reminder.display(&flags, &timezone))
+            .take_while(|p| {
+                char_count += p.len();
+
+                char_count < EMBED_DESCRIPTION_MAX_LENGTH
+            })
+            .collect::<Vec<String>>()
+            .join("\n");
+
+        let pages = reminders
+            .iter()
+            .map(|reminder| reminder.display(&flags, &timezone))
+            .fold(0, |t, r| t + r.len())
+            .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
+
+        let _ = invoke
+            .respond(
+                ctx.http.clone(),
+                CreateGenericResponse::new()
+                    .embed(|e| {
+                        e.title(format!("Reminders on {}", channel_id.mention()))
+                            .description(display)
+                            .footer(|f| f.text(format!("Page {} of {}", 1, pages)))
+                    })
+                    .components(|comp| {
+                        comp.create_action_row(|row| {
+                            row.create_button(|b| b.label("⏮️").custom_id(".1"))
+                                .create_button(|b| b.label("◀️").custom_id(".2"))
+                                .create_button(|b| b.label("▶️").custom_id(".3"))
+                                .create_button(|b| b.label("⏭️").custom_id(".4"))
+                        })
+                    }),
+            )
+            .await;
     }
 }
 
+/*
 #[command("del")]
 #[permission_level(Managed)]
 async fn delete(ctx: &Context, msg: &Message, _args: String) {
