@@ -460,10 +460,24 @@ INSERT INTO events (event_name, bulk_count, guild_id, user_id) VALUES ('delete',
         }
     }
 }
+*/
 
 #[command("timer")]
-#[permission_level(Managed)]
-async fn timer(ctx: &Context, msg: &Message, args: String) {
+#[description("Manage timers")]
+#[subcommand("list")]
+#[description("List the timers in this server or DM channel")]
+#[subcommand("start")]
+#[description("Start a new timer from now")]
+#[arg(name = "name", description = "Name for the new timer", kind = "String", required = true)]
+#[subcommand("delete")]
+#[description("Delete a timer")]
+#[arg(name = "name", description = "Name of the timer to delete", kind = "String", required = true)]
+#[required_permissions(Managed)]
+async fn timer(
+    ctx: &Context,
+    invoke: &(dyn CommandInvoke + Send + Sync),
+    args: HashMap<String, String>,
+) {
     fn time_difference(start_time: NaiveDateTime) -> String {
         let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
         let now = NaiveDateTime::from_timestamp(unix_time, 0);
@@ -477,106 +491,120 @@ async fn timer(ctx: &Context, msg: &Message, args: String) {
         format!("{} days, {:02}:{:02}:{:02}", days, hours, minutes, seconds)
     }
 
-    let (pool, lm) = get_ctx_data(&ctx).await;
+    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
-    let language = UserData::language_of(&msg.author, &pool).await;
+    let owner = invoke.guild_id().map(|g| g.0).unwrap_or_else(|| invoke.author_id().0);
 
-    let mut args_iter = args.splitn(2, ' ');
-
-    let owner = msg
-        .guild_id
-        .map(|g| g.as_u64().to_owned())
-        .unwrap_or_else(|| msg.author.id.as_u64().to_owned());
-
-    match args_iter.next() {
-        Some("list") => {
-            let timers = Timer::from_owner(owner, &pool).await;
-
-            let _ = msg
-                .channel_id
-                .send_message(&ctx, |m| {
-                    m.embed(|e| {
-                        e.fields(timers.iter().map(|timer| {
-                            (
-                                &timer.name,
-                                format!("⏳ `{}`", time_difference(timer.start_time)),
-                                false,
-                            )
-                        }))
-                    })
-                })
-                .await;
-        }
-
+    match args.get("").map(|s| s.as_str()) {
         Some("start") => {
             let count = Timer::count_from_owner(owner, &pool).await;
 
             if count >= 25 {
-                let _ = msg.channel_id.say(&ctx, lm.get(&language, "timer/limit")).await;
+                let _ = invoke
+                    .respond(
+                        ctx.http.clone(),
+                        CreateGenericResponse::new()
+                            .content("You already have 25 timers. Please delete some timers before creating a new one"),
+                    )
+                    .await;
             } else {
-                let name = args_iter
-                    .next()
-                    .map(|s| s.to_string())
-                    .unwrap_or(format!("New timer #{}", count + 1));
+                let name = args.get("name").unwrap();
 
                 if name.len() <= 32 {
                     Timer::create(&name, owner, &pool).await;
 
-                    let _ = msg.channel_id.say(&ctx, lm.get(&language, "timer/success")).await;
+                    let _ = invoke
+                        .respond(
+                            ctx.http.clone(),
+                            CreateGenericResponse::new().content("Created a new timer"),
+                        )
+                        .await;
                 } else {
-                    let _ = msg
-                        .channel_id
-                        .say(
-                            &ctx,
-                            lm.get(&language, "timer/name_length")
-                                .replace("{}", &name.len().to_string()),
+                    let _ = invoke
+                        .respond(
+                            ctx.http.clone(),
+                            CreateGenericResponse::new()
+                                .content(format!("Please name your timer something shorted (max. 32 characters, you used {})", name.len())),
                         )
                         .await;
                 }
             }
         }
-
         Some("delete") => {
-            if let Some(name) = args_iter.next() {
-                let exists = sqlx::query!(
-                    "
+            let name = args.get("name").unwrap();
+
+            let exists = sqlx::query!(
+                "
 SELECT 1 as _r FROM timers WHERE owner = ? AND name = ?
                     ",
+                owner,
+                name
+            )
+            .fetch_one(&pool)
+            .await;
+
+            if exists.is_ok() {
+                sqlx::query!(
+                    "
+DELETE FROM timers WHERE owner = ? AND name = ?
+                        ",
                     owner,
                     name
                 )
-                .fetch_one(&pool)
-                .await;
+                .execute(&pool)
+                .await
+                .unwrap();
 
-                if exists.is_ok() {
-                    sqlx::query!(
-                        "
-DELETE FROM timers WHERE owner = ? AND name = ?
-                        ",
-                        owner,
-                        name
+                let _ = invoke
+                    .respond(
+                        ctx.http.clone(),
+                        CreateGenericResponse::new().content("Deleted a timer"),
                     )
-                    .execute(&pool)
-                    .await
-                    .unwrap();
-
-                    let _ = msg.channel_id.say(&ctx, lm.get(&language, "timer/deleted")).await;
-                } else {
-                    let _ = msg.channel_id.say(&ctx, lm.get(&language, "timer/not_found")).await;
-                }
+                    .await;
             } else {
-                let _ = msg.channel_id.say(&ctx, lm.get(&language, "timer/help")).await;
+                let _ = invoke
+                    .respond(
+                        ctx.http.clone(),
+                        CreateGenericResponse::new().content("Could not find a timer by that name"),
+                    )
+                    .await;
             }
         }
+        Some("list") => {
+            let timers = Timer::from_owner(owner, &pool).await;
 
-        _ => {
-            let prefix = ctx.prefix(msg.guild_id).await;
-
-            command_help(ctx, msg, lm, &prefix, &language, "timer").await;
+            if timers.len() > 0 {
+                let _ = invoke
+                    .respond(
+                        ctx.http.clone(),
+                        CreateGenericResponse::new().embed(|e| {
+                            e.fields(timers.iter().map(|timer| {
+                                (
+                                    &timer.name,
+                                    format!("⌚ `{}`", time_difference(timer.start_time)),
+                                    false,
+                                )
+                            }))
+                            .color(*THEME_COLOR)
+                        }),
+                    )
+                    .await;
+            } else {
+                let _ = invoke
+                    .respond(
+                        ctx.http.clone(),
+                        CreateGenericResponse::new().content(
+                            "No timers currently. Use `/timer start` to create a new timer",
+                        ),
+                    )
+                    .await;
+            }
         }
+        _ => {}
     }
 }
 
+/*
 #[derive(PartialEq)]
 enum RemindCommand {
     Remind,

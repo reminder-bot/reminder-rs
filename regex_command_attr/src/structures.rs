@@ -247,6 +247,25 @@ impl Default for Arg {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct Subcommand {
+    pub name: String,
+    pub description: String,
+    pub cmd_args: Vec<Arg>,
+}
+
+impl Default for Subcommand {
+    fn default() -> Self {
+        Self { name: String::new(), description: String::new(), cmd_args: vec![] }
+    }
+}
+
+impl Subcommand {
+    pub(crate) fn new(name: String) -> Self {
+        Self { name, ..Default::default() }
+    }
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct Options {
     pub aliases: Vec<String>,
@@ -257,11 +276,12 @@ pub(crate) struct Options {
     pub can_blacklist: bool,
     pub supports_dm: bool,
     pub cmd_args: Vec<Arg>,
+    pub subcommands: Vec<Subcommand>,
 }
 
 impl Options {
     #[inline]
     pub fn new() -> Self {
-        Self { group: "Other".to_string(), ..Default::default() }
+        Self { group: "None".to_string(), ..Default::default() }
     }
 }

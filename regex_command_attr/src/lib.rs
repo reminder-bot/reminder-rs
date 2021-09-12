@@ -53,13 +53,28 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         let name = &name[..];
 
         match name {
-            "arg" => options.cmd_args.push(propagate_err!(attributes::parse(values))),
+            "subcommand" => {
+                options
+                    .subcommands
+                    .push(Subcommand::new(propagate_err!(attributes::parse(values))));
+            }
+            "arg" => {
+                if let Some(subcommand) = options.subcommands.last_mut() {
+                    subcommand.cmd_args.push(propagate_err!(attributes::parse(values)));
+                } else {
+                    options.cmd_args.push(propagate_err!(attributes::parse(values)));
+                }
+            }
             "example" => {
                 options.examples.push(propagate_err!(attributes::parse(values)));
             }
             "description" => {
                 let line: String = propagate_err!(attributes::parse(values));
-                util::append_line(&mut options.description, line);
+                if let Some(subcommand) = options.subcommands.last_mut() {
+                    util::append_line(&mut subcommand.description, line);
+                } else {
+                    util::append_line(&mut options.description, line);
+                }
             }
             _ => {
                 match_options!(name, values, options, span => [
@@ -82,6 +97,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         can_blacklist,
         supports_dm,
         mut cmd_args,
+        mut subcommands,
     } = options;
 
     let visibility = fun.visibility;
@@ -94,32 +110,97 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let command_path = quote!(crate::framework::Command);
     let arg_path = quote!(crate::framework::Arg);
+    let subcommand_path = ApplicationCommandOptionType::SubCommand;
 
     populate_fut_lifetimes_on_refs(&mut fun.args);
     let args = fun.args;
 
-    let arg_idents = cmd_args
+    let mut subcommand_idents = subcommands
         .iter()
-        .map(|arg| {
-            n.with_suffix(arg.name.replace(" ", "_").replace("-", "_").as_str()).with_suffix(ARG)
+        .map(|subcommand| {
+            n.with_suffix(subcommand.name.replace("-", "_").as_str()).with_suffix(SUBCOMMAND)
         })
         .collect::<Vec<Ident>>();
 
-    let mut tokens = cmd_args
+    let mut tokens = subcommands
         .iter_mut()
-        .map(|arg| {
-            let Arg { name, description, kind, required } = arg;
+        .zip(subcommand_idents.iter())
+        .map(|(subcommand, sc_ident)| {
+            let arg_idents = subcommand
+                .cmd_args
+                .iter()
+                .map(|arg| {
+                    n.with_suffix(subcommand.name.as_str())
+                        .with_suffix(arg.name.as_str())
+                        .with_suffix(ARG)
+                })
+                .collect::<Vec<Ident>>();
 
-            let an = n.with_suffix(name.as_str()).with_suffix(ARG);
+            let mut tokens = subcommand
+                .cmd_args
+                .iter_mut()
+                .zip(arg_idents.iter())
+                .map(|(arg, ident)| {
+                    let Arg { name, description, kind, required } = arg;
+
+                    quote! {
+                        #(#cooked)*
+                        #[allow(missing_docs)]
+                        pub static #ident: #arg_path = #arg_path {
+                            name: #name,
+                            description: #description,
+                            kind: #kind,
+                            required: #required,
+                            options: &[]
+                        };
+                    }
+                })
+                .fold(quote! {}, |mut a, b| {
+                    a.extend(b);
+                    a
+                });
+
+            let Subcommand { name, description, .. } = subcommand;
+
+            tokens.extend(quote! {
+                #(#cooked)*
+                #[allow(missing_docs)]
+                pub static #sc_ident: #arg_path = #arg_path {
+                    name: #name,
+                    description: #description,
+                    kind: #subcommand_path,
+                    required: false,
+                    options: &[#(&#arg_idents),*],
+                };
+            });
+
+            tokens
+        })
+        .fold(quote! {}, |mut a, b| {
+            a.extend(b);
+            a
+        });
+
+    let mut arg_idents = cmd_args
+        .iter()
+        .map(|arg| n.with_suffix(arg.name.replace("-", "_").as_str()).with_suffix(ARG))
+        .collect::<Vec<Ident>>();
+
+    let arg_tokens = cmd_args
+        .iter_mut()
+        .zip(arg_idents.iter())
+        .map(|(arg, ident)| {
+            let Arg { name, description, kind, required } = arg;
 
             quote! {
                 #(#cooked)*
                 #[allow(missing_docs)]
-                pub static #an: #arg_path = #arg_path {
+                pub static #ident: #arg_path = #arg_path {
                     name: #name,
                     description: #description,
                     kind: #kind,
                     required: #required,
+                    options: &[],
                 };
             }
         })
@@ -127,6 +208,9 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
             a.extend(b);
             a
         });
+
+    tokens.extend(arg_tokens);
+    arg_idents.append(&mut subcommand_idents);
 
     let variant = if args.len() == 2 {
         quote!(crate::framework::CommandFnType::Multi)

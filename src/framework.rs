@@ -8,7 +8,7 @@ use log::{error, info, warn};
 use regex::{Match, Regex, RegexBuilder};
 use serenity::{
     async_trait,
-    builder::{CreateComponents, CreateEmbed},
+    builder::{CreateApplicationCommands, CreateComponents, CreateEmbed},
     cache::Cache,
     client::Context,
     framework::Framework,
@@ -278,6 +278,7 @@ pub struct Arg {
     pub description: &'static str,
     pub kind: ApplicationCommandOptionType,
     pub required: bool,
+    pub options: &'static [&'static Self],
 }
 
 type SlashCommandFn = for<'fut> fn(
@@ -561,59 +562,56 @@ impl RegexFramework {
         self
     }
 
+    fn _populate_commands<'a>(
+        &self,
+        commands: &'a mut CreateApplicationCommands,
+    ) -> &'a mut CreateApplicationCommands {
+        for command in &self.commands {
+            if command.fun.is_slash() {
+                commands.create_application_command(|c| {
+                    c.name(command.names[0]).description(command.desc);
+
+                    for arg in command.args {
+                        c.create_option(|o| {
+                            o.name(arg.name)
+                                .description(arg.description)
+                                .kind(arg.kind)
+                                .required(arg.required);
+
+                            for option in arg.options {
+                                o.create_sub_option(|s| {
+                                    s.name(option.name)
+                                        .description(option.description)
+                                        .kind(option.kind)
+                                        .required(option.required)
+                                });
+                            }
+
+                            o
+                        });
+                    }
+
+                    c
+                });
+            }
+        }
+
+        commands
+    }
+
     pub async fn build_slash(&self, http: impl AsRef<Http>) {
         info!("Building slash commands...");
 
         match self.debug_guild {
             None => {
-                ApplicationCommand::set_global_application_commands(&http, |commands| {
-                    for command in &self.commands {
-                        if command.fun.is_slash() {
-                            commands.create_application_command(|c| {
-                                c.name(command.names[0]).description(command.desc);
-
-                                for arg in command.args {
-                                    c.create_option(|o| {
-                                        o.name(arg.name)
-                                            .description(arg.description)
-                                            .kind(arg.kind)
-                                            .required(arg.required)
-                                    });
-                                }
-
-                                c
-                            });
-                        }
-                    }
-
-                    commands
+                ApplicationCommand::set_global_application_commands(&http, |c| {
+                    self._populate_commands(c)
                 })
                 .await;
             }
             Some(debug_guild) => {
                 debug_guild
-                    .set_application_commands(&http, |commands| {
-                        for command in &self.commands {
-                            if command.fun.is_slash() {
-                                commands.create_application_command(|c| {
-                                    c.name(command.names[0]).description(command.desc);
-
-                                    for arg in command.args {
-                                        c.create_option(|o| {
-                                            o.name(arg.name)
-                                                .description(arg.description)
-                                                .kind(arg.kind)
-                                                .required(arg.required)
-                                        });
-                                    }
-
-                                    c
-                                });
-                            }
-                        }
-
-                        commands
-                    })
+                    .set_application_commands(&http, |c| self._populate_commands(c))
                     .await
                     .unwrap();
             }
@@ -635,22 +633,31 @@ impl RegexFramework {
         if command.check_permissions(&ctx, &guild, &member).await {
             let mut args = HashMap::new();
 
-            for arg in interaction.data.options.iter().filter(|o| o.value.is_some()) {
-                args.insert(
-                    arg.name.clone(),
-                    match arg.value.clone().unwrap() {
-                        Value::Bool(b) => {
-                            if b {
-                                arg.name.clone()
-                            } else {
-                                String::new()
-                            }
-                        }
-                        Value::Number(n) => n.to_string(),
-                        Value::String(s) => s,
-                        _ => String::new(),
-                    },
-                );
+            for arg in interaction.data.options.iter() {
+                if let Some(value) = &arg.value {
+                    args.insert(
+                        arg.name.clone(),
+                        match value {
+                            Value::Bool(b) => b.to_string(),
+                            Value::Number(n) => n.to_string(),
+                            Value::String(s) => s.to_owned(),
+                            _ => String::new(),
+                        },
+                    );
+                } else {
+                    args.insert("".to_string(), arg.name.clone());
+                    for sub_arg in arg.options.iter().filter(|o| o.value.is_some()) {
+                        args.insert(
+                            sub_arg.name.clone(),
+                            match sub_arg.value.as_ref().unwrap() {
+                                Value::Bool(b) => b.to_string(),
+                                Value::Number(n) => n.to_string(),
+                                Value::String(s) => s.to_owned(),
+                                _ => String::new(),
+                            },
+                        );
+                    }
+                }
             }
 
             if !ctx.check_executing(interaction.author_id()).await {
