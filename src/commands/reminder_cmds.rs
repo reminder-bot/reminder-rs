@@ -24,7 +24,7 @@ use crate::{
         EMBED_DESCRIPTION_MAX_LENGTH, REGEX_CHANNEL_USER, REGEX_NATURAL_COMMAND_1,
         REGEX_NATURAL_COMMAND_2, REGEX_REMIND_COMMAND, THEME_COLOR,
     },
-    framework::{CommandInvoke, CreateGenericResponse},
+    framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
     models::{
         channel_data::ChannelData,
         guild_data::GuildData,
@@ -52,11 +52,7 @@ use crate::{
 )]
 #[supports_dm(false)]
 #[required_permissions(Restricted)]
-async fn pause(
-    ctx: &Context,
-    invoke: &(dyn CommandInvoke + Send + Sync),
-    args: HashMap<String, String>,
-) {
+async fn pause(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let timezone = UserData::timezone_of(&invoke.author_id(), &pool).await;
@@ -64,7 +60,7 @@ async fn pause(
     let mut channel = ctx.channel_data(invoke.channel_id()).await.unwrap();
 
     match args.get("until") {
-        Some(until) => {
+        Some(OptionValue::String(until)) => {
             let parsed = natural_parser(until, &timezone.to_string()).await;
 
             if let Some(timestamp) = parsed {
@@ -94,7 +90,7 @@ async fn pause(
                     .await;
             }
         }
-        None => {
+        _ => {
             channel.paused = !channel.paused;
             channel.paused_until = None;
 
@@ -142,16 +138,12 @@ async fn pause(
     required = false
 )]
 #[required_permissions(Restricted)]
-async fn offset(
-    ctx: &Context,
-    invoke: &(dyn CommandInvoke + Send + Sync),
-    args: HashMap<String, String>,
-) {
+async fn offset(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
-    let combined_time = args.get("hours").map_or(0, |h| h.parse::<i64>().unwrap() * 3600)
-        + args.get("minutes").map_or(0, |m| m.parse::<i64>().unwrap() * 60)
-        + args.get("seconds").map_or(0, |s| s.parse::<i64>().unwrap());
+    let combined_time = args.get("hours").map_or(0, |h| h.as_i64().unwrap() * 3600)
+        + args.get("minutes").map_or(0, |m| m.as_i64().unwrap() * 60)
+        + args.get("seconds").map_or(0, |s| s.as_i64().unwrap());
 
     if combined_time == 0 {
         let _ = invoke
@@ -223,15 +215,11 @@ WHERE FIND_IN_SET(channels.`channel`, ?)",
     required = false
 )]
 #[required_permissions(Restricted)]
-async fn nudge(
-    ctx: &Context,
-    invoke: &(dyn CommandInvoke + Send + Sync),
-    args: HashMap<String, String>,
-) {
+async fn nudge(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
-    let combined_time = args.get("minutes").map_or(0, |m| m.parse::<i64>().unwrap() * 60)
-        + args.get("seconds").map_or(0, |s| s.parse::<i64>().unwrap());
+    let combined_time = args.get("minutes").map_or(0, |m| m.as_i64().unwrap() * 60)
+        + args.get("seconds").map_or(0, |s| s.as_i64().unwrap());
 
     if combined_time < i16::MIN as i64 || combined_time > i16::MAX as i64 {
         let _ = invoke
@@ -279,20 +267,16 @@ async fn nudge(
     required = false
 )]
 #[required_permissions(Managed)]
-async fn look(
-    ctx: &Context,
-    invoke: &(dyn CommandInvoke + Send + Sync),
-    args: HashMap<String, String>,
-) {
+async fn look(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let timezone = UserData::timezone_of(&invoke.author_id(), &pool).await;
 
     let flags = LookFlags {
-        show_disabled: args.get("disabled").map(|b| b == "true").unwrap_or(true),
-        channel_id: args.get("channel").map(|c| ChannelId(c.parse::<u64>().unwrap())),
+        show_disabled: args.get("disabled").map(|i| i.as_bool()).flatten().unwrap_or(true),
+        channel_id: args.get("channel").map(|i| i.as_channel_id()).flatten(),
         time_display: args.get("relative").map_or(TimeDisplayType::Relative, |b| {
-            if b == "true" {
+            if b.as_bool() == Some(true) {
                 TimeDisplayType::Relative
             } else {
                 TimeDisplayType::Absolute
@@ -473,11 +457,7 @@ INSERT INTO events (event_name, bulk_count, guild_id, user_id) VALUES ('delete',
 #[description("Delete a timer")]
 #[arg(name = "name", description = "Name of the timer to delete", kind = "String", required = true)]
 #[required_permissions(Managed)]
-async fn timer(
-    ctx: &Context,
-    invoke: &(dyn CommandInvoke + Send + Sync),
-    args: HashMap<String, String>,
-) {
+async fn timer(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
     fn time_difference(start_time: NaiveDateTime) -> String {
         let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
         let now = NaiveDateTime::from_timestamp(unix_time, 0);
@@ -495,8 +475,8 @@ async fn timer(
 
     let owner = invoke.guild_id().map(|g| g.0).unwrap_or_else(|| invoke.author_id().0);
 
-    match args.get("").map(|s| s.as_str()) {
-        Some("start") => {
+    match args.subcommand.clone().unwrap().as_str() {
+        "start" => {
             let count = Timer::count_from_owner(owner, &pool).await;
 
             if count >= 25 {
@@ -508,7 +488,7 @@ async fn timer(
                     )
                     .await;
             } else {
-                let name = args.get("name").unwrap();
+                let name = args.get("name").unwrap().to_string();
 
                 if name.len() <= 32 {
                     Timer::create(&name, owner, &pool).await;
@@ -530,8 +510,8 @@ async fn timer(
                 }
             }
         }
-        Some("delete") => {
-            let name = args.get("name").unwrap();
+        "delete" => {
+            let name = args.get("name").unwrap().to_string();
 
             let exists = sqlx::query!(
                 "
@@ -570,7 +550,7 @@ DELETE FROM timers WHERE owner = ? AND name = ?
                     .await;
             }
         }
-        Some("list") => {
+        "list" => {
             let timers = Timer::from_owner(owner, &pool).await;
 
             if timers.len() > 0 {

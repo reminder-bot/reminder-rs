@@ -18,13 +18,15 @@ use serenity::{
     model::{
         channel::{Channel, GuildChannel, Message},
         guild::{Guild, Member},
-        id::{ChannelId, GuildId, MessageId, UserId},
+        id::{ChannelId, GuildId, MessageId, RoleId, UserId},
         interactions::{
             application_command::{
-                ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandOptionType,
+                ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandOption,
+                ApplicationCommandOptionType,
             },
             InteractionResponseType,
         },
+        prelude::application_command::ApplicationCommandInteractionDataOption,
     },
     prelude::TypeMapKey,
     FutureExt, Result as SerenityResult,
@@ -281,10 +283,166 @@ pub struct Arg {
     pub options: &'static [&'static Self],
 }
 
+pub enum OptionValue {
+    String(String),
+    Integer(i64),
+    Boolean(bool),
+    User(UserId),
+    Channel(ChannelId),
+    Role(RoleId),
+    Mentionable(u64),
+    Number(f64),
+}
+
+impl OptionValue {
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            OptionValue::Integer(i) => Some(*i),
+            _ => None,
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            OptionValue::Boolean(b) => Some(*b),
+            _ => None,
+        }
+    }
+
+    pub fn as_channel_id(&self) -> Option<ChannelId> {
+        match self {
+            OptionValue::Channel(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            OptionValue::String(s) => s.to_string(),
+            OptionValue::Integer(i) => i.to_string(),
+            OptionValue::Boolean(b) => b.to_string(),
+            OptionValue::User(u) => u.to_string(),
+            OptionValue::Channel(c) => c.to_string(),
+            OptionValue::Role(r) => r.to_string(),
+            OptionValue::Mentionable(m) => m.to_string(),
+            OptionValue::Number(n) => n.to_string(),
+        }
+    }
+}
+
+pub struct CommandOptions {
+    pub command: String,
+    pub subcommand: Option<String>,
+    pub subcommand_group: Option<String>,
+    pub options: HashMap<String, OptionValue>,
+}
+
+impl CommandOptions {
+    pub fn get(&self, key: &str) -> Option<&OptionValue> {
+        self.options.get(key)
+    }
+}
+
+impl From<ApplicationCommandInteraction> for CommandOptions {
+    fn from(interaction: ApplicationCommandInteraction) -> Self {
+        fn match_option(
+            option: ApplicationCommandInteractionDataOption,
+            cmd_opts: &mut CommandOptions,
+        ) {
+            match option.kind {
+                ApplicationCommandOptionType::SubCommand => {
+                    cmd_opts.subcommand = Some(option.name);
+
+                    for opt in option.options {
+                        match_option(opt, cmd_opts);
+                    }
+                }
+                ApplicationCommandOptionType::SubCommandGroup => {
+                    cmd_opts.subcommand_group = Some(option.name);
+
+                    for opt in option.options {
+                        match_option(opt, cmd_opts);
+                    }
+                }
+                ApplicationCommandOptionType::String => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::String(option.value.unwrap().to_string()),
+                    );
+                }
+                ApplicationCommandOptionType::Integer => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::Integer(option.value.map(|m| m.as_i64()).flatten().unwrap()),
+                    );
+                }
+                ApplicationCommandOptionType::Boolean => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::Boolean(option.value.map(|m| m.as_bool()).flatten().unwrap()),
+                    );
+                }
+                ApplicationCommandOptionType::User => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::User(UserId(
+                            option.value.map(|m| m.as_u64()).flatten().unwrap(),
+                        )),
+                    );
+                }
+                ApplicationCommandOptionType::Channel => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::Channel(ChannelId(
+                            option.value.map(|m| m.as_u64()).flatten().unwrap(),
+                        )),
+                    );
+                }
+                ApplicationCommandOptionType::Role => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::Role(RoleId(
+                            option.value.map(|m| m.as_u64()).flatten().unwrap(),
+                        )),
+                    );
+                }
+                ApplicationCommandOptionType::Mentionable => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::Mentionable(
+                            option.value.map(|m| m.as_u64()).flatten().unwrap(),
+                        ),
+                    );
+                }
+                ApplicationCommandOptionType::Number => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::Number(option.value.map(|m| m.as_f64()).flatten().unwrap()),
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        let mut cmd_opts = Self {
+            command: interaction.data.name,
+            subcommand: None,
+            subcommand_group: None,
+            options: Default::default(),
+        };
+
+        for option in interaction.data.options {
+            match_option(option, &mut cmd_opts)
+        }
+
+        cmd_opts
+    }
+}
+
 type SlashCommandFn = for<'fut> fn(
     &'fut Context,
     &'fut (dyn CommandInvoke + Sync + Send),
-    HashMap<String, String>,
+    CommandOptions,
 ) -> BoxFuture<'fut, ()>;
 
 type TextCommandFn = for<'fut> fn(
@@ -631,34 +789,7 @@ impl RegexFramework {
         let member = interaction.clone().member.unwrap();
 
         if command.check_permissions(&ctx, &guild, &member).await {
-            let mut args = HashMap::new();
-
-            for arg in interaction.data.options.iter() {
-                if let Some(value) = &arg.value {
-                    args.insert(
-                        arg.name.clone(),
-                        match value {
-                            Value::Bool(b) => b.to_string(),
-                            Value::Number(n) => n.to_string(),
-                            Value::String(s) => s.to_owned(),
-                            _ => String::new(),
-                        },
-                    );
-                } else {
-                    args.insert("".to_string(), arg.name.clone());
-                    for sub_arg in arg.options.iter().filter(|o| o.value.is_some()) {
-                        args.insert(
-                            sub_arg.name.clone(),
-                            match sub_arg.value.as_ref().unwrap() {
-                                Value::Bool(b) => b.to_string(),
-                                Value::Number(n) => n.to_string(),
-                                Value::String(s) => s.to_owned(),
-                                _ => String::new(),
-                            },
-                        );
-                    }
-                }
-            }
+            let args = CommandOptions::from(interaction.clone());
 
             if !ctx.check_executing(interaction.author_id()).await {
                 ctx.set_executing(interaction.author_id()).await;

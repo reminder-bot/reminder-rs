@@ -27,4 +27,4 @@ sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "macros", "mysql",
 base64 = "0.13.0"
 
 [dependencies.regex_command_attr]
-path = "./regex_command_attr"
+path = "command_attributes"

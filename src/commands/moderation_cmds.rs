@@ -9,9 +9,7 @@ use serenity::{
     client::Context,
     model::{
         channel::Message,
-        guild::ActionRole::Create,
         id::{ChannelId, MessageId, RoleId},
-        interactions::message_component::ButtonStyle,
         misc::Mentionable,
     },
 };
@@ -19,7 +17,9 @@ use serenity::{
 use crate::{
     component_models::{ComponentDataModel, Restrict},
     consts::{REGEX_ALIAS, REGEX_COMMANDS, THEME_COLOR},
-    framework::{CommandInvoke, CreateGenericResponse, PermissionLevel},
+    framework::{
+        CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue, PermissionLevel,
+    },
     models::{channel_data::ChannelData, guild_data::GuildData, user_data::UserData, CtxData},
     PopularTimezones, RegexFramework, SQLPool,
 };
@@ -38,14 +38,14 @@ use crate::{
 async fn blacklist(
     ctx: &Context,
     invoke: &(dyn CommandInvoke + Send + Sync),
-    args: HashMap<String, String>,
+    args: CommandOptions,
 ) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let channel = match args.get("channel") {
-        Some(channel_id) => ChannelId(channel_id.parse::<u64>().unwrap()),
+        Some(OptionValue::Channel(channel_id)) => *channel_id,
 
-        None => invoke.channel_id(),
+        _ => invoke.channel_id(),
     }
     .to_channel_cached(&ctx)
     .unwrap();
@@ -82,17 +82,13 @@ async fn blacklist(
     kind = "String",
     required = false
 )]
-async fn timezone(
-    ctx: &Context,
-    invoke: &(dyn CommandInvoke + Send + Sync),
-    args: HashMap<String, String>,
-) {
+async fn timezone(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
     let mut user_data = ctx.user_data(invoke.author_id()).await.unwrap();
 
     let footer_text = format!("Current timezone: {}", user_data.timezone);
 
-    if let Some(timezone) = args.get("timezone") {
+    if let Some(OptionValue::String(timezone)) = args.get("timezone") {
         match timezone.parse::<Tz>() {
             Ok(tz) => {
                 user_data.timezone = timezone.clone();
@@ -237,65 +233,66 @@ async fn prefix(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args:
 )]
 #[supports_dm(false)]
 #[required_permissions(Restricted)]
-async fn restrict(
-    ctx: &Context,
-    invoke: &(dyn CommandInvoke + Send + Sync),
-    args: HashMap<String, String>,
-) {
+async fn restrict(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
     let framework = ctx.data.read().await.get::<RegexFramework>().cloned().unwrap();
 
-    let role = RoleId(args.get("role").unwrap().parse::<u64>().unwrap());
+    if let Some(OptionValue::Role(role)) = args.get("role") {
+        let restricted_commands =
+            sqlx::query!("SELECT command FROM command_restrictions WHERE role_id = ?", role.0)
+                .fetch_all(&pool)
+                .await
+                .unwrap()
+                .iter()
+                .map(|row| row.command.clone())
+                .collect::<Vec<String>>();
 
-    let restricted_commands =
-        sqlx::query!("SELECT command FROM command_restrictions WHERE role_id = ?", role.0)
-            .fetch_all(&pool)
-            .await
-            .unwrap()
+        let restrictable_commands = framework
+            .commands
             .iter()
-            .map(|row| row.command.clone())
+            .filter(|c| c.required_permissions == PermissionLevel::Managed)
+            .map(|c| c.names[0].to_string())
             .collect::<Vec<String>>();
 
-    let restrictable_commands = framework
-        .commands
-        .iter()
-        .filter(|c| c.required_permissions == PermissionLevel::Managed)
-        .map(|c| c.names[0].to_string())
-        .collect::<Vec<String>>();
+        let len = restrictable_commands.len();
 
-    let len = restrictable_commands.len();
+        let restrict_pl = ComponentDataModel::Restrict(Restrict { role_id: *role });
 
-    let restrict_pl = ComponentDataModel::Restrict(Restrict { role_id: role });
+        invoke
+            .respond(
+                ctx.http.clone(),
+                CreateGenericResponse::new()
+                    .content(format!(
+                        "Select the commands to allow to {} from below:",
+                        role.mention()
+                    ))
+                    .components(|c| {
+                        c.create_action_row(|row| {
+                            row.create_select_menu(|select| {
+                                select
+                                    .custom_id(restrict_pl.to_custom_id())
+                                    .options(|options| {
+                                        for command in restrictable_commands {
+                                            options.create_option(|opt| {
+                                                opt.label(&command)
+                                                    .value(&command)
+                                                    .default_selection(
+                                                        restricted_commands.contains(&command),
+                                                    )
+                                            });
+                                        }
 
-    invoke
-        .respond(
-            ctx.http.clone(),
-            CreateGenericResponse::new()
-                .content(format!("Select the commands to allow to {} from below:", role.mention()))
-                .components(|c| {
-                    c.create_action_row(|row| {
-                        row.create_select_menu(|select| {
-                            select
-                                .custom_id(restrict_pl.to_custom_id())
-                                .options(|options| {
-                                    for command in restrictable_commands {
-                                        options.create_option(|opt| {
-                                            opt.label(&command).value(&command).default_selection(
-                                                restricted_commands.contains(&command),
-                                            )
-                                        });
-                                    }
-
-                                    options
-                                })
-                                .min_values(0)
-                                .max_values(len as u64)
+                                        options
+                                    })
+                                    .min_values(0)
+                                    .max_values(len as u64)
+                            })
                         })
-                    })
-                }),
-        )
-        .await
-        .unwrap();
+                    }),
+            )
+            .await
+            .unwrap();
+    }
 }
 
 /*
