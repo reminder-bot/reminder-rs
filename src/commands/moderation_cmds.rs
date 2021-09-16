@@ -239,7 +239,7 @@ async fn restrict(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), arg
 
     if let Some(OptionValue::Role(role)) = args.get("role") {
         let restricted_commands =
-            sqlx::query!("SELECT command FROM command_restrictions WHERE role_id = ?", role.0)
+            sqlx::query!("SELECT command FROM command_restrictions WHERE role_id = (SELECT id FROM roles WHERE role = ?)", role.0)
                 .fetch_all(&pool)
                 .await
                 .unwrap()
@@ -256,7 +256,11 @@ async fn restrict(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), arg
 
         let len = restrictable_commands.len();
 
-        let restrict_pl = ComponentDataModel::Restrict(Restrict { role_id: *role });
+        let restrict_pl = ComponentDataModel::Restrict(Restrict {
+            role_id: *role,
+            author_id: invoke.author_id(),
+            guild_id: invoke.guild_id().unwrap(),
+        });
 
         invoke
             .respond(

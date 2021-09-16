@@ -405,22 +405,13 @@ async fn look(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: C
     }
 }
 
-/*
 #[command("del")]
 #[description("Delete reminders")]
-#[permission_level(Managed)]
+#[required_permissions(Managed)]
 async fn delete(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
-    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
-    let _ = msg.channel_id.say(&ctx, lm.get(&user_data.language, "del/listing")).await;
-
-    let mut reminder_ids: Vec<u32> = vec![];
-
-    let reminders = Reminder::from_guild(ctx, msg.guild_id, msg.author.id).await;
+    let reminders = Reminder::from_guild(ctx, invoke.guild_id(), invoke.author_id()).await;
 
     let enumerated_reminders = reminders.iter().enumerate().map(|(count, reminder)| {
-        reminder_ids.push(reminder.id);
-
         format!(
             "**{}**: '{}' *<#{}>* at <t:{}>",
             count + 1,
@@ -430,65 +421,8 @@ async fn delete(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
         )
     });
 
-    let _ = msg.channel_id.say_lines(&ctx, enumerated_reminders).await;
-    let _ = msg.channel_id.say(&ctx, lm.get(&user_data.language, "del/listed")).await;
-
-    let reply =
-        msg.channel_id.await_reply(&ctx).author_id(msg.author.id).channel_id(msg.channel_id).await;
-
-    if let Some(content) = reply.map(|m| m.content.replace(",", " ")) {
-        let parts = content.split(' ').filter(|i| !i.is_empty()).collect::<Vec<&str>>();
-
-        let valid_parts = parts
-            .iter()
-            .filter_map(|i| {
-                i.parse::<usize>()
-                    .ok()
-                    .filter(|val| val > &0)
-                    .map(|val| reminder_ids.get(val - 1))
-                    .flatten()
-            })
-            .map(|item| item.to_string())
-            .collect::<Vec<String>>();
-
-        if parts.len() == valid_parts.len() {
-            let joined = valid_parts.join(",");
-
-            let count_row = sqlx::query!(
-                "
-SELECT COUNT(1) AS count FROM reminders WHERE FIND_IN_SET(id, ?)
-                ",
-                joined
-            )
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-
-            sqlx::query!(
-                "
-DELETE FROM reminders WHERE FIND_IN_SET(id, ?)
-                ",
-                joined
-            )
-            .execute(&pool)
-            .await
-            .unwrap();
-
-            let content = lm.get(&user_data.language, "del/count").replacen(
-                "{}",
-                &count_row.count.to_string(),
-                1,
-            );
-
-            let _ = msg.channel_id.say(&ctx, content).await;
-        } else {
-            let content = lm.get(&user_data.language, "del/count").replacen("{}", "0", 1);
-
-            let _ = msg.channel_id.say(&ctx, content).await;
-        }
-    }
+    let _ = invoke.respond(ctx.http.clone(), CreateGenericResponse::new().content("test")).await;
 }
-*/
 
 #[command("timer")]
 #[description("Manage timers")]

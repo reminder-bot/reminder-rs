@@ -404,7 +404,12 @@ impl From<ApplicationCommandInteraction> for CommandOptions {
                     cmd_opts.options.insert(
                         option.name,
                         OptionValue::Role(RoleId(
-                            option.value.map(|m| m.as_u64()).flatten().unwrap(),
+                            option
+                                .value
+                                .map(|m| m.as_str().map(|s| s.parse::<u64>().ok()))
+                                .flatten()
+                                .flatten()
+                                .unwrap(),
                         )),
                     );
                 }

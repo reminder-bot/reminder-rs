@@ -3,16 +3,18 @@ use std::io::Cursor;
 use chrono_tz::Tz;
 use rmp_serde::Serializer;
 use serde::{Deserialize, Serialize};
+use serde_repr::*;
 use serenity::{
     builder::CreateEmbed,
     client::Context,
     model::{
         channel::Channel,
-        id::{ChannelId, RoleId},
+        id::{ChannelId, GuildId, RoleId, UserId},
         interactions::{
             message_component::{ButtonStyle, MessageComponentInteraction},
             InteractionResponseType,
         },
+        prelude::InteractionApplicationCommandCallbackDataFlags,
     },
 };
 
@@ -22,10 +24,12 @@ use crate::{
         reminder::{look_flags::LookFlags, Reminder},
         user_data::UserData,
     },
+    SQLPool,
 };
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "type")]
+#[repr(u8)]
 pub enum ComponentDataModel {
     Restrict(Restrict),
     LookPager(LookPager),
@@ -47,7 +51,42 @@ impl ComponentDataModel {
     pub async fn act(&self, ctx: &Context, component: MessageComponentInteraction) {
         match self {
             ComponentDataModel::Restrict(restrict) => {
-                println!("{:?}", component.data.values);
+                if restrict.author_id == component.user.id {
+                    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+
+                    let _ = sqlx::query!(
+                        "
+INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id FROM guilds WHERE guild = ?))
+                        ",
+                        restrict.role_id.0,
+                        restrict.guild_id.0
+                    )
+                    .execute(&pool)
+                    .await;
+
+                    for command in &component.data.values {
+                        let _ = sqlx::query!(
+                            "INSERT INTO command_restrictions (role_id, command) VALUES ((SELECT id FROM roles WHERE role = ?), ?)",
+                            restrict.role_id.0,
+                            command
+                        )
+                        .execute(&pool)
+                        .await;
+                    }
+
+                    component
+                        .create_interaction_response(&ctx, |r| {
+                            r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                .interaction_response_data(|response| response
+                                    .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
+                                    .content("Role permissions updated")
+                                )
+                        })
+                        .await
+                        .unwrap();
+                } else {
+                    // tell them they cant do this
+                }
             }
             ComponentDataModel::LookPager(pager) => {
                 let flags = pager.flags;
@@ -184,9 +223,12 @@ impl ComponentDataModel {
 #[derive(Serialize, Deserialize)]
 pub struct Restrict {
     pub role_id: RoleId,
+    pub author_id: UserId,
+    pub guild_id: GuildId,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize_repr, Deserialize_repr, Debug)]
+#[repr(u8)]
 pub enum PageAction {
     First = 0,
     Previous = 1,
