@@ -1,3 +1,5 @@
+// todo move framework to its own module, split out permission checks
+
 use std::{
     collections::{HashMap, HashSet},
     hash::{Hash, Hasher},

@@ -3,13 +3,13 @@ use serenity::model::id::ChannelId;
 
 use crate::consts::REGEX_CHANNEL;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum TimeDisplayType {
     Absolute = 0,
     Relative = 1,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub struct LookFlags {
     pub show_disabled: bool,
     pub channel_id: Option<ChannelId>,

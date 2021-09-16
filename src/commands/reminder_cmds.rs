@@ -14,12 +14,14 @@ use serenity::{
     model::{
         channel::{Channel, Message},
         id::ChannelId,
+        interactions::message_component::ButtonStyle,
         misc::Mentionable,
     },
 };
 
 use crate::{
     check_subscription_on_message,
+    component_models::{ComponentDataModel, LookPager, PageAction},
     consts::{
         EMBED_DESCRIPTION_MAX_LENGTH, REGEX_CHANNEL_USER, REGEX_NATURAL_COMMAND_1,
         REGEX_NATURAL_COMMAND_2, REGEX_REMIND_COMMAND, THEME_COLOR,
@@ -296,6 +298,12 @@ async fn look(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: C
         invoke.channel_id()
     };
 
+    let channel_name = if let Some(Channel::Guild(channel)) = channel_id.to_channel_cached(&ctx) {
+        Some(channel.name)
+    } else {
+        None
+    };
+
     let reminders = Reminder::from_channel(ctx, channel_id, &flags).await;
 
     if reminders.is_empty() {
@@ -325,35 +333,84 @@ async fn look(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: C
             .fold(0, |t, r| t + r.len())
             .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
 
-        let _ = invoke
+        let page_first = ComponentDataModel::LookPager(LookPager {
+            flags: flags.clone(),
+            page: 0,
+            action: PageAction::First,
+            timezone,
+        });
+        let page_prev = ComponentDataModel::LookPager(LookPager {
+            flags: flags.clone(),
+            page: 0,
+            action: PageAction::Previous,
+            timezone,
+        });
+        let page_next = ComponentDataModel::LookPager(LookPager {
+            flags: flags.clone(),
+            page: 0,
+            action: PageAction::Next,
+            timezone,
+        });
+        let page_last = ComponentDataModel::LookPager(LookPager {
+            flags: flags.clone(),
+            page: 0,
+            action: PageAction::Last,
+            timezone,
+        });
+
+        invoke
             .respond(
                 ctx.http.clone(),
                 CreateGenericResponse::new()
                     .embed(|e| {
-                        e.title(format!("Reminders on {}", channel_id.mention()))
-                            .description(display)
-                            .footer(|f| f.text(format!("Page {} of {}", 1, pages)))
+                        e.title(format!(
+                            "Reminders{}",
+                            channel_name.map_or(String::new(), |n| format!(" on #{}", n))
+                        ))
+                        .description(display)
+                        .footer(|f| f.text(format!("Page {} of {}", 1, pages)))
+                        .color(*THEME_COLOR)
                     })
                     .components(|comp| {
                         comp.create_action_row(|row| {
-                            row.create_button(|b| b.label("⏮️").custom_id(".1"))
-                                .create_button(|b| b.label("◀️").custom_id(".2"))
-                                .create_button(|b| b.label("▶️").custom_id(".3"))
-                                .create_button(|b| b.label("⏭️").custom_id(".4"))
+                            row.create_button(|b| {
+                                b.label("⏮️")
+                                    .style(ButtonStyle::Primary)
+                                    .custom_id(page_first.to_custom_id())
+                                    .disabled(true)
+                            })
+                            .create_button(|b| {
+                                b.label("◀️")
+                                    .style(ButtonStyle::Secondary)
+                                    .custom_id(page_prev.to_custom_id())
+                                    .disabled(true)
+                            })
+                            .create_button(|b| {
+                                b.label("▶️")
+                                    .style(ButtonStyle::Secondary)
+                                    .custom_id(page_next.to_custom_id())
+                                    .disabled(pages == 1)
+                            })
+                            .create_button(|b| {
+                                b.label("⏭️")
+                                    .style(ButtonStyle::Primary)
+                                    .custom_id(page_last.to_custom_id())
+                                    .disabled(pages == 1)
+                            })
                         })
                     }),
             )
-            .await;
+            .await
+            .unwrap();
     }
 }
 
 /*
 #[command("del")]
+#[description("Delete reminders")]
 #[permission_level(Managed)]
-async fn delete(ctx: &Context, msg: &Message, _args: String) {
-    let (pool, lm) = get_ctx_data(&ctx).await;
-
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
+async fn delete(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
+    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let _ = msg.channel_id.say(&ctx, lm.get(&user_data.language, "del/listing")).await;
 
@@ -416,19 +473,6 @@ DELETE FROM reminders WHERE FIND_IN_SET(id, ?)
             .execute(&pool)
             .await
             .unwrap();
-
-            if let Some(guild_id) = msg.guild_id {
-                let _ = sqlx::query!(
-                    "
-INSERT INTO events (event_name, bulk_count, guild_id, user_id) VALUES ('delete', ?, ?, ?)
-                    ",
-                    count_row.count,
-                    guild_id.as_u64(),
-                    user_data.id
-                )
-                .execute(&pool)
-                .await;
-            }
 
             let content = lm.get(&user_data.language, "del/count").replacen(
                 "{}",

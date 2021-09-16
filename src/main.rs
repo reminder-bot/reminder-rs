@@ -258,7 +258,7 @@ DELETE FROM guilds WHERE guild = ?
             }
             Interaction::MessageComponent(component) => {
                 let component_model = ComponentDataModel::from_custom_id(&component.data.custom_id);
-                component_model.act(component).await;
+                component_model.act(&ctx, component).await;
             }
             _ => {}
         }
