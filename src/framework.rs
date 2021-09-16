@@ -16,15 +16,13 @@ use serenity::{
     framework::Framework,
     futures::prelude::future::BoxFuture,
     http::Http,
-    json::Value,
     model::{
         channel::{Channel, GuildChannel, Message},
         guild::{Guild, Member},
         id::{ChannelId, GuildId, MessageId, RoleId, UserId},
         interactions::{
             application_command::{
-                ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandOption,
-                ApplicationCommandOptionType,
+                ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandOptionType,
             },
             InteractionResponseType,
         },
@@ -772,7 +770,8 @@ impl RegexFramework {
                 ApplicationCommand::set_global_application_commands(&http, |c| {
                     self._populate_commands(c)
                 })
-                .await;
+                .await
+                .unwrap();
             }
             Some(debug_guild) => {
                 debug_guild

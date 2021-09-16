@@ -1,26 +1,16 @@
-use std::{collections::HashMap, iter};
-
 use chrono::offset::Utc;
 use chrono_tz::{Tz, TZ_VARIANTS};
 use levenshtein::levenshtein;
-use regex::Regex;
 use regex_command_attr::command;
-use serenity::{
-    client::Context,
-    model::{
-        channel::Message,
-        id::{ChannelId, MessageId, RoleId},
-        misc::Mentionable,
-    },
-};
+use serenity::{client::Context, model::misc::Mentionable};
 
 use crate::{
     component_models::{ComponentDataModel, Restrict},
-    consts::{REGEX_ALIAS, REGEX_COMMANDS, THEME_COLOR},
+    consts::THEME_COLOR,
     framework::{
         CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue, PermissionLevel,
     },
-    models::{channel_data::ChannelData, guild_data::GuildData, user_data::UserData, CtxData},
+    models::{channel_data::ChannelData, CtxData},
     PopularTimezones, RegexFramework, SQLPool,
 };
 

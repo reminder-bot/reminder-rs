@@ -304,9 +304,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command("natural", &reminder_cmds::NATURAL_COMMAND)
         .add_command("n", &reminder_cmds::NATURAL_COMMAND)
         .add_command("", &reminder_cmds::NATURAL_COMMAND)
-        // management commands
-        .add_command("del", &reminder_cmds::DELETE_COMMAND)
         */
+        // management commands
+        .add_command(&reminder_cmds::DELETE_COMMAND)
         .add_command(&reminder_cmds::LOOK_COMMAND)
         .add_command(&reminder_cmds::PAUSE_COMMAND)
         .add_command(&reminder_cmds::OFFSET_COMMAND)

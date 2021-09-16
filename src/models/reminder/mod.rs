@@ -4,11 +4,6 @@ pub mod errors;
 mod helper;
 pub mod look_flags;
 
-use std::{
-    convert::{TryFrom, TryInto},
-    env,
-};
-
 use chrono::{NaiveDateTime, TimeZone};
 use chrono_tz::Tz;
 use serenity::{
@@ -19,14 +14,13 @@ use sqlx::MySqlPool;
 
 use crate::{
     models::reminder::{
-        errors::InteractionError,
         helper::longhand_displacement,
         look_flags::{LookFlags, TimeDisplayType},
     },
     SQLPool,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Reminder {
     pub id: u32,
     pub uid: String,
@@ -282,6 +276,19 @@ WHERE
         } else {
             &self.content
         }
+    }
+
+    pub fn display_del(&self, count: usize, timezone: &Tz) -> String {
+        format!(
+            "**{}**: '{}' *<#{}>* at **{}**",
+            count + 1,
+            self.display_content(),
+            self.channel,
+            timezone
+                .timestamp(self.utc_time.timestamp(), 0)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string()
+        )
     }
 
     pub fn display(&self, flags: &LookFlags, timezone: &Tz) -> String {

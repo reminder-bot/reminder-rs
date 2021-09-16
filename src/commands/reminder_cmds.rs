@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     default::Default,
     string::ToString,
     time::{SystemTime, UNIX_EPOCH},
@@ -8,20 +7,14 @@ use std::{
 use chrono::NaiveDateTime;
 use num_integer::Integer;
 use regex_command_attr::command;
-use serenity::{
-    client::Context,
-    futures::StreamExt,
-    model::{
-        channel::{Channel, Message},
-        id::ChannelId,
-        interactions::message_component::ButtonStyle,
-        misc::Mentionable,
-    },
-};
+use serenity::{client::Context, model::channel::Channel};
 
 use crate::{
     check_subscription_on_message,
-    component_models::{ComponentDataModel, LookPager, PageAction},
+    component_models::{
+        pager::{DelPager, LookPager, Pager},
+        ComponentDataModel, DelSelector,
+    },
     consts::{
         EMBED_DESCRIPTION_MAX_LENGTH, REGEX_CHANNEL_USER, REGEX_NATURAL_COMMAND_1,
         REGEX_NATURAL_COMMAND_2, REGEX_REMIND_COMMAND, THEME_COLOR,
@@ -160,7 +153,7 @@ async fn offset(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args:
             let channels = guild
                 .channels
                 .iter()
-                .filter(|(channel_id, channel)| match channel {
+                .filter(|(_, channel)| match channel {
                     Channel::Guild(guild_channel) => guild_channel.is_text_based(),
                     _ => false,
                 })
@@ -333,30 +326,7 @@ async fn look(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: C
             .fold(0, |t, r| t + r.len())
             .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
 
-        let page_first = ComponentDataModel::LookPager(LookPager {
-            flags: flags.clone(),
-            page: 0,
-            action: PageAction::First,
-            timezone,
-        });
-        let page_prev = ComponentDataModel::LookPager(LookPager {
-            flags: flags.clone(),
-            page: 0,
-            action: PageAction::Previous,
-            timezone,
-        });
-        let page_next = ComponentDataModel::LookPager(LookPager {
-            flags: flags.clone(),
-            page: 0,
-            action: PageAction::Next,
-            timezone,
-        });
-        let page_last = ComponentDataModel::LookPager(LookPager {
-            flags: flags.clone(),
-            page: 0,
-            action: PageAction::Last,
-            timezone,
-        });
+        let pager = LookPager::new(flags, timezone);
 
         invoke
             .respond(
@@ -372,32 +342,9 @@ async fn look(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: C
                         .color(*THEME_COLOR)
                     })
                     .components(|comp| {
-                        comp.create_action_row(|row| {
-                            row.create_button(|b| {
-                                b.label("⏮️")
-                                    .style(ButtonStyle::Primary)
-                                    .custom_id(page_first.to_custom_id())
-                                    .disabled(true)
-                            })
-                            .create_button(|b| {
-                                b.label("◀️")
-                                    .style(ButtonStyle::Secondary)
-                                    .custom_id(page_prev.to_custom_id())
-                                    .disabled(true)
-                            })
-                            .create_button(|b| {
-                                b.label("▶️")
-                                    .style(ButtonStyle::Secondary)
-                                    .custom_id(page_next.to_custom_id())
-                                    .disabled(pages == 1)
-                            })
-                            .create_button(|b| {
-                                b.label("⏭️")
-                                    .style(ButtonStyle::Primary)
-                                    .custom_id(page_last.to_custom_id())
-                                    .disabled(pages == 1)
-                            })
-                        })
+                        pager.create_button_row(pages, comp);
+
+                        comp
                     }),
             )
             .await
@@ -409,19 +356,92 @@ async fn look(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: C
 #[description("Delete reminders")]
 #[required_permissions(Managed)]
 async fn delete(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
+    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+
+    let timezone = UserData::timezone_of(&invoke.author_id(), &pool).await;
+
     let reminders = Reminder::from_guild(ctx, invoke.guild_id(), invoke.author_id()).await;
 
-    let enumerated_reminders = reminders.iter().enumerate().map(|(count, reminder)| {
-        format!(
-            "**{}**: '{}' *<#{}>* at <t:{}>",
-            count + 1,
-            reminder.display_content(),
-            reminder.channel,
-            reminder.utc_time.timestamp()
-        )
-    });
+    if reminders.is_empty() {
+        let _ = invoke
+            .respond(
+                ctx.http.clone(),
+                CreateGenericResponse::new().content("No reminders to delete!"),
+            )
+            .await;
+    } else {
+        let mut char_count = 0;
 
-    let _ = invoke.respond(ctx.http.clone(), CreateGenericResponse::new().content("test")).await;
+        let (shown_reminders, display_vec): (Vec<&Reminder>, Vec<String>) = reminders
+            .iter()
+            .enumerate()
+            .map(|(count, reminder)| (reminder, reminder.display_del(count, &timezone)))
+            .take_while(|(_, p)| {
+                char_count += p.len();
+
+                char_count < EMBED_DESCRIPTION_MAX_LENGTH
+            })
+            .unzip();
+
+        let display = display_vec.join("\n");
+
+        let pages = reminders
+            .iter()
+            .enumerate()
+            .map(|(count, reminder)| reminder.display_del(count, &timezone))
+            .fold(0, |t, r| t + r.len())
+            .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
+
+        let pager = DelPager::new(timezone);
+
+        let del_selector = ComponentDataModel::DelSelector(DelSelector { page: 0, timezone });
+
+        invoke
+            .respond(
+                ctx.http.clone(),
+                CreateGenericResponse::new()
+                    .embed(|e| {
+                        e.title("Delete Reminders")
+                            .description(display)
+                            .footer(|f| f.text(format!("Page {} of {}", 1, pages)))
+                            .color(*THEME_COLOR)
+                    })
+                    .components(|comp| {
+                        pager.create_button_row(pages, comp);
+
+                        comp.create_action_row(|row| {
+                            row.create_select_menu(|menu| {
+                                menu.custom_id(del_selector.to_custom_id()).options(|opt| {
+                                    for (count, reminder) in shown_reminders.iter().enumerate() {
+                                        opt.create_option(|o| {
+                                            o.label(count + 1).value(reminder.id).description({
+                                                let c = reminder.display_content();
+
+                                                if c.len() > 100 {
+                                                    format!(
+                                                        "{}...",
+                                                        reminder
+                                                            .display_content()
+                                                            .chars()
+                                                            .take(97)
+                                                            .collect::<String>()
+                                                    )
+                                                } else {
+                                                    c.to_string()
+                                                }
+                                            })
+                                        });
+                                    }
+
+                                    opt
+                                })
+                            })
+                        })
+                    }),
+            )
+            .await
+            .unwrap();
+    }
 }
 
 #[command("timer")]

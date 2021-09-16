@@ -1,29 +1,25 @@
+pub(crate) mod pager;
+
 use std::io::Cursor;
 
 use chrono_tz::Tz;
 use rmp_serde::Serializer;
 use serde::{Deserialize, Serialize};
-use serde_repr::*;
 use serenity::{
     builder::CreateEmbed,
     client::Context,
     model::{
         channel::Channel,
-        id::{ChannelId, GuildId, RoleId, UserId},
-        interactions::{
-            message_component::{ButtonStyle, MessageComponentInteraction},
-            InteractionResponseType,
-        },
+        id::{GuildId, RoleId, UserId},
+        interactions::{message_component::MessageComponentInteraction, InteractionResponseType},
         prelude::InteractionApplicationCommandCallbackDataFlags,
     },
 };
 
 use crate::{
+    component_models::pager::{DelPager, LookPager, Pager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
-    models::{
-        reminder::{look_flags::LookFlags, Reminder},
-        user_data::UserData,
-    },
+    models::reminder::Reminder,
     SQLPool,
 };
 
@@ -33,6 +29,8 @@ use crate::{
 pub enum ComponentDataModel {
     Restrict(Restrict),
     LookPager(LookPager),
+    DelPager(DelPager),
+    DelSelector(DelSelector),
 }
 
 impl ComponentDataModel {
@@ -109,7 +107,7 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                     .iter()
                     .map(|reminder| reminder.display(&flags, &pager.timezone))
                     .fold(0, |t, r| t + r.len())
-                    .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH) as u16;
+                    .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
 
                 let channel_name =
                     if let Some(Channel::Guild(channel)) = channel_id.to_channel_cached(&ctx) {
@@ -118,12 +116,7 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                         None
                     };
 
-                let next_page = match pager.action {
-                    PageAction::First => 0,
-                    PageAction::Previous => 0.max(pager.page - 1),
-                    PageAction::Next => (pages - 1).min(pager.page + 1),
-                    PageAction::Last => pages - 1,
-                };
+                let next_page = pager.next_page(pages);
 
                 let mut char_count = 0;
                 let mut skip_char_count = 0;
@@ -144,31 +137,6 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                     .collect::<Vec<String>>()
                     .join("\n");
 
-                let page_first = ComponentDataModel::LookPager(LookPager {
-                    flags: flags.clone(),
-                    page: next_page,
-                    action: PageAction::First,
-                    timezone: pager.timezone,
-                });
-                let page_prev = ComponentDataModel::LookPager(LookPager {
-                    flags: flags.clone(),
-                    page: next_page,
-                    action: PageAction::Previous,
-                    timezone: pager.timezone,
-                });
-                let page_next = ComponentDataModel::LookPager(LookPager {
-                    flags: flags.clone(),
-                    page: next_page,
-                    action: PageAction::Next,
-                    timezone: pager.timezone,
-                });
-                let page_last = ComponentDataModel::LookPager(LookPager {
-                    flags: flags.clone(),
-                    page: next_page,
-                    action: PageAction::Last,
-                    timezone: pager.timezone,
-                });
-
                 let mut embed = CreateEmbed::default();
                 embed
                     .title(format!(
@@ -179,42 +147,225 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                     .footer(|f| f.text(format!("Page {} of {}", next_page + 1, pages)))
                     .color(*THEME_COLOR);
 
-                let _ =
-                    component
-                        .create_interaction_response(&ctx, |r| {
-                            r.kind(InteractionResponseType::UpdateMessage)
-                                .interaction_response_data(|response| {
-                                    response.embeds(vec![embed]).components(|comp| {
-                                        comp.create_action_row(|row| {
-                                            row.create_button(|b| {
-                                                b.label("⏮️")
-                                                    .style(ButtonStyle::Primary)
-                                                    .custom_id(page_first.to_custom_id())
-                                                    .disabled(next_page == 0)
-                                            })
-                                            .create_button(|b| {
-                                                b.label("◀️")
-                                                    .style(ButtonStyle::Secondary)
-                                                    .custom_id(page_prev.to_custom_id())
-                                                    .disabled(next_page == 0)
-                                            })
-                                            .create_button(|b| {
-                                                b.label("▶️")
-                                                    .style(ButtonStyle::Secondary)
-                                                    .custom_id(page_next.to_custom_id())
-                                                    .disabled(next_page + 1 == pages)
-                                            })
-                                            .create_button(|b| {
-                                                b.label("⏭️")
-                                                    .style(ButtonStyle::Primary)
-                                                    .custom_id(page_last.to_custom_id())
-                                                    .disabled(next_page + 1 == pages)
-                                            })
+                let _ = component
+                    .create_interaction_response(&ctx, |r| {
+                        r.kind(InteractionResponseType::UpdateMessage).interaction_response_data(
+                            |response| {
+                                response.embeds(vec![embed]).components(|comp| {
+                                    pager.create_button_row(pages, comp);
+
+                                    comp
+                                })
+                            },
+                        )
+                    })
+                    .await;
+            }
+            ComponentDataModel::DelPager(pager) => {
+                let reminders =
+                    Reminder::from_guild(ctx, component.guild_id, component.user.id).await;
+
+                let pages = reminders
+                    .iter()
+                    .enumerate()
+                    .map(|(count, reminder)| reminder.display_del(count, &pager.timezone))
+                    .fold(0, |t, r| t + r.len())
+                    .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
+
+                let next_page = pager.next_page(pages);
+
+                let mut char_count = 0;
+                let mut skip_char_count = 0;
+                let mut first_num = 0;
+
+                let (shown_reminders, display_vec): (Vec<&Reminder>, Vec<String>) = reminders
+                    .iter()
+                    .enumerate()
+                    .map(|(count, reminder)| {
+                        (reminder, reminder.display_del(count, &pager.timezone))
+                    })
+                    .skip_while(|(_, p)| {
+                        first_num += 1;
+                        skip_char_count += p.len();
+
+                        skip_char_count < EMBED_DESCRIPTION_MAX_LENGTH * next_page
+                    })
+                    .take_while(|(_, p)| {
+                        char_count += p.len();
+
+                        char_count < EMBED_DESCRIPTION_MAX_LENGTH
+                    })
+                    .unzip();
+
+                let display = display_vec.join("\n");
+
+                let del_selector = ComponentDataModel::DelSelector(DelSelector {
+                    page: next_page,
+                    timezone: pager.timezone,
+                });
+
+                let mut embed = CreateEmbed::default();
+                embed
+                    .title("Delete Reminders")
+                    .description(display)
+                    .footer(|f| f.text(format!("Page {} of {}", next_page + 1, pages)))
+                    .color(*THEME_COLOR);
+
+                component
+                    .create_interaction_response(&ctx, |r| {
+                        r.kind(InteractionResponseType::UpdateMessage).interaction_response_data(
+                            |response| {
+                                response.embeds(vec![embed]).components(|comp| {
+                                    pager.create_button_row(pages, comp);
+
+                                    comp.create_action_row(|row| {
+                                        row.create_select_menu(|menu| {
+                                            menu.custom_id(del_selector.to_custom_id()).options(
+                                                |opt| {
+                                                    for (count, reminder) in
+                                                        shown_reminders.iter().enumerate()
+                                                    {
+                                                        opt.create_option(|o| {
+                                                            o.label(count + first_num)
+                                                                .value(reminder.id)
+                                                                .description({
+                                                                    let c =
+                                                                        reminder.display_content();
+
+                                                                    if c.len() > 100 {
+                                                                        format!(
+                                                                            "{}...",
+                                                                            reminder
+                                                                                .display_content()
+                                                                                .chars()
+                                                                                .take(97)
+                                                                                .collect::<String>(
+                                                                                )
+                                                                        )
+                                                                    } else {
+                                                                        c.to_string()
+                                                                    }
+                                                                })
+                                                        });
+                                                    }
+
+                                                    opt
+                                                },
+                                            )
                                         })
                                     })
                                 })
-                        })
-                        .await;
+                            },
+                        )
+                    })
+                    .await;
+            }
+            ComponentDataModel::DelSelector(selector) => {
+                let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+                let selected_id = component.data.values.join(",");
+
+                sqlx::query!("DELETE FROM reminders WHERE FIND_IN_SET(id, ?)", selected_id)
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+
+                let reminders =
+                    Reminder::from_guild(ctx, component.guild_id, component.user.id).await;
+
+                let mut char_count = 0;
+                let mut skip_char_count = 0;
+                let mut first_num = 0;
+
+                let (shown_reminders, display_vec): (Vec<&Reminder>, Vec<String>) = reminders
+                    .iter()
+                    .enumerate()
+                    .map(|(count, reminder)| {
+                        (reminder, reminder.display_del(count, &selector.timezone))
+                    })
+                    .skip_while(|(_, p)| {
+                        first_num += 1;
+                        skip_char_count += p.len();
+
+                        skip_char_count < EMBED_DESCRIPTION_MAX_LENGTH * selector.page
+                    })
+                    .take_while(|(_, p)| {
+                        char_count += p.len();
+
+                        char_count < EMBED_DESCRIPTION_MAX_LENGTH
+                    })
+                    .unzip();
+
+                let display = display_vec.join("\n");
+
+                let pages = reminders
+                    .iter()
+                    .enumerate()
+                    .map(|(count, reminder)| reminder.display_del(count, &selector.timezone))
+                    .fold(0, |t, r| t + r.len())
+                    .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
+
+                let pager = DelPager::new(selector.timezone);
+
+                let del_selector = ComponentDataModel::DelSelector(DelSelector {
+                    page: selector.page,
+                    timezone: selector.timezone,
+                });
+
+                let mut embed = CreateEmbed::default();
+                embed
+                    .title("Delete Reminders")
+                    .description(display)
+                    .footer(|f| f.text(format!("Page {} of {}", selector.page + 1, pages)))
+                    .color(*THEME_COLOR);
+
+                component
+                    .create_interaction_response(&ctx, |r| {
+                        r.kind(InteractionResponseType::UpdateMessage).interaction_response_data(
+                            |response| {
+                                response.embeds(vec![embed]).components(|comp| {
+                                    pager.create_button_row(pages, comp);
+
+                                    comp.create_action_row(|row| {
+                                        row.create_select_menu(|menu| {
+                                            menu.custom_id(del_selector.to_custom_id()).options(
+                                                |opt| {
+                                                    for (count, reminder) in
+                                                        shown_reminders.iter().enumerate()
+                                                    {
+                                                        opt.create_option(|o| {
+                                                            o.label(count + 1)
+                                                                .value(reminder.id)
+                                                                .description({
+                                                                    let c =
+                                                                        reminder.display_content();
+
+                                                                    if c.len() > 100 {
+                                                                        format!(
+                                                                            "{}...",
+                                                                            reminder
+                                                                                .display_content()
+                                                                                .chars()
+                                                                                .take(97)
+                                                                                .collect::<String>(
+                                                                                )
+                                                                        )
+                                                                    } else {
+                                                                        c.to_string()
+                                                                    }
+                                                                })
+                                                        });
+                                                    }
+
+                                                    opt
+                                                },
+                                            )
+                                        })
+                                    })
+                                })
+                            },
+                        )
+                    })
+                    .await;
             }
         }
     }
@@ -227,19 +378,8 @@ pub struct Restrict {
     pub guild_id: GuildId,
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug)]
-#[repr(u8)]
-pub enum PageAction {
-    First = 0,
-    Previous = 1,
-    Next = 2,
-    Last = 3,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct LookPager {
-    pub flags: LookFlags,
-    pub page: u16,
-    pub action: PageAction,
+#[derive(Serialize, Deserialize)]
+pub struct DelSelector {
+    pub page: usize,
     pub timezone: Tz,
 }
