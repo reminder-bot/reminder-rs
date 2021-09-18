@@ -39,8 +39,8 @@ pub enum ReminderError {
     DiscordError(String),
 }
 
-impl ReminderError {
-    pub fn display(&self, is_natural: bool) -> String {
+impl ToString for ReminderError {
+    fn to_string(&self) -> String {
         match self {
             ReminderError::LongTime => {
                 "That time is too far in the future. Please specify a shorter time.".to_string()
@@ -50,40 +50,20 @@ impl ReminderError {
                 max_time = *MAX_TIME / 86_400
             ),
             ReminderError::PastTime => {
-                "Please ensure the time provided is in the future. If the time should be in \
-                                        the future, please be more specific with the definition."
-                    .to_string()
+                "Please ensure the time provided is in the future. If the time should be in the future, please be more specific with the definition.".to_string()
             }
             ReminderError::ShortInterval => format!(
                 "Please ensure the interval provided is longer than {min_interval} seconds",
                 min_interval = *MIN_INTERVAL
             ),
             ReminderError::InvalidTag => {
-                "Couldn't find a location by your tag. Your tag must be either a channel or \
-                                          a user (not a role)"
-                    .to_string()
+                "Couldn't find a location by your tag. Your tag must be either a channel or a user (not a role)".to_string()
             }
             ReminderError::InvalidTime => {
-                if is_natural {
-                    "Your time failed to process. Please make it as clear as possible, for example `\"16th of july\"` \
-                     or `\"in 20 minutes\"`"
-                        .to_string()
-                } else {
-                    "Make sure the time you have provided is in the format of [num][s/m/h/d][num][s/m/h/d] etc. or \
-                     `day/month/year-hour:minute:second`"
-                        .to_string()
-                }
+                "Your time failed to process. Please make it as clear as possible, for example `\"16th of july\"` or `\"in 20 minutes\"`".to_string()
             }
             ReminderError::InvalidExpiration => {
-                if is_natural {
-                    "Your expiration time failed to process. Please make it as clear as possible, for example `\"16th \
-                     of july\"` or `\"in 20 minutes\"`"
-                        .to_string()
-                } else {
-                    "Make sure the expiration time you have provided is in the format of [num][s/m/h/d][num][s/m/h/d] \
-                     etc. or `day/month/year-hour:minute:second`"
-                        .to_string()
-                }
+                "Your expiration time failed to process. Please make it as clear as possible, for example `\"16th of july\"` or `\"in 20 minutes\"`".to_string()
             }
             ReminderError::DiscordError(s) => format!("A Discord error occurred: **{}**", s),
         }

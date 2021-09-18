@@ -272,6 +272,34 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 let reminders =
                     Reminder::from_guild(ctx, component.guild_id, component.user.id).await;
 
+                if reminders.is_empty() {
+                    let mut embed = CreateEmbed::default();
+                    embed.title("Delete Reminders").description("No Reminders").color(*THEME_COLOR);
+
+                    component
+                        .create_interaction_response(&ctx, |r| {
+                            r.kind(InteractionResponseType::UpdateMessage)
+                                .interaction_response_data(|response| {
+                                    response.embeds(vec![embed]).components(|comp| comp)
+                                })
+                        })
+                        .await;
+
+                    return;
+                }
+
+                let pages = reminders
+                    .iter()
+                    .enumerate()
+                    .map(|(count, reminder)| reminder.display_del(count, &selector.timezone))
+                    .fold(0, |t, r| t + r.len())
+                    .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
+
+                let mut page = selector.page;
+                if page >= pages {
+                    page = pages - 1;
+                }
+
                 let mut char_count = 0;
                 let mut skip_char_count = 0;
                 let mut first_num = 0;
@@ -286,7 +314,7 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                         first_num += 1;
                         skip_char_count += p.len();
 
-                        skip_char_count < EMBED_DESCRIPTION_MAX_LENGTH * selector.page
+                        skip_char_count < EMBED_DESCRIPTION_MAX_LENGTH * page
                     })
                     .take_while(|(_, p)| {
                         char_count += p.len();
@@ -297,17 +325,10 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
 
                 let display = display_vec.join("\n");
 
-                let pages = reminders
-                    .iter()
-                    .enumerate()
-                    .map(|(count, reminder)| reminder.display_del(count, &selector.timezone))
-                    .fold(0, |t, r| t + r.len())
-                    .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
-
                 let pager = DelPager::new(selector.timezone);
 
                 let del_selector = ComponentDataModel::DelSelector(DelSelector {
-                    page: selector.page,
+                    page,
                     timezone: selector.timezone,
                 });
 
@@ -315,7 +336,7 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 embed
                     .title("Delete Reminders")
                     .description(display)
-                    .footer(|f| f.text(format!("Page {} of {}", selector.page + 1, pages)))
+                    .footer(|f| f.text(format!("Page {} of {}", page + 1, pages)))
                     .color(*THEME_COLOR);
 
                 component
@@ -333,7 +354,7 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                                                         shown_reminders.iter().enumerate()
                                                     {
                                                         opt.create_option(|o| {
-                                                            o.label(count + 1)
+                                                            o.label(count + first_num)
                                                                 .value(reminder.id)
                                                                 .description({
                                                                     let c =

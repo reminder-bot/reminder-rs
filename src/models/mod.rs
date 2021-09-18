@@ -6,6 +6,7 @@ pub mod user_data;
 
 use std::sync::Arc;
 
+use chrono_tz::Tz;
 use serenity::{
     async_trait,
     model::id::{ChannelId, GuildId, UserId},
@@ -32,6 +33,8 @@ pub trait CtxData {
         &self,
         user_id: U,
     ) -> Result<UserData, Box<dyn std::error::Error + Sync + Send>>;
+
+    async fn timezone<U: Into<UserId> + Send + Sync>(&self, user_id: U) -> Tz;
 
     async fn channel_data<C: Into<ChannelId> + Send + Sync>(
         &self,
@@ -90,6 +93,13 @@ impl CtxData for Context {
         let user = user_id.to_user(self).await.unwrap();
 
         UserData::from_user(&user, &self, &pool).await
+    }
+
+    async fn timezone<U: Into<UserId> + Send + Sync>(&self, user_id: U) -> Tz {
+        let user_id = user_id.into();
+        let pool = self.data.read().await.get::<SQLPool>().cloned().unwrap();
+
+        UserData::timezone_of(user_id, &pool).await
     }
 
     async fn channel_data<C: Into<ChannelId> + Send + Sync>(

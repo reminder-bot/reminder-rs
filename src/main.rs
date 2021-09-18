@@ -296,8 +296,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command(&info_cmds::CLOCK_COMMAND)
         // reminder commands
         .add_command(&reminder_cmds::TIMER_COMMAND)
+        .add_command(&reminder_cmds::REMIND_COMMAND)
         /*
-        .add_command("remind", &reminder_cmds::REMIND_COMMAND)
         .add_command("r", &reminder_cmds::REMIND_COMMAND)
         .add_command("interval", &reminder_cmds::INTERVAL_COMMAND)
         .add_command("i", &reminder_cmds::INTERVAL_COMMAND)

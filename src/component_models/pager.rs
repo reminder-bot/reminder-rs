@@ -16,8 +16,9 @@ pub trait Pager {
 enum PageAction {
     First = 0,
     Previous = 1,
-    Next = 2,
-    Last = 3,
+    Refresh = 2,
+    Next = 3,
+    Last = 4,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -33,6 +34,7 @@ impl Pager for LookPager {
         match self.action {
             PageAction::First => 0,
             PageAction::Previous => 0.max(self.page - 1),
+            PageAction::Refresh => self.page,
             PageAction::Next => (max_pages - 1).min(self.page + 1),
             PageAction::Last => max_pages - 1,
         }
@@ -41,7 +43,7 @@ impl Pager for LookPager {
     fn create_button_row(&self, max_pages: usize, comp: &mut CreateComponents) {
         let next_page = self.next_page(max_pages);
 
-        let (page_first, page_prev, page_next, page_last) =
+        let (page_first, page_prev, page_refresh, page_next, page_last) =
             LookPager::buttons(self.flags, next_page, self.timezone);
 
         comp.create_action_row(|row| {
@@ -56,6 +58,9 @@ impl Pager for LookPager {
                     .style(ButtonStyle::Secondary)
                     .custom_id(page_prev.to_custom_id())
                     .disabled(next_page == 0)
+            })
+            .create_button(|b| {
+                b.label("🔁").style(ButtonStyle::Secondary).custom_id(page_refresh.to_custom_id())
             })
             .create_button(|b| {
                 b.label("▶️")
@@ -82,7 +87,13 @@ impl LookPager {
         flags: LookFlags,
         page: usize,
         timezone: Tz,
-    ) -> (ComponentDataModel, ComponentDataModel, ComponentDataModel, ComponentDataModel) {
+    ) -> (
+        ComponentDataModel,
+        ComponentDataModel,
+        ComponentDataModel,
+        ComponentDataModel,
+        ComponentDataModel,
+    ) {
         (
             ComponentDataModel::LookPager(LookPager {
                 flags,
@@ -94,6 +105,12 @@ impl LookPager {
                 flags,
                 page,
                 action: PageAction::Previous,
+                timezone,
+            }),
+            ComponentDataModel::LookPager(LookPager {
+                flags,
+                page,
+                action: PageAction::Refresh,
                 timezone,
             }),
             ComponentDataModel::LookPager(LookPager {
@@ -124,6 +141,7 @@ impl Pager for DelPager {
         match self.action {
             PageAction::First => 0,
             PageAction::Previous => 0.max(self.page - 1),
+            PageAction::Refresh => self.page,
             PageAction::Next => (max_pages - 1).min(self.page + 1),
             PageAction::Last => max_pages - 1,
         }
@@ -132,7 +150,7 @@ impl Pager for DelPager {
     fn create_button_row(&self, max_pages: usize, comp: &mut CreateComponents) {
         let next_page = self.next_page(max_pages);
 
-        let (page_first, page_prev, page_next, page_last) =
+        let (page_first, page_prev, page_refresh, page_next, page_last) =
             DelPager::buttons(next_page, self.timezone);
 
         comp.create_action_row(|row| {
@@ -147,6 +165,9 @@ impl Pager for DelPager {
                     .style(ButtonStyle::Secondary)
                     .custom_id(page_prev.to_custom_id())
                     .disabled(next_page == 0)
+            })
+            .create_button(|b| {
+                b.label("🔁").style(ButtonStyle::Secondary).custom_id(page_refresh.to_custom_id())
             })
             .create_button(|b| {
                 b.label("▶️")
@@ -172,10 +193,17 @@ impl DelPager {
     pub fn buttons(
         page: usize,
         timezone: Tz,
-    ) -> (ComponentDataModel, ComponentDataModel, ComponentDataModel, ComponentDataModel) {
+    ) -> (
+        ComponentDataModel,
+        ComponentDataModel,
+        ComponentDataModel,
+        ComponentDataModel,
+        ComponentDataModel,
+    ) {
         (
             ComponentDataModel::DelPager(DelPager { page, action: PageAction::First, timezone }),
             ComponentDataModel::DelPager(DelPager { page, action: PageAction::Previous, timezone }),
+            ComponentDataModel::DelPager(DelPager { page, action: PageAction::Refresh, timezone }),
             ComponentDataModel::DelPager(DelPager { page, action: PageAction::Next, timezone }),
             ComponentDataModel::DelPager(DelPager { page, action: PageAction::Last, timezone }),
         )

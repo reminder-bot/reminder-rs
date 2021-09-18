@@ -32,7 +32,7 @@ async fn info(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
     let current_user = ctx.cache.current_user();
     let footer = footer(ctx);
 
-    invoke
+    let _ = invoke
         .respond(
             ctx.http.clone(),
             CreateGenericResponse::new().embed(|e| {
@@ -40,15 +40,13 @@ async fn info(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
                     .description(format!(
                         "Default prefix: `{default_prefix}`
 Reset prefix: `@{user} prefix {default_prefix}`
-Help: `{prefix}help`**Welcome \
-                         to Reminder Bot!**
+Help: `{prefix}help`**Welcome to Reminder Bot!**
 Developer: <@203532103185465344>
 Icon: <@253202252821430272>
-Find me on https://discord.jellywx.com \
-                         and on https://github.com/JellyWX :)
+Find me on https://discord.jellywx.com and on https://github.com/JellyWX :)
 
-Invite the bot: https://invite.reminder-bot.com/Use our dashboard: \
-                         https://reminder-bot.com/",
+Invite the bot: https://invite.reminder-bot.com/
+Use our dashboard: https://reminder-bot.com/",
                         default_prefix = *DEFAULT_PREFIX,
                         user = current_user.name,
                         prefix = prefix
@@ -66,7 +64,7 @@ Invite the bot: https://invite.reminder-bot.com/Use our dashboard: \
 async fn donate(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
     let footer = footer(ctx);
 
-    invoke
+    let _ = invoke
         .respond(
             ctx.http.clone(),
             CreateGenericResponse::new().embed(|e| {
@@ -99,7 +97,7 @@ Just $2 USD/month!
 async fn dashboard(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
     let footer = footer(ctx);
 
-    invoke
+    let _ = invoke
         .respond(
             ctx.http.clone(),
             CreateGenericResponse::new().embed(|e| {
@@ -119,7 +117,7 @@ async fn clock(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
     let ud = ctx.user_data(&invoke.author_id()).await.unwrap();
     let now = Utc::now().with_timezone(&ud.timezone());
 
-    invoke
+    let _ = invoke
         .respond(
             ctx.http.clone(),
             CreateGenericResponse::new().content(format!("Current time: {}", now.format("%H:%M"))),

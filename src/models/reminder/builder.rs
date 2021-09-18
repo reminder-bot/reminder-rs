@@ -21,7 +21,6 @@ use crate::{
         reminder::{content::Content, errors::ReminderError, helper::generate_uid, Reminder},
         user_data::UserData,
     },
-    time_parser::TimeParser,
     SQLPool,
 };
 
@@ -133,7 +132,8 @@ INSERT INTO reminders (
                         self.set_by
                     )
                     .execute(&self.pool)
-                    .await;
+                    .await
+                    .unwrap();
 
                     Ok(Reminder::from_uid(&self.pool, self.uid).await.unwrap())
                 }
@@ -147,11 +147,9 @@ INSERT INTO reminders (
 pub struct MultiReminderBuilder<'a> {
     scopes: Vec<ReminderScope>,
     utc_time: NaiveDateTime,
-    utc_time_parser: Option<TimeParser>,
     timezone: Tz,
     interval: Option<i64>,
     expires: Option<NaiveDateTime>,
-    expires_parser: Option<TimeParser>,
     content: Content,
     set_by: Option<u32>,
     ctx: &'a Context,
@@ -163,11 +161,9 @@ impl<'a> MultiReminderBuilder<'a> {
         MultiReminderBuilder {
             scopes: vec![],
             utc_time: Utc::now().naive_utc(),
-            utc_time_parser: None,
             timezone: Tz::UTC,
             interval: None,
             expires: None,
-            expires_parser: None,
             content: Content::new(),
             set_by: None,
             ctx,
@@ -187,24 +183,12 @@ impl<'a> MultiReminderBuilder<'a> {
         self
     }
 
-    pub fn time_parser(mut self, parser: TimeParser) -> Self {
-        self.utc_time_parser = Some(parser);
-
-        self
-    }
-
     pub fn expires<T: Into<i64>>(mut self, time: Option<T>) -> Self {
         if let Some(t) = time {
             self.expires = Some(NaiveDateTime::from_timestamp(t.into(), 0));
         } else {
             self.expires = None;
         }
-
-        self
-    }
-
-    pub fn expires_parser(mut self, parser: Option<TimeParser>) -> Self {
-        self.expires_parser = parser;
 
         self
     }
@@ -226,32 +210,12 @@ impl<'a> MultiReminderBuilder<'a> {
         self.scopes = scopes;
     }
 
-    pub async fn build(mut self) -> (HashSet<ReminderError>, HashSet<ReminderScope>) {
+    pub async fn build(self) -> (HashSet<ReminderError>, HashSet<ReminderScope>) {
         let pool = self.ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
         let mut errors = HashSet::new();
 
         let mut ok_locs = HashSet::new();
-
-        if let Some(expire_parser) = self.expires_parser {
-            if let Ok(expires) = expire_parser.timestamp() {
-                self.expires = Some(NaiveDateTime::from_timestamp(expires, 0));
-            } else {
-                errors.insert(ReminderError::InvalidExpiration);
-
-                return (errors, ok_locs);
-            }
-        }
-
-        if let Some(time_parser) = self.utc_time_parser {
-            if let Ok(time) = time_parser.timestamp() {
-                self.utc_time = NaiveDateTime::from_timestamp(time, 0);
-            } else {
-                errors.insert(ReminderError::InvalidTime);
-
-                return (errors, ok_locs);
-            }
-        }
 
         if self.interval.map_or(false, |i| (i as i64) < *MIN_INTERVAL) {
             errors.insert(ReminderError::ShortInterval);
