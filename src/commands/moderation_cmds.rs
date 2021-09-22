@@ -2,16 +2,21 @@ use chrono::offset::Utc;
 use chrono_tz::{Tz, TZ_VARIANTS};
 use levenshtein::levenshtein;
 use regex_command_attr::command;
-use serenity::{client::Context, model::misc::Mentionable};
+use serenity::{
+    client::Context,
+    model::{
+        interactions::InteractionResponseType, misc::Mentionable,
+        prelude::InteractionApplicationCommandCallbackDataFlags,
+    },
+};
 
 use crate::{
     component_models::{ComponentDataModel, Restrict},
     consts::THEME_COLOR,
-    framework::{
-        CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue, PermissionLevel,
-    },
-    models::{channel_data::ChannelData, CtxData},
-    PopularTimezones, RegexFramework, SQLPool,
+    framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
+    hooks::{CHECK_GUILD_PERMISSIONS_HOOK, CHECK_MANAGED_PERMISSIONS_HOOK},
+    models::{channel_data::ChannelData, command_macro::CommandMacro, CtxData},
+    PopularTimezones, RecordingMacros, RegexFramework, SQLPool,
 };
 
 #[command("blacklist")]
@@ -23,13 +28,9 @@ use crate::{
     required = false
 )]
 #[supports_dm(false)]
-#[required_permissions(Restricted)]
+#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
 #[can_blacklist(false)]
-async fn blacklist(
-    ctx: &Context,
-    invoke: &(dyn CommandInvoke + Send + Sync),
-    args: CommandOptions,
-) {
+async fn blacklist(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let channel = match args.get("channel") {
@@ -72,7 +73,7 @@ async fn blacklist(
     kind = "String",
     required = false
 )]
-async fn timezone(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
+async fn timezone(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
     let mut user_data = ctx.user_data(invoke.author_id()).await.unwrap();
 
@@ -178,8 +179,8 @@ You may want to use one of the popular timezones below, otherwise click [here](h
 #[command("prefix")]
 #[description("Configure a prefix for text-based commands (deprecated)")]
 #[supports_dm(false)]
-#[required_permissions(Restricted)]
-async fn prefix(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: String) {
+#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
+async fn prefix(ctx: &Context, invoke: CommandInvoke, args: String) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let guild_data = ctx.guild_data(invoke.guild_id().unwrap()).await.unwrap();
@@ -222,8 +223,8 @@ async fn prefix(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args:
     required = true
 )]
 #[supports_dm(false)]
-#[required_permissions(Restricted)]
-async fn restrict(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
+#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
+async fn restrict(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
     let framework = ctx.data.read().await.get::<RegexFramework>().cloned().unwrap();
 
@@ -240,7 +241,7 @@ async fn restrict(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), arg
         let restrictable_commands = framework
             .commands
             .iter()
-            .filter(|c| c.required_permissions == PermissionLevel::Managed)
+            .filter(|c| c.hooks.contains(&&CHECK_MANAGED_PERMISSIONS_HOOK))
             .map(|c| c.names[0].to_string())
             .collect::<Vec<String>>();
 
@@ -286,6 +287,132 @@ async fn restrict(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), arg
             )
             .await
             .unwrap();
+    }
+}
+
+#[command("macro")]
+#[description("Record and replay command sequences")]
+#[subcommand("record")]
+#[description("Start recording up to 5 commands to replay")]
+#[arg(name = "name", description = "Name for the new macro", kind = "String", required = true)]
+#[arg(
+    name = "description",
+    description = "Description for the new macro",
+    kind = "String",
+    required = false
+)]
+#[subcommand("finish")]
+#[description("Finish current recording")]
+#[subcommand("list")]
+#[description("List recorded macros")]
+#[subcommand("run")]
+#[description("Run a recorded macro")]
+#[arg(name = "name", description = "Name of the macro to run", kind = "String", required = true)]
+#[supports_dm(false)]
+#[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
+async fn macro_cmd(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
+    let interaction = invoke.interaction().unwrap();
+
+    match args.subcommand.clone().unwrap().as_str() {
+        "record" => {
+            let macro_buffer = ctx.data.read().await.get::<RecordingMacros>().cloned().unwrap();
+
+            {
+                let mut lock = macro_buffer.write().await;
+
+                let guild_id = interaction.guild_id.unwrap();
+
+                lock.insert(
+                    (guild_id, interaction.user.id),
+                    CommandMacro {
+                        guild_id,
+                        name: args.get("name").unwrap().to_string(),
+                        description: args.get("description").map(|d| d.to_string()),
+                        commands: vec![],
+                    },
+                );
+            }
+
+            let _ = interaction
+                .create_interaction_response(&ctx, |r| {
+                    r.kind(InteractionResponseType::ChannelMessageWithSource)
+                        .interaction_response_data(|d| {
+                            d.flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
+                                .create_embed(|e| {
+                                    e
+                                    .title("Macro Recording Started")
+                                    .description(
+"Run up to 5 commands, or type `/macro finish` to stop at any point.
+Any commands ran as part of recording will be inconsequential")
+                                    .color(*THEME_COLOR)
+                                })
+                        })
+                })
+                .await;
+        }
+        "finish" => {
+            let key = (interaction.guild_id.unwrap(), interaction.user.id);
+            let macro_buffer = ctx.data.read().await.get::<RecordingMacros>().cloned().unwrap();
+
+            {
+                let lock = macro_buffer.read().await;
+                let contained = lock.get(&key);
+
+                if contained.map_or(true, |cmacro| cmacro.commands.is_empty()) {
+                    let _ = interaction
+                        .create_interaction_response(&ctx, |r| {
+                            r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                .interaction_response_data(|d| {
+                                    d.create_embed(|e| {
+                                        e.title("No Macro Recorded")
+                                            .description(
+                                                "Use `/macro record` to start recording a macro",
+                                            )
+                                            .color(*THEME_COLOR)
+                                    })
+                                })
+                        })
+                        .await;
+                } else {
+                    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+
+                    let command_macro = contained.unwrap();
+                    let json = serde_json::to_string(&command_macro.commands).unwrap();
+
+                    sqlx::query!(
+                        "INSERT INTO macro (guild_id, name, description, commands) VALUES ((SELECT id FROM guilds WHERE guild = ?), ?, ?, ?)",
+                        command_macro.guild_id.0,
+                        command_macro.name,
+                        command_macro.description,
+                        json
+                    )
+                        .execute(&pool)
+                        .await
+                        .unwrap();
+
+                    let _ = interaction
+                        .create_interaction_response(&ctx, |r| {
+                            r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                .interaction_response_data(|d| {
+                                    d.create_embed(|e| {
+                                        e.title("Macro Recorded")
+                                            .description("Use `/macro run` to execute the macro")
+                                            .color(*THEME_COLOR)
+                                    })
+                                })
+                        })
+                        .await;
+                }
+            }
+
+            {
+                let mut lock = macro_buffer.write().await;
+                lock.remove(&key);
+            }
+        }
+        "list" => {}
+        "run" => {}
+        _ => {}
     }
 }
 

@@ -5,16 +5,13 @@ use std::{
 };
 
 use chrono::NaiveDateTime;
+use chrono_tz::Tz;
 use num_integer::Integer;
 use regex_command_attr::command;
 use serenity::{
-    builder::CreateEmbed,
+    builder::{CreateEmbed, CreateInteractionResponse},
     client::Context,
-    model::{
-        channel::Channel,
-        id::{GuildId, UserId},
-        interactions::InteractionResponseType,
-    },
+    model::{channel::Channel, interactions::InteractionResponseType},
 };
 
 use crate::{
@@ -28,6 +25,7 @@ use crate::{
         REGEX_NATURAL_COMMAND_2, THEME_COLOR,
     },
     framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
+    hooks::{CHECK_GUILD_PERMISSIONS_HOOK, CHECK_MANAGED_PERMISSIONS_HOOK},
     models::{
         channel_data::ChannelData,
         guild_data::GuildData,
@@ -55,8 +53,8 @@ use crate::{
     required = false
 )]
 #[supports_dm(false)]
-#[required_permissions(Restricted)]
-async fn pause(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
+#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
+async fn pause(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let timezone = UserData::timezone_of(&invoke.author_id(), &pool).await;
@@ -141,8 +139,8 @@ async fn pause(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: 
     kind = "Integer",
     required = false
 )]
-#[required_permissions(Restricted)]
-async fn offset(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
+#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
+async fn offset(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let combined_time = args.get("hours").map_or(0, |h| h.as_i64().unwrap() * 3600)
@@ -218,8 +216,8 @@ WHERE FIND_IN_SET(channels.`channel`, ?)",
     kind = "Integer",
     required = false
 )]
-#[required_permissions(Restricted)]
-async fn nudge(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
+#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
+async fn nudge(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let combined_time = args.get("minutes").map_or(0, |m| m.as_i64().unwrap() * 60)
@@ -270,8 +268,8 @@ async fn nudge(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: 
     kind = "Boolean",
     required = false
 )]
-#[required_permissions(Managed)]
-async fn look(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
+#[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
+async fn look(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let timezone = UserData::timezone_of(&invoke.author_id(), &pool).await;
@@ -363,103 +361,132 @@ async fn look(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: C
 
 #[command("del")]
 #[description("Delete reminders")]
-#[required_permissions(Managed)]
-async fn delete(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
-    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+#[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
+async fn delete(ctx: &Context, invoke: CommandInvoke, _args: CommandOptions) {
+    let interaction = invoke.interaction().unwrap();
 
-    let timezone = UserData::timezone_of(&invoke.author_id(), &pool).await;
+    let timezone = ctx.timezone(interaction.user.id).await;
 
-    let reminders = Reminder::from_guild(ctx, invoke.guild_id(), invoke.author_id()).await;
+    let reminders = Reminder::from_guild(ctx, interaction.guild_id, interaction.user.id).await;
 
-    if reminders.is_empty() {
-        let _ = invoke
-            .respond(
-                ctx.http.clone(),
-                CreateGenericResponse::new().content("No reminders to delete!"),
-            )
-            .await;
-    } else {
-        let mut char_count = 0;
+    let resp = show_delete_page(&reminders, 0, timezone).await;
 
-        let (shown_reminders, display_vec): (Vec<&Reminder>, Vec<String>) = reminders
-            .iter()
-            .enumerate()
-            .map(|(count, reminder)| (reminder, reminder.display_del(count, &timezone)))
-            .take_while(|(_, p)| {
-                char_count += p.len();
-
-                char_count < EMBED_DESCRIPTION_MAX_LENGTH
-            })
-            .unzip();
-
-        let display = display_vec.join("\n");
-
-        let pages = reminders
-            .iter()
-            .enumerate()
-            .map(|(count, reminder)| reminder.display_del(count, &timezone))
-            .fold(0, |t, r| t + r.len())
-            .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
-
-        let pager = DelPager::new(timezone);
-
-        let del_selector = ComponentDataModel::DelSelector(DelSelector { page: 0, timezone });
-
-        invoke
-            .respond(
-                ctx.http.clone(),
-                CreateGenericResponse::new()
-                    .embed(|e| {
-                        e.title("Delete Reminders")
-                            .description(display)
-                            .footer(|f| f.text(format!("Page {} of {}", 1, pages)))
-                            .color(*THEME_COLOR)
-                    })
-                    .components(|comp| {
-                        pager.create_button_row(pages, comp);
-
-                        comp.create_action_row(|row| {
-                            row.create_select_menu(|menu| {
-                                menu.custom_id(del_selector.to_custom_id()).options(|opt| {
-                                    for (count, reminder) in shown_reminders.iter().enumerate() {
-                                        opt.create_option(|o| {
-                                            o.label(count + 1).value(reminder.id).description({
-                                                let c = reminder.display_content();
-
-                                                if c.len() > 100 {
-                                                    format!(
-                                                        "{}...",
-                                                        reminder
-                                                            .display_content()
-                                                            .chars()
-                                                            .take(97)
-                                                            .collect::<String>()
-                                                    )
-                                                } else {
-                                                    c.to_string()
-                                                }
-                                            })
-                                        });
-                                    }
-
-                                    opt
-                                })
-                            })
-                        })
-                    }),
-            )
-            .await
-            .unwrap();
-    }
+    let _ = interaction
+        .create_interaction_response(&ctx, |r| {
+            *r = resp;
+            r
+        })
+        .await;
 }
 
-async fn show_delete_page(
-    ctx: &Context,
-    guild_id: Option<GuildId>,
-    user_id: UserId,
+pub fn max_delete_page(reminders: &Vec<Reminder>, timezone: &Tz) -> usize {
+    reminders
+        .iter()
+        .enumerate()
+        .map(|(count, reminder)| reminder.display_del(count, timezone))
+        .fold(0, |t, r| t + r.len())
+        .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH)
+}
+
+pub async fn show_delete_page(
+    reminders: &Vec<Reminder>,
     page: usize,
     timezone: Tz,
-) {
+) -> CreateInteractionResponse {
+    let pager = DelPager::new(timezone);
+
+    if reminders.is_empty() {
+        let mut embed = CreateEmbed::default();
+        embed.title("Delete Reminders").description("No Reminders").color(*THEME_COLOR);
+
+        let mut response = CreateInteractionResponse::default();
+        response.kind(InteractionResponseType::UpdateMessage).interaction_response_data(
+            |response| {
+                response.embeds(vec![embed]).components(|comp| {
+                    pager.create_button_row(0, comp);
+                    comp
+                })
+            },
+        );
+
+        return response;
+    }
+
+    let pages = max_delete_page(&reminders, &timezone);
+
+    let mut page = page;
+    if page >= pages {
+        page = pages - 1;
+    }
+
+    let mut char_count = 0;
+    let mut skip_char_count = 0;
+    let mut first_num = 0;
+
+    let (shown_reminders, display_vec): (Vec<&Reminder>, Vec<String>) = reminders
+        .iter()
+        .enumerate()
+        .map(|(count, reminder)| (reminder, reminder.display_del(count, &timezone)))
+        .skip_while(|(_, p)| {
+            first_num += 1;
+            skip_char_count += p.len();
+
+            skip_char_count < EMBED_DESCRIPTION_MAX_LENGTH * page
+        })
+        .take_while(|(_, p)| {
+            char_count += p.len();
+
+            char_count < EMBED_DESCRIPTION_MAX_LENGTH
+        })
+        .unzip();
+
+    let display = display_vec.join("\n");
+
+    let del_selector = ComponentDataModel::DelSelector(DelSelector { page, timezone });
+
+    let mut embed = CreateEmbed::default();
+    embed
+        .title("Delete Reminders")
+        .description(display)
+        .footer(|f| f.text(format!("Page {} of {}", page + 1, pages)))
+        .color(*THEME_COLOR);
+
+    let mut response = CreateInteractionResponse::default();
+    response.kind(InteractionResponseType::UpdateMessage).interaction_response_data(|d| {
+        d.embeds(vec![embed]).components(|comp| {
+            pager.create_button_row(pages, comp);
+
+            comp.create_action_row(|row| {
+                row.create_select_menu(|menu| {
+                    menu.custom_id(del_selector.to_custom_id()).options(|opt| {
+                        for (count, reminder) in shown_reminders.iter().enumerate() {
+                            opt.create_option(|o| {
+                                o.label(count + first_num).value(reminder.id).description({
+                                    let c = reminder.display_content();
+
+                                    if c.len() > 100 {
+                                        format!(
+                                            "{}...",
+                                            reminder
+                                                .display_content()
+                                                .chars()
+                                                .take(97)
+                                                .collect::<String>()
+                                        )
+                                    } else {
+                                        c.to_string()
+                                    }
+                                })
+                            });
+                        }
+
+                        opt
+                    })
+                })
+            })
+        })
+    });
+    response
 }
 
 #[command("timer")]
@@ -472,8 +499,8 @@ async fn show_delete_page(
 #[subcommand("delete")]
 #[description("Delete a timer")]
 #[arg(name = "name", description = "Name of the timer to delete", kind = "String", required = true)]
-#[required_permissions(Managed)]
-async fn timer(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
+#[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
+async fn timer(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
     fn time_difference(start_time: NaiveDateTime) -> String {
         let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
         let now = NaiveDateTime::from_timestamp(unix_time, 0);
@@ -638,8 +665,8 @@ DELETE FROM timers WHERE owner = ? AND name = ?
     kind = "Boolean",
     required = false
 )]
-#[required_permissions(Managed)]
-async fn remind(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args: CommandOptions) {
+#[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
+async fn remind(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
     let interaction = invoke.interaction().unwrap();
 
     // defer response since processing times can take some time
@@ -650,7 +677,7 @@ async fn remind(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args:
         .await
         .unwrap();
 
-    let user_data = ctx.user_data(invoke.author_id()).await.unwrap();
+    let user_data = ctx.user_data(interaction.user.id).await.unwrap();
     let timezone = user_data.timezone();
 
     let time = {
@@ -675,7 +702,7 @@ async fn remind(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args:
                     .unwrap_or(vec![]);
 
                 if list.is_empty() {
-                    vec![ReminderScope::Channel(invoke.channel_id().0)]
+                    vec![ReminderScope::Channel(interaction.channel_id.0)]
                 } else {
                     list
                 }
@@ -698,7 +725,7 @@ async fn remind(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync), args:
                 }
             };
 
-            let mut builder = MultiReminderBuilder::new(ctx, invoke.guild_id())
+            let mut builder = MultiReminderBuilder::new(ctx, interaction.guild_id)
                 .author(user_data)
                 .content(content)
                 .time(time)

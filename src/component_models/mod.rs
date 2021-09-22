@@ -17,6 +17,7 @@ use serenity::{
 };
 
 use crate::{
+    commands::reminder_cmds::{max_delete_page, show_delete_page},
     component_models::pager::{DelPager, LookPager, Pager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
     models::reminder::Reminder,
@@ -165,98 +166,15 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 let reminders =
                     Reminder::from_guild(ctx, component.guild_id, component.user.id).await;
 
-                let pages = reminders
-                    .iter()
-                    .enumerate()
-                    .map(|(count, reminder)| reminder.display_del(count, &pager.timezone))
-                    .fold(0, |t, r| t + r.len())
-                    .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
+                let max_pages = max_delete_page(&reminders, &pager.timezone);
 
-                let next_page = pager.next_page(pages);
+                let resp =
+                    show_delete_page(&reminders, pager.next_page(max_pages), pager.timezone).await;
 
-                let mut char_count = 0;
-                let mut skip_char_count = 0;
-                let mut first_num = 0;
-
-                let (shown_reminders, display_vec): (Vec<&Reminder>, Vec<String>) = reminders
-                    .iter()
-                    .enumerate()
-                    .map(|(count, reminder)| {
-                        (reminder, reminder.display_del(count, &pager.timezone))
-                    })
-                    .skip_while(|(_, p)| {
-                        first_num += 1;
-                        skip_char_count += p.len();
-
-                        skip_char_count < EMBED_DESCRIPTION_MAX_LENGTH * next_page
-                    })
-                    .take_while(|(_, p)| {
-                        char_count += p.len();
-
-                        char_count < EMBED_DESCRIPTION_MAX_LENGTH
-                    })
-                    .unzip();
-
-                let display = display_vec.join("\n");
-
-                let del_selector = ComponentDataModel::DelSelector(DelSelector {
-                    page: next_page,
-                    timezone: pager.timezone,
-                });
-
-                let mut embed = CreateEmbed::default();
-                embed
-                    .title("Delete Reminders")
-                    .description(display)
-                    .footer(|f| f.text(format!("Page {} of {}", next_page + 1, pages)))
-                    .color(*THEME_COLOR);
-
-                component
-                    .create_interaction_response(&ctx, |r| {
-                        r.kind(InteractionResponseType::UpdateMessage).interaction_response_data(
-                            |response| {
-                                response.embeds(vec![embed]).components(|comp| {
-                                    pager.create_button_row(pages, comp);
-
-                                    comp.create_action_row(|row| {
-                                        row.create_select_menu(|menu| {
-                                            menu.custom_id(del_selector.to_custom_id()).options(
-                                                |opt| {
-                                                    for (count, reminder) in
-                                                        shown_reminders.iter().enumerate()
-                                                    {
-                                                        opt.create_option(|o| {
-                                                            o.label(count + first_num)
-                                                                .value(reminder.id)
-                                                                .description({
-                                                                    let c =
-                                                                        reminder.display_content();
-
-                                                                    if c.len() > 100 {
-                                                                        format!(
-                                                                            "{}...",
-                                                                            reminder
-                                                                                .display_content()
-                                                                                .chars()
-                                                                                .take(97)
-                                                                                .collect::<String>(
-                                                                                )
-                                                                        )
-                                                                    } else {
-                                                                        c.to_string()
-                                                                    }
-                                                                })
-                                                        });
-                                                    }
-
-                                                    opt
-                                                },
-                                            )
-                                        })
-                                    })
-                                })
-                            },
-                        )
+                let _ = component
+                    .create_interaction_response(&ctx, move |r| {
+                        *r = resp;
+                        r
                     })
                     .await;
             }
@@ -272,119 +190,12 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 let reminders =
                     Reminder::from_guild(ctx, component.guild_id, component.user.id).await;
 
-                if reminders.is_empty() {
-                    let mut embed = CreateEmbed::default();
-                    embed.title("Delete Reminders").description("No Reminders").color(*THEME_COLOR);
+                let resp = show_delete_page(&reminders, selector.page, selector.timezone).await;
 
-                    component
-                        .create_interaction_response(&ctx, |r| {
-                            r.kind(InteractionResponseType::UpdateMessage)
-                                .interaction_response_data(|response| {
-                                    response.embeds(vec![embed]).components(|comp| comp)
-                                })
-                        })
-                        .await;
-
-                    return;
-                }
-
-                let pages = reminders
-                    .iter()
-                    .enumerate()
-                    .map(|(count, reminder)| reminder.display_del(count, &selector.timezone))
-                    .fold(0, |t, r| t + r.len())
-                    .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
-
-                let mut page = selector.page;
-                if page >= pages {
-                    page = pages - 1;
-                }
-
-                let mut char_count = 0;
-                let mut skip_char_count = 0;
-                let mut first_num = 0;
-
-                let (shown_reminders, display_vec): (Vec<&Reminder>, Vec<String>) = reminders
-                    .iter()
-                    .enumerate()
-                    .map(|(count, reminder)| {
-                        (reminder, reminder.display_del(count, &selector.timezone))
-                    })
-                    .skip_while(|(_, p)| {
-                        first_num += 1;
-                        skip_char_count += p.len();
-
-                        skip_char_count < EMBED_DESCRIPTION_MAX_LENGTH * page
-                    })
-                    .take_while(|(_, p)| {
-                        char_count += p.len();
-
-                        char_count < EMBED_DESCRIPTION_MAX_LENGTH
-                    })
-                    .unzip();
-
-                let display = display_vec.join("\n");
-
-                let pager = DelPager::new(selector.timezone);
-
-                let del_selector = ComponentDataModel::DelSelector(DelSelector {
-                    page,
-                    timezone: selector.timezone,
-                });
-
-                let mut embed = CreateEmbed::default();
-                embed
-                    .title("Delete Reminders")
-                    .description(display)
-                    .footer(|f| f.text(format!("Page {} of {}", page + 1, pages)))
-                    .color(*THEME_COLOR);
-
-                component
-                    .create_interaction_response(&ctx, |r| {
-                        r.kind(InteractionResponseType::UpdateMessage).interaction_response_data(
-                            |response| {
-                                response.embeds(vec![embed]).components(|comp| {
-                                    pager.create_button_row(pages, comp);
-
-                                    comp.create_action_row(|row| {
-                                        row.create_select_menu(|menu| {
-                                            menu.custom_id(del_selector.to_custom_id()).options(
-                                                |opt| {
-                                                    for (count, reminder) in
-                                                        shown_reminders.iter().enumerate()
-                                                    {
-                                                        opt.create_option(|o| {
-                                                            o.label(count + first_num)
-                                                                .value(reminder.id)
-                                                                .description({
-                                                                    let c =
-                                                                        reminder.display_content();
-
-                                                                    if c.len() > 100 {
-                                                                        format!(
-                                                                            "{}...",
-                                                                            reminder
-                                                                                .display_content()
-                                                                                .chars()
-                                                                                .take(97)
-                                                                                .collect::<String>(
-                                                                                )
-                                                                        )
-                                                                    } else {
-                                                                        c.to_string()
-                                                                    }
-                                                                })
-                                                        });
-                                                    }
-
-                                                    opt
-                                                },
-                                            )
-                                        })
-                                    })
-                                })
-                            },
-                        )
+                let _ = component
+                    .create_interaction_response(&ctx, move |r| {
+                        *r = resp;
+                        r
                     })
                     .await;
             }

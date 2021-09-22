@@ -6,8 +6,9 @@ use std::{
     sync::Arc,
 };
 
-use log::{error, info, warn};
+use log::info;
 use regex::{Match, Regex, RegexBuilder};
+use serde::{Deserialize, Serialize};
 use serenity::{
     async_trait,
     builder::{CreateApplicationCommands, CreateComponents, CreateEmbed},
@@ -15,9 +16,9 @@ use serenity::{
     client::Context,
     framework::Framework,
     futures::prelude::future::BoxFuture,
-    http::Http,
+    http::{CacheHttp, Http},
     model::{
-        channel::{Channel, GuildChannel, Message},
+        channel::Message,
         guild::{Guild, Member},
         id::{ChannelId, GuildId, MessageId, RoleId, UserId},
         interactions::{
@@ -29,20 +30,10 @@ use serenity::{
         prelude::application_command::ApplicationCommandInteractionDataOption,
     },
     prelude::TypeMapKey,
-    FutureExt, Result as SerenityResult,
+    Result as SerenityResult,
 };
 
-use crate::{
-    models::{channel_data::ChannelData, CtxData},
-    LimitExecutors, SQLPool,
-};
-
-#[derive(Debug, PartialEq)]
-pub enum PermissionLevel {
-    Unrestricted,
-    Managed,
-    Restricted,
-}
+use crate::{models::CtxData, LimitExecutors};
 
 pub struct CreateGenericResponse {
     content: String,
@@ -81,196 +72,135 @@ impl CreateGenericResponse {
     }
 }
 
-#[async_trait]
-pub trait CommandInvoke {
-    fn channel_id(&self) -> ChannelId;
-    fn guild_id(&self) -> Option<GuildId>;
-    fn guild(&self, cache: Arc<Cache>) -> Option<Guild>;
-    fn author_id(&self) -> UserId;
-    async fn member(&self, context: &Context) -> SerenityResult<Member>;
-    fn msg(&self) -> Option<Message>;
-    fn interaction(&self) -> Option<ApplicationCommandInteraction>;
-    async fn respond(
-        &self,
-        http: Arc<Http>,
-        generic_response: CreateGenericResponse,
-    ) -> SerenityResult<()>;
-    async fn followup(
-        &self,
-        http: Arc<Http>,
-        generic_response: CreateGenericResponse,
-    ) -> SerenityResult<()>;
+enum InvokeModel {
+    Slash(ApplicationCommandInteraction),
+    Text(Message),
 }
 
-#[async_trait]
-impl CommandInvoke for Message {
-    fn channel_id(&self) -> ChannelId {
-        self.channel_id
-    }
-
-    fn guild_id(&self) -> Option<GuildId> {
-        self.guild_id
-    }
-
-    fn guild(&self, cache: Arc<Cache>) -> Option<Guild> {
-        self.guild(cache)
-    }
-
-    fn author_id(&self) -> UserId {
-        self.author.id
-    }
-
-    async fn member(&self, context: &Context) -> SerenityResult<Member> {
-        self.member(context).await
-    }
-
-    fn msg(&self) -> Option<Message> {
-        Some(self.clone())
-    }
-
-    fn interaction(&self) -> Option<ApplicationCommandInteraction> {
-        None
-    }
-
-    async fn respond(
-        &self,
-        http: Arc<Http>,
-        generic_response: CreateGenericResponse,
-    ) -> SerenityResult<()> {
-        self.channel_id
-            .send_message(http, |m| {
-                m.content(generic_response.content);
-
-                if let Some(embed) = generic_response.embed {
-                    m.set_embed(embed.clone());
-                }
-
-                if let Some(components) = generic_response.components {
-                    m.components(|c| {
-                        *c = components;
-                        c
-                    });
-                }
-
-                m
-            })
-            .await
-            .map(|_| ())
-    }
-
-    async fn followup(
-        &self,
-        http: Arc<Http>,
-        generic_response: CreateGenericResponse,
-    ) -> SerenityResult<()> {
-        self.channel_id
-            .send_message(http, |m| {
-                m.content(generic_response.content);
-
-                if let Some(embed) = generic_response.embed {
-                    m.set_embed(embed.clone());
-                }
-
-                if let Some(components) = generic_response.components {
-                    m.components(|c| {
-                        *c = components;
-                        c
-                    });
-                }
-
-                m
-            })
-            .await
-            .map(|_| ())
-    }
+pub struct CommandInvoke {
+    model: InvokeModel,
+    already_responded: bool,
 }
 
-#[async_trait]
-impl CommandInvoke for ApplicationCommandInteraction {
-    fn channel_id(&self) -> ChannelId {
-        self.channel_id
+impl CommandInvoke {
+    fn slash(interaction: ApplicationCommandInteraction) -> Self {
+        Self { model: InvokeModel::Slash(interaction), already_responded: false }
     }
 
-    fn guild_id(&self) -> Option<GuildId> {
-        self.guild_id
+    fn msg(msg: Message) -> Self {
+        Self { model: InvokeModel::Text(msg), already_responded: false }
     }
 
-    fn guild(&self, cache: Arc<Cache>) -> Option<Guild> {
-        if let Some(guild_id) = self.guild_id {
-            guild_id.to_guild_cached(cache)
-        } else {
-            None
+    pub fn interaction(self) -> Option<ApplicationCommandInteraction> {
+        match self.model {
+            InvokeModel::Slash(i) => Some(i),
+            InvokeModel::Text(_) => None,
         }
     }
 
-    fn author_id(&self) -> UserId {
-        self.member.as_ref().unwrap().user.id
+    pub fn channel_id(&self) -> ChannelId {
+        match &self.model {
+            InvokeModel::Slash(i) => i.channel_id,
+            InvokeModel::Text(m) => m.channel_id,
+        }
     }
 
-    async fn member(&self, _: &Context) -> SerenityResult<Member> {
-        Ok(self.member.clone().unwrap())
+    pub fn guild_id(&self) -> Option<GuildId> {
+        match &self.model {
+            InvokeModel::Slash(i) => i.guild_id,
+            InvokeModel::Text(m) => m.guild_id,
+        }
     }
 
-    fn msg(&self) -> Option<Message> {
-        None
+    pub fn guild(&self, cache: impl AsRef<Cache>) -> Option<Guild> {
+        self.guild_id().map(|id| id.to_guild_cached(cache)).flatten()
     }
 
-    fn interaction(&self) -> Option<ApplicationCommandInteraction> {
-        Some(self.clone())
+    pub fn author_id(&self) -> UserId {
+        match &self.model {
+            InvokeModel::Slash(i) => i.user.id,
+            InvokeModel::Text(m) => m.author.id,
+        }
     }
 
-    async fn respond(
+    pub async fn member(&self, cache_http: impl CacheHttp) -> Option<Member> {
+        match &self.model {
+            InvokeModel::Slash(i) => i.member.clone(),
+            InvokeModel::Text(m) => m.member(cache_http).await.ok(),
+        }
+    }
+
+    pub async fn respond(
         &self,
-        http: Arc<Http>,
+        http: impl AsRef<Http>,
         generic_response: CreateGenericResponse,
     ) -> SerenityResult<()> {
-        self.create_interaction_response(http, |r| {
-            r.kind(InteractionResponseType::ChannelMessageWithSource).interaction_response_data(
-                |d| {
-                    d.content(generic_response.content);
+        match &self.model {
+            InvokeModel::Slash(i) => {
+                if !self.already_responded {
+                    i.create_interaction_response(http, |r| {
+                        r.kind(InteractionResponseType::ChannelMessageWithSource)
+                            .interaction_response_data(|d| {
+                                d.content(generic_response.content);
+
+                                if let Some(embed) = generic_response.embed {
+                                    d.add_embed(embed.clone());
+                                }
+
+                                if let Some(components) = generic_response.components {
+                                    d.components(|c| {
+                                        *c = components;
+                                        c
+                                    });
+                                }
+
+                                d
+                            })
+                    })
+                    .await
+                    .map(|_| ())
+                } else {
+                    i.create_followup_message(http, |d| {
+                        d.content(generic_response.content);
+
+                        if let Some(embed) = generic_response.embed {
+                            d.add_embed(embed.clone());
+                        }
+
+                        if let Some(components) = generic_response.components {
+                            d.components(|c| {
+                                *c = components;
+                                c
+                            });
+                        }
+
+                        d
+                    })
+                    .await
+                    .map(|_| ())
+                }
+            }
+            InvokeModel::Text(m) => m
+                .channel_id
+                .send_message(http, |m| {
+                    m.content(generic_response.content);
 
                     if let Some(embed) = generic_response.embed {
-                        d.add_embed(embed.clone());
+                        m.set_embed(embed.clone());
                     }
 
                     if let Some(components) = generic_response.components {
-                        d.components(|c| {
+                        m.components(|c| {
                             *c = components;
                             c
                         });
                     }
 
-                    d
-                },
-            )
-        })
-        .await
-        .map(|_| ())
-    }
-
-    async fn followup(
-        &self,
-        http: Arc<Http>,
-        generic_response: CreateGenericResponse,
-    ) -> SerenityResult<()> {
-        self.create_followup_message(http, |d| {
-            d.content(generic_response.content);
-
-            if let Some(embed) = generic_response.embed {
-                d.add_embed(embed.clone());
-            }
-
-            if let Some(components) = generic_response.components {
-                d.components(|c| {
-                    *c = components;
-                    c
-                });
-            }
-
-            d
-        })
-        .await
-        .map(|_| ())
+                    m
+                })
+                .await
+                .map(|_| ()),
+        }
     }
 }
 
@@ -283,6 +213,7 @@ pub struct Arg {
     pub options: &'static [&'static Self],
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub enum OptionValue {
     String(String),
     Integer(i64),
@@ -330,8 +261,9 @@ impl OptionValue {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct CommandOptions {
-    pub command: String,
+    pub command: &'static str,
     pub subcommand: Option<String>,
     pub subcommand_group: Option<String>,
     pub options: HashMap<String, OptionValue>,
@@ -343,8 +275,17 @@ impl CommandOptions {
     }
 }
 
-impl From<ApplicationCommandInteraction> for CommandOptions {
-    fn from(interaction: ApplicationCommandInteraction) -> Self {
+impl CommandOptions {
+    fn new(command: &'static Command) -> Self {
+        Self {
+            command: command.names[0],
+            subcommand: None,
+            subcommand_group: None,
+            options: Default::default(),
+        }
+    }
+
+    fn populate(mut self, interaction: &ApplicationCommandInteraction) -> Self {
         fn match_option(
             option: ApplicationCommandInteractionDataOption,
             cmd_opts: &mut CommandOptions,
@@ -429,35 +370,31 @@ impl From<ApplicationCommandInteraction> for CommandOptions {
             }
         }
 
-        let mut cmd_opts = Self {
-            command: interaction.data.name,
-            subcommand: None,
-            subcommand_group: None,
-            options: Default::default(),
-        };
-
-        for option in interaction.data.options {
-            match_option(option, &mut cmd_opts)
+        for option in &interaction.data.options {
+            match_option(option.clone(), &mut self)
         }
 
-        cmd_opts
+        self
     }
 }
 
-type SlashCommandFn = for<'fut> fn(
-    &'fut Context,
-    &'fut (dyn CommandInvoke + Sync + Send),
-    CommandOptions,
-) -> BoxFuture<'fut, ()>;
+pub enum HookResult {
+    Continue,
+    Halt,
+}
 
-type TextCommandFn = for<'fut> fn(
-    &'fut Context,
-    &'fut (dyn CommandInvoke + Sync + Send),
-    String,
-) -> BoxFuture<'fut, ()>;
+type SlashCommandFn =
+    for<'fut> fn(&'fut Context, CommandInvoke, CommandOptions) -> BoxFuture<'fut, ()>;
 
-type MultiCommandFn =
-    for<'fut> fn(&'fut Context, &'fut (dyn CommandInvoke + Sync + Send)) -> BoxFuture<'fut, ()>;
+type TextCommandFn = for<'fut> fn(&'fut Context, CommandInvoke, String) -> BoxFuture<'fut, ()>;
+
+type MultiCommandFn = for<'fut> fn(&'fut Context, CommandInvoke) -> BoxFuture<'fut, ()>;
+
+pub type HookFn = for<'fut> fn(
+    &'fut Context,
+    &'fut CommandInvoke,
+    &'fut CommandOptions,
+) -> BoxFuture<'fut, HookResult>;
 
 pub enum CommandFnType {
     Slash(SlashCommandFn),
@@ -474,6 +411,17 @@ impl CommandFnType {
     }
 }
 
+pub struct Hook {
+    pub fun: HookFn,
+    pub uuid: u128,
+}
+
+impl PartialEq for Hook {
+    fn eq(&self, other: &Self) -> bool {
+        self.uuid == other.uuid
+    }
+}
+
 pub struct Command {
     pub fun: CommandFnType,
 
@@ -483,11 +431,12 @@ pub struct Command {
     pub examples: &'static [&'static str],
     pub group: &'static str,
 
-    pub required_permissions: PermissionLevel,
     pub args: &'static [&'static Arg],
 
     pub can_blacklist: bool,
     pub supports_dm: bool,
+
+    pub hooks: &'static [&'static Hook],
 }
 
 impl Hash for Command {
@@ -504,81 +453,6 @@ impl PartialEq for Command {
 
 impl Eq for Command {}
 
-impl Command {
-    async fn check_permissions(&self, ctx: &Context, guild: &Guild, member: &Member) -> bool {
-        if self.required_permissions == PermissionLevel::Unrestricted {
-            true
-        } else {
-            let permissions = guild.member_permissions(&ctx, &member.user).await.unwrap();
-
-            if permissions.manage_guild()
-                || (permissions.manage_messages()
-                    && self.required_permissions == PermissionLevel::Managed)
-            {
-                return true;
-            }
-
-            if self.required_permissions == PermissionLevel::Managed {
-                let pool = ctx
-                    .data
-                    .read()
-                    .await
-                    .get::<SQLPool>()
-                    .cloned()
-                    .expect("Could not get SQLPool from data");
-
-                match sqlx::query!(
-                    "
-SELECT
-    role
-FROM
-    roles
-INNER JOIN
-    command_restrictions ON roles.id = command_restrictions.role_id
-WHERE
-    command_restrictions.command = ? AND
-    roles.guild_id = (
-        SELECT
-            id
-        FROM
-            guilds
-        WHERE
-            guild = ?)
-                    ",
-                    self.names[0],
-                    guild.id.as_u64()
-                )
-                .fetch_all(&pool)
-                .await
-                {
-                    Ok(rows) => {
-                        let role_ids =
-                            member.roles.iter().map(|r| *r.as_u64()).collect::<Vec<u64>>();
-
-                        for row in rows {
-                            if role_ids.contains(&row.role) {
-                                return true;
-                            }
-                        }
-
-                        false
-                    }
-
-                    Err(sqlx::Error::RowNotFound) => false,
-
-                    Err(e) => {
-                        warn!("Unexpected error occurred querying command_restrictions: {:?}", e);
-
-                        false
-                    }
-                }
-            } else {
-                false
-            }
-        }
-    }
-}
-
 pub struct RegexFramework {
     pub commands_map: HashMap<String, &'static Command>,
     pub commands: HashSet<&'static Command>,
@@ -589,21 +463,12 @@ pub struct RegexFramework {
     ignore_bots: bool,
     case_insensitive: bool,
     dm_enabled: bool,
-    default_text_fun: TextCommandFn,
     debug_guild: Option<GuildId>,
+    hooks: Vec<&'static Hook>,
 }
 
 impl TypeMapKey for RegexFramework {
     type Value = Arc<RegexFramework>;
-}
-
-fn drop_text<'fut>(
-    _: &'fut Context,
-    _: &'fut (dyn CommandInvoke + Sync + Send),
-    _: String,
-) -> std::pin::Pin<std::boxed::Box<(dyn std::future::Future<Output = ()> + std::marker::Send + 'fut)>>
-{
-    async move {}.boxed()
 }
 
 impl RegexFramework {
@@ -618,8 +483,8 @@ impl RegexFramework {
             ignore_bots: true,
             case_insensitive: true,
             dm_enabled: true,
-            default_text_fun: drop_text,
             debug_guild: None,
+            hooks: vec![],
         }
     }
 
@@ -643,6 +508,12 @@ impl RegexFramework {
 
     pub fn dm_enabled(mut self, dm_enabled: bool) -> Self {
         self.dm_enabled = dm_enabled;
+
+        self
+    }
+
+    pub fn add_hook(mut self, fun: &'static Hook) -> Self {
+        self.hooks.push(fun);
 
         self
     }
@@ -791,77 +662,46 @@ impl RegexFramework {
                 .expect(&format!("Received invalid command: {}", interaction.data.name))
         };
 
-        let guild = interaction.guild(ctx.cache.clone()).unwrap();
-        let member = interaction.clone().member.unwrap();
+        let args = CommandOptions::new(command).populate(&interaction);
+        let command_invoke = CommandInvoke::slash(interaction);
 
-        if command.check_permissions(&ctx, &guild, &member).await {
-            let args = CommandOptions::from(interaction.clone());
-
-            if !ctx.check_executing(interaction.author_id()).await {
-                ctx.set_executing(interaction.author_id()).await;
-
-                match command.fun {
-                    CommandFnType::Slash(t) => t(&ctx, &interaction, args).await,
-                    CommandFnType::Multi(m) => m(&ctx, &interaction).await,
-                    _ => (),
+        for hook in command.hooks {
+            match (hook.fun)(&ctx, &command_invoke, &args).await {
+                HookResult::Continue => {}
+                HookResult::Halt => {
+                    return;
                 }
-
-                ctx.drop_executing(interaction.author_id()).await;
             }
-        } else if command.required_permissions == PermissionLevel::Restricted {
-            let _ = interaction
-                .respond(
-                    ctx.http.clone(),
-                    CreateGenericResponse::new().content(
-                        "You must have the `Manage Server` permission to use this command.",
-                    ),
-                )
-                .await;
-        } else if command.required_permissions == PermissionLevel::Managed {
-            let _ = interaction
-                .respond(
-                    ctx.http.clone(),
-                    CreateGenericResponse::new().content(
-                        "You must have `Manage Messages` or have a role capable of sending reminders to that channel. \
-                         Please talk to your server admin, and ask them to use the `/restrict` command to specify \
-                         allowed roles.",
-                    ),
-                )
-                .await;
+        }
+
+        for hook in &self.hooks {
+            match (hook.fun)(&ctx, &command_invoke, &args).await {
+                HookResult::Continue => {}
+                HookResult::Halt => {
+                    return;
+                }
+            }
+        }
+
+        let user_id = command_invoke.author_id();
+
+        if !ctx.check_executing(user_id).await {
+            ctx.set_executing(user_id).await;
+
+            match command.fun {
+                CommandFnType::Slash(t) => t(&ctx, command_invoke, args).await,
+                CommandFnType::Multi(m) => m(&ctx, command_invoke).await,
+                _ => (),
+            }
+
+            ctx.drop_executing(user_id).await;
         }
     }
-}
-
-enum PermissionCheck {
-    None,              // No permissions
-    Basic(bool, bool), // Send + Embed permissions (sufficient to reply)
-    All,               // Above + Manage Webhooks (sufficient to operate)
 }
 
 #[async_trait]
 impl Framework for RegexFramework {
     async fn dispatch(&self, ctx: Context, msg: Message) {
-        async fn check_self_permissions(
-            ctx: &Context,
-            guild: &Guild,
-            channel: &GuildChannel,
-        ) -> SerenityResult<PermissionCheck> {
-            let user_id = ctx.cache.current_user_id();
-
-            let guild_perms = guild.member_permissions(&ctx, user_id).await?;
-            let channel_perms = channel.permissions_for_user(ctx, user_id)?;
-
-            let basic_perms = channel_perms.send_messages();
-
-            Ok(if basic_perms && guild_perms.manage_webhooks() && channel_perms.embed_links() {
-                PermissionCheck::All
-            } else if basic_perms {
-                PermissionCheck::Basic(guild_perms.manage_webhooks(), channel_perms.embed_links())
-            } else {
-                PermissionCheck::None
-            })
-        }
-
         async fn check_prefix(ctx: &Context, guild: &Guild, prefix_opt: Option<Match<'_>>) -> bool {
             if let Some(prefix) = prefix_opt {
                 let guild_prefix = ctx.prefix(Some(guild.id)).await;
@@ -874,142 +714,63 @@ impl Framework for RegexFramework {
 
         // gate to prevent analysing messages unnecessarily
         if (msg.author.bot && self.ignore_bots) || msg.content.is_empty() {
-        } else {
-            // Guild Command
-            if let (Some(guild), Ok(Channel::Guild(channel))) =
-                (msg.guild(&ctx), msg.channel(&ctx).await)
-            {
-                let data = ctx.data.read().await;
+            return;
+        }
 
-                let pool = data.get::<SQLPool>().cloned().expect("Could not get SQLPool from data");
+        let user_id = msg.author.id;
+        let invoke = CommandInvoke::msg(msg.clone());
 
-                if let Some(full_match) = self.command_matcher.captures(&msg.content) {
-                    if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
-                        match check_self_permissions(&ctx, &guild, &channel).await {
-                            Ok(perms) => match perms {
-                                PermissionCheck::All => {
-                                    let command = self
-                                        .commands_map
-                                        .get(
-                                            &full_match
-                                                .name("cmd")
-                                                .unwrap()
-                                                .as_str()
-                                                .to_lowercase(),
-                                        )
-                                        .unwrap();
-
-                                    let channel = msg.channel(&ctx).await.unwrap();
-
-                                    let channel_data =
-                                        ChannelData::from_channel(&channel, &pool).await.unwrap();
-
-                                    if !command.can_blacklist || !channel_data.blacklisted {
-                                        let args = full_match
-                                            .name("args")
-                                            .map(|m| m.as_str())
-                                            .unwrap_or("")
-                                            .to_string();
-
-                                        let member = guild.member(&ctx, &msg.author).await.unwrap();
-
-                                        if command.check_permissions(&ctx, &guild, &member).await {
-                                            if msg.id == MessageId(0)
-                                                || !ctx.check_executing(msg.author.id).await
-                                            {
-                                                ctx.set_executing(msg.author.id).await;
-
-                                                match command.fun {
-                                                    CommandFnType::Text(t) => t(&ctx, &msg, args),
-                                                    CommandFnType::Multi(m) => m(&ctx, &msg),
-                                                    _ => (self.default_text_fun)(&ctx, &msg, args),
-                                                }
-                                                .await;
-
-                                                ctx.drop_executing(msg.author.id).await;
-                                            }
-                                        } else if command.required_permissions
-                                            == PermissionLevel::Restricted
-                                        {
-                                            let _ = msg
-                                                .channel_id
-                                                .say(
-                                                    &ctx,
-                                                    "You must have the `Manage Server` permission to use this command.",
-                                                )
-                                                .await;
-                                        } else if command.required_permissions
-                                            == PermissionLevel::Managed
-                                        {
-                                            let _ = msg
-                                                .channel_id
-                                                .say(
-                                                    &ctx,
-                                                    "You must have `Manage Messages` or have a role capable of \
-                                                     sending reminders to that channel. Please talk to your server \
-                                                     admin, and ask them to use the `/restrict` command to specify \
-                                                     allowed roles.",
-                                                )
-                                                .await;
-                                        }
-                                    }
-                                }
-
-                                PermissionCheck::Basic(manage_webhooks, embed_links) => {
-                                    let _ = msg
-                                        .channel_id
-                                        .say(
-                                            &ctx,
-                                            format!(
-                                                "Please ensure the bot has the correct permissions:
-
-✅     **Send Message**
-{}     **Embed Links**
-{}     **Manage Webhooks**",
-                                                if manage_webhooks { "✅" } else { "❌" },
-                                                if embed_links { "✅" } else { "❌" },
-                                            ),
-                                        )
-                                        .await;
-                                }
-
-                                PermissionCheck::None => {
-                                    warn!("Missing enough permissions for guild {}", guild.id);
-                                }
-                            },
-
-                            Err(e) => {
-                                error!(
-                                    "Error occurred getting permissions in guild {}: {:?}",
-                                    guild.id, e
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            // DM Command
-            else if self.dm_enabled {
-                if let Some(full_match) = self.dm_regex_matcher.captures(&msg.content[..]) {
+        // Guild Command
+        if let Some(guild) = msg.guild(&ctx) {
+            if let Some(full_match) = self.command_matcher.captures(&msg.content) {
+                if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
                     let command = self
                         .commands_map
                         .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
                         .unwrap();
-                    let args =
-                        full_match.name("args").map(|m| m.as_str()).unwrap_or("").to_string();
 
-                    if msg.id == MessageId(0) || !ctx.check_executing(msg.author.id).await {
-                        ctx.set_executing(msg.author.id).await;
+                    let channel_data = ctx.channel_data(invoke.channel_id()).await.unwrap();
 
-                        match command.fun {
-                            CommandFnType::Text(t) => t(&ctx, &msg, args),
-                            CommandFnType::Multi(m) => m(&ctx, &msg),
-                            _ => (self.default_text_fun)(&ctx, &msg, args),
+                    if !command.can_blacklist || !channel_data.blacklisted {
+                        let args =
+                            full_match.name("args").map(|m| m.as_str()).unwrap_or("").to_string();
+
+                        if msg.id == MessageId(0) || !ctx.check_executing(user_id).await {
+                            ctx.set_executing(user_id).await;
+
+                            match command.fun {
+                                CommandFnType::Text(t) => t(&ctx, invoke, args).await,
+                                CommandFnType::Multi(m) => m(&ctx, invoke).await,
+                                _ => {}
+                            };
+
+                            ctx.drop_executing(user_id).await;
                         }
-                        .await;
-
-                        ctx.drop_executing(msg.author.id).await;
                     }
+                }
+            }
+        }
+        // DM Command
+        else if self.dm_enabled {
+            if let Some(full_match) = self.dm_regex_matcher.captures(&msg.content[..]) {
+                let command = self
+                    .commands_map
+                    .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
+                    .unwrap();
+                let args = full_match.name("args").map(|m| m.as_str()).unwrap_or("").to_string();
+
+                let user_id = invoke.author_id();
+
+                if msg.id == MessageId(0) || !ctx.check_executing(user_id).await {
+                    ctx.set_executing(user_id).await;
+
+                    match command.fun {
+                        CommandFnType::Text(t) => t(&ctx, invoke, args).await,
+                        CommandFnType::Multi(m) => m(&ctx, invoke).await,
+                        _ => {}
+                    };
+
+                    ctx.drop_executing(user_id).await;
                 }
             }
         }

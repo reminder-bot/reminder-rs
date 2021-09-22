@@ -5,6 +5,7 @@ use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
 use syn::{parse::Error, parse_macro_input, parse_quote, spanned::Spanned, Lit, Type};
+use uuid::Uuid;
 
 pub(crate) mod attributes;
 pub(crate) mod consts;
@@ -43,6 +44,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         fun.name.to_string()
     };
 
+    let mut hooks: Vec<Ident> = Vec::new();
     let mut options = Options::new();
 
     for attribute in &fun.attributes {
@@ -76,11 +78,13 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
                     util::append_line(&mut options.description, line);
                 }
             }
+            "hook" => {
+                hooks.push(propagate_err!(attributes::parse(values)));
+            }
             _ => {
                 match_options!(name, values, options, span => [
                     aliases;
                     group;
-                    required_permissions;
                     can_blacklist;
                     supports_dm
                 ]);
@@ -93,7 +97,6 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         description,
         group,
         examples,
-        required_permissions,
         can_blacklist,
         supports_dm,
         mut cmd_args,
@@ -235,10 +238,10 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
             desc: #description,
             group: #group,
             examples: &[#(#examples),*],
-            required_permissions: #required_permissions,
             can_blacklist: #can_blacklist,
             supports_dm: #supports_dm,
             args: &[#(&#arg_idents),*],
+            hooks: &[#(&#hooks),*],
         };
     });
 
@@ -255,4 +258,45 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
     });
 
     tokens.into()
+}
+
+#[proc_macro_attribute]
+pub fn check(_attr: TokenStream, input: TokenStream) -> TokenStream {
+    let mut fun = parse_macro_input!(input as CommandFun);
+
+    let n = fun.name.clone();
+    let name = n.with_suffix(HOOK);
+    let fn_name = n.with_suffix(CHECK);
+    let visibility = fun.visibility;
+
+    let cooked = fun.cooked;
+    let body = fun.body;
+    let ret = fun.ret;
+    populate_fut_lifetimes_on_refs(&mut fun.args);
+    let args = fun.args;
+
+    let hook_path = quote!(crate::framework::Hook);
+    let uuid = Uuid::new_v4().as_u128();
+
+    (quote! {
+        #(#cooked)*
+        #[allow(missing_docs)]
+        #visibility fn #fn_name<'fut>(#(#args),*) -> ::serenity::futures::future::BoxFuture<'fut, #ret> {
+            use ::serenity::futures::future::FutureExt;
+
+            async move {
+                let _output: #ret = { #(#body)* };
+                #[allow(unreachable_code)]
+                _output
+            }.boxed()
+        }
+
+        #(#cooked)*
+        #[allow(missing_docs)]
+        pub static #name: #hook_path = #hook_path {
+            fun: #fn_name,
+            uuid: #uuid,
+        };
+    })
+    .into()
 }

@@ -8,7 +8,7 @@ use syn::{
 };
 
 use crate::{
-    structures::{ApplicationCommandOptionType, Arg, PermissionLevel},
+    structures::{ApplicationCommandOptionType, Arg},
     util::{AsOption, LitExt},
 };
 
@@ -46,24 +46,15 @@ impl fmt::Display for ValueKind {
 
 fn to_ident(p: Path) -> Result<Ident> {
     if p.segments.is_empty() {
-        return Err(Error::new(
-            p.span(),
-            "cannot convert an empty path to an identifier",
-        ));
+        return Err(Error::new(p.span(), "cannot convert an empty path to an identifier"));
     }
 
     if p.segments.len() > 1 {
-        return Err(Error::new(
-            p.span(),
-            "the path must not have more than one segment",
-        ));
+        return Err(Error::new(p.span(), "the path must not have more than one segment"));
     }
 
     if !p.segments[0].arguments.is_empty() {
-        return Err(Error::new(
-            p.span(),
-            "the singular path segment must not have any arguments",
-        ));
+        return Err(Error::new(p.span(), "the singular path segment must not have any arguments"));
     }
 
     Ok(p.segments[0].ident.clone())
@@ -85,12 +76,7 @@ impl Values {
         literals: Vec<(Option<String>, Lit)>,
         span: Span,
     ) -> Self {
-        Values {
-            name,
-            literals,
-            kind,
-            span,
-        }
+        Values { name, literals, kind, span }
     }
 }
 
@@ -145,11 +131,7 @@ pub fn parse_values(attr: &Attribute) -> Result<Values> {
                     }
                 }
 
-                let kind = if lits.len() == 1 {
-                    ValueKind::SingleList
-                } else {
-                    ValueKind::List
-                };
+                let kind = if lits.len() == 1 { ValueKind::SingleList } else { ValueKind::List };
 
                 Ok(Values::new(name, kind, lits, attr.span()))
             } else {
@@ -183,12 +165,7 @@ pub fn parse_values(attr: &Attribute) -> Result<Values> {
             let name = to_ident(meta.path)?;
             let lit = meta.lit;
 
-            Ok(Values::new(
-                name,
-                ValueKind::Equals,
-                vec![(None, lit)],
-                attr.span(),
-            ))
+            Ok(Values::new(name, ValueKind::Equals, vec![(None, lit)], attr.span()))
         }
     }
 }
@@ -231,10 +208,7 @@ fn validate(values: &Values, forms: &[ValueKind]) -> Result<()> {
         return Err(Error::new(
             values.span,
             // Using the `_args` version here to avoid an allocation.
-            format_args!(
-                "the attribute must be in of these forms:\n{}",
-                DisplaySlice(forms)
-            ),
+            format_args!("the attribute must be in of these forms:\n{}", DisplaySlice(forms)),
         ));
     }
 
@@ -254,11 +228,7 @@ impl AttributeOption for Vec<String> {
     fn parse(values: Values) -> Result<Self> {
         validate(&values, &[ValueKind::List])?;
 
-        Ok(values
-            .literals
-            .into_iter()
-            .map(|(_, l)| l.to_str())
-            .collect())
+        Ok(values.literals.into_iter().map(|(_, l)| l.to_str()).collect())
     }
 }
 
@@ -294,34 +264,15 @@ impl AttributeOption for Vec<Ident> {
     fn parse(values: Values) -> Result<Self> {
         validate(&values, &[ValueKind::List])?;
 
-        Ok(values
-            .literals
-            .into_iter()
-            .map(|(_, l)| l.to_ident())
-            .collect())
+        Ok(values.literals.into_iter().map(|(_, l)| l.to_ident()).collect())
     }
 }
 
 impl AttributeOption for Option<String> {
     fn parse(values: Values) -> Result<Self> {
-        validate(
-            &values,
-            &[ValueKind::Name, ValueKind::Equals, ValueKind::SingleList],
-        )?;
+        validate(&values, &[ValueKind::Name, ValueKind::Equals, ValueKind::SingleList])?;
 
         Ok(values.literals.get(0).map(|(_, l)| l.to_str()))
-    }
-}
-
-impl AttributeOption for PermissionLevel {
-    fn parse(values: Values) -> Result<Self> {
-        validate(&values, &[ValueKind::SingleList])?;
-
-        Ok(values
-            .literals
-            .get(0)
-            .map(|(_, l)| PermissionLevel::from_str(&*l.to_str()).unwrap())
-            .unwrap())
     }
 }
 

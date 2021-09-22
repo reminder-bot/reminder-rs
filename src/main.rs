@@ -6,6 +6,7 @@ mod commands;
 mod component_models;
 mod consts;
 mod framework;
+mod hooks;
 mod models;
 mod time_parser;
 
@@ -39,7 +40,7 @@ use crate::{
     component_models::ComponentDataModel,
     consts::{CNC_GUILD, DEFAULT_PREFIX, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
-    models::guild_data::GuildData,
+    models::{command_macro::CommandMacro, guild_data::GuildData},
 };
 
 struct GuildDataCache;
@@ -70,6 +71,12 @@ struct CurrentlyExecuting;
 
 impl TypeMapKey for CurrentlyExecuting {
     type Value = Arc<RwLock<HashMap<UserId, Instant>>>;
+}
+
+struct RecordingMacros;
+
+impl TypeMapKey for RecordingMacros {
+    type Value = Arc<RwLock<HashMap<(GuildId, UserId), CommandMacro>>>;
 }
 
 #[async_trait]
@@ -326,10 +333,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command(&moderation_cmds::RESTRICT_COMMAND)
         .add_command(&moderation_cmds::TIMEZONE_COMMAND)
         .add_command(&moderation_cmds::PREFIX_COMMAND)
+        .add_command(&moderation_cmds::MACRO_CMD_COMMAND)
         /*
         .add_command("alias", &moderation_cmds::ALIAS_COMMAND)
         .add_command("a", &moderation_cmds::ALIAS_COMMAND)
         */
+        .add_hook(&hooks::CHECK_SELF_PERMISSIONS_HOOK)
+        .add_hook(&hooks::MACRO_CHECK_HOOK)
         .build();
 
     let framework_arc = Arc::new(framework);
@@ -375,6 +385,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         data.insert::<PopularTimezones>(Arc::new(popular_timezones));
         data.insert::<ReqwestClient>(Arc::new(reqwest::Client::new()));
         data.insert::<RegexFramework>(framework_arc.clone());
+        data.insert::<RecordingMacros>(Arc::new(RwLock::new(HashMap::new())));
     }
 
     if let Ok((Some(lower), Some(upper))) = env::var("SHARD_RANGE").map(|sr| {

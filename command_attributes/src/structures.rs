@@ -4,7 +4,7 @@ use syn::{
     braced,
     parse::{Error, Parse, ParseStream, Result},
     spanned::Spanned,
-    Attribute, Block, FnArg, Ident, Pat, Stmt, Token, Visibility,
+    Attribute, Block, FnArg, Ident, Pat, ReturnType, Stmt, Token, Type, Visibility,
 };
 
 use crate::util::{Argument, Parenthesised};
@@ -78,6 +78,7 @@ pub struct CommandFun {
     pub visibility: Visibility,
     pub name: Ident,
     pub args: Vec<Argument>,
+    pub ret: Type,
     pub body: Vec<Stmt>,
 }
 
@@ -97,6 +98,11 @@ impl Parse for CommandFun {
         // (...)
         let Parenthesised(args) = input.parse::<Parenthesised<FnArg>>()?;
 
+        let ret = match input.parse::<ReturnType>()? {
+            ReturnType::Type(_, t) => (*t).clone(),
+            ReturnType::Default => Type::Verbatim(quote!(())),
+        };
+
         // { ... }
         let bcont;
         braced!(bcont in input);
@@ -104,68 +110,19 @@ impl Parse for CommandFun {
 
         let args = args.into_iter().map(parse_argument).collect::<Result<Vec<_>>>()?;
 
-        Ok(Self { attributes, cooked, visibility, name, args, body })
+        Ok(Self { attributes, cooked, visibility, name, args, ret, body })
     }
 }
 
 impl ToTokens for CommandFun {
     fn to_tokens(&self, stream: &mut TokenStream2) {
-        let Self { attributes: _, cooked, visibility, name, args, body } = self;
+        let Self { attributes: _, cooked, visibility, name, args, ret, body } = self;
 
         stream.extend(quote! {
             #(#cooked)*
-            #visibility async fn #name (#(#args),*) {
+            #visibility async fn #name (#(#args),*) -> #ret {
                 #(#body)*
             }
-        });
-    }
-}
-
-#[derive(Debug)]
-pub enum PermissionLevel {
-    Unrestricted,
-    Managed,
-    Restricted,
-}
-
-impl Default for PermissionLevel {
-    fn default() -> Self {
-        Self::Unrestricted
-    }
-}
-
-impl PermissionLevel {
-    pub fn from_str(s: &str) -> Option<Self> {
-        Some(match s.to_uppercase().as_str() {
-            "UNRESTRICTED" => Self::Unrestricted,
-            "MANAGED" => Self::Managed,
-            "RESTRICTED" => Self::Restricted,
-            _ => return None,
-        })
-    }
-}
-
-impl ToTokens for PermissionLevel {
-    fn to_tokens(&self, stream: &mut TokenStream2) {
-        let path = quote!(crate::framework::PermissionLevel);
-        let variant;
-
-        match self {
-            Self::Unrestricted => {
-                variant = quote!(Unrestricted);
-            }
-
-            Self::Managed => {
-                variant = quote!(Managed);
-            }
-
-            Self::Restricted => {
-                variant = quote!(Restricted);
-            }
-        }
-
-        stream.extend(quote! {
-            #path::#variant
         });
     }
 }
@@ -272,7 +229,6 @@ pub(crate) struct Options {
     pub description: String,
     pub group: String,
     pub examples: Vec<String>,
-    pub required_permissions: PermissionLevel,
     pub can_blacklist: bool,
     pub supports_dm: bool,
     pub cmd_args: Vec<Arg>,

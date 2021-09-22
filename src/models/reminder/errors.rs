@@ -1,32 +1,5 @@
 use crate::consts::{MAX_TIME, MIN_INTERVAL};
 
-#[derive(Debug)]
-pub enum InteractionError {
-    InvalidFormat,
-    InvalidBase64,
-    InvalidSize,
-    NoReminder,
-    SignatureMismatch,
-    InvalidAction,
-}
-
-impl ToString for InteractionError {
-    fn to_string(&self) -> String {
-        match self {
-            InteractionError::InvalidFormat => {
-                String::from("The interaction data was improperly formatted")
-            }
-            InteractionError::InvalidBase64 => String::from("The interaction data was invalid"),
-            InteractionError::InvalidSize => String::from("The interaction data was invalid"),
-            InteractionError::NoReminder => String::from("Reminder could not be found"),
-            InteractionError::SignatureMismatch => {
-                String::from("Only the user who did the command can use interactions")
-            }
-            InteractionError::InvalidAction => String::from("The action was invalid"),
-        }
-    }
-}
-
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub enum ReminderError {
     LongTime,

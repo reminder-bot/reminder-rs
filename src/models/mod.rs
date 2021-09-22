@@ -1,4 +1,5 @@
 pub mod channel_data;
+pub mod command_macro;
 pub mod guild_data;
 pub mod reminder;
 pub mod timer;

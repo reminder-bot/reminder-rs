@@ -27,7 +27,7 @@ fn footer(ctx: &Context) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut CreateEm
 #[aliases("invite")]
 #[description("Get information about the bot")]
 #[group("Info")]
-async fn info(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
+async fn info(ctx: &Context, invoke: CommandInvoke) {
     let prefix = ctx.prefix(invoke.guild_id()).await;
     let current_user = ctx.cache.current_user();
     let footer = footer(ctx);
@@ -61,7 +61,7 @@ Use our dashboard: https://reminder-bot.com/",
 #[command]
 #[description("Details on supporting the bot and Patreon benefits")]
 #[group("Info")]
-async fn donate(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
+async fn donate(ctx: &Context, invoke: CommandInvoke) {
     let footer = footer(ctx);
 
     let _ = invoke
@@ -94,7 +94,7 @@ Just $2 USD/month!
 #[command]
 #[description("Get the link to the online dashboard")]
 #[group("Info")]
-async fn dashboard(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
+async fn dashboard(ctx: &Context, invoke: CommandInvoke) {
     let footer = footer(ctx);
 
     let _ = invoke
@@ -113,7 +113,7 @@ async fn dashboard(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
 #[command]
 #[description("View the current time in your selected timezone")]
 #[group("Info")]
-async fn clock(ctx: &Context, invoke: &(dyn CommandInvoke + Send + Sync)) {
+async fn clock(ctx: &Context, invoke: CommandInvoke) {
     let ud = ctx.user_data(&invoke.author_id()).await.unwrap();
     let now = Utc::now().with_timezone(&ud.timezone());
 
