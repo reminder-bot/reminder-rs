@@ -7,7 +7,10 @@ use syn::{
     Attribute, Block, FnArg, Ident, Pat, ReturnType, Stmt, Token, Type, Visibility,
 };
 
-use crate::util::{Argument, Parenthesised};
+use crate::{
+    consts::{ARG, SUBCOMMAND},
+    util::{Argument, IdentExt2, Parenthesised},
+};
 
 fn parse_argument(arg: FnArg) -> Result<Argument> {
     match arg {
@@ -38,43 +41,12 @@ fn parse_argument(arg: FnArg) -> Result<Argument> {
     }
 }
 
-/// Test if the attribute is cooked.
-fn is_cooked(attr: &Attribute) -> bool {
-    const COOKED_ATTRIBUTE_NAMES: &[&str] =
-        &["cfg", "cfg_attr", "derive", "inline", "allow", "warn", "deny", "forbid"];
-
-    COOKED_ATTRIBUTE_NAMES.iter().any(|n| attr.path.is_ident(n))
-}
-
-/// Removes cooked attributes from a vector of attributes. Uncooked attributes are left in the vector.
-///
-/// # Return
-///
-/// Returns a vector of cooked attributes that have been removed from the input vector.
-fn remove_cooked(attrs: &mut Vec<Attribute>) -> Vec<Attribute> {
-    let mut cooked = Vec::new();
-
-    // FIXME: Replace with `Vec::drain_filter` once it is stable.
-    let mut i = 0;
-    while i < attrs.len() {
-        if !is_cooked(&attrs[i]) {
-            i += 1;
-            continue;
-        }
-
-        cooked.push(attrs.remove(i));
-    }
-
-    cooked
-}
-
 #[derive(Debug)]
 pub struct CommandFun {
     /// `#[...]`-style attributes.
     pub attributes: Vec<Attribute>,
     /// Populated cooked attributes. These are attributes outside of the realm of this crate's procedural macros
     /// and will appear in generated output.
-    pub cooked: Vec<Attribute>,
     pub visibility: Visibility,
     pub name: Ident,
     pub args: Vec<Argument>,
@@ -84,9 +56,7 @@ pub struct CommandFun {
 
 impl Parse for CommandFun {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let mut attributes = input.call(Attribute::parse_outer)?;
-
-        let cooked = remove_cooked(&mut attributes);
+        let attributes = input.call(Attribute::parse_outer)?;
 
         let visibility = input.parse::<Visibility>()?;
 
@@ -110,16 +80,15 @@ impl Parse for CommandFun {
 
         let args = args.into_iter().map(parse_argument).collect::<Result<Vec<_>>>()?;
 
-        Ok(Self { attributes, cooked, visibility, name, args, ret, body })
+        Ok(Self { attributes, visibility, name, args, ret, body })
     }
 }
 
 impl ToTokens for CommandFun {
     fn to_tokens(&self, stream: &mut TokenStream2) {
-        let Self { attributes: _, cooked, visibility, name, args, ret, body } = self;
+        let Self { attributes: _, visibility, name, args, ret, body } = self;
 
         stream.extend(quote! {
-            #(#cooked)*
             #visibility async fn #name (#(#args),*) -> #ret {
                 #(#body)*
             }
@@ -193,6 +162,24 @@ pub(crate) struct Arg {
     pub required: bool,
 }
 
+impl Arg {
+    pub fn as_tokens(&self, ident: &Ident) -> TokenStream2 {
+        let arg_path = quote!(crate::framework::Arg);
+        let Arg { name, description, kind, required } = self;
+
+        quote! {
+            #[allow(missing_docs)]
+            pub static #ident: #arg_path = #arg_path {
+                name: #name,
+                description: #description,
+                kind: #kind,
+                required: #required,
+                options: &[]
+            };
+        }
+    }
+}
+
 impl Default for Arg {
     fn default() -> Self {
         Self {
@@ -211,6 +198,44 @@ pub(crate) struct Subcommand {
     pub cmd_args: Vec<Arg>,
 }
 
+impl Subcommand {
+    pub fn as_tokens(&mut self, ident: &Ident) -> TokenStream2 {
+        let arg_path = quote!(crate::framework::Arg);
+        let subcommand_path = ApplicationCommandOptionType::SubCommand;
+
+        let arg_idents = self
+            .cmd_args
+            .iter()
+            .map(|arg| ident.with_suffix(arg.name.as_str()).with_suffix(ARG))
+            .collect::<Vec<Ident>>();
+
+        let mut tokens = self
+            .cmd_args
+            .iter_mut()
+            .zip(arg_idents.iter())
+            .map(|(arg, ident)| arg.as_tokens(ident))
+            .fold(quote! {}, |mut a, b| {
+                a.extend(b);
+                a
+            });
+
+        let Subcommand { name, description, .. } = self;
+
+        tokens.extend(quote! {
+            #[allow(missing_docs)]
+            pub static #ident: #arg_path = #arg_path {
+                name: #name,
+                description: #description,
+                kind: #subcommand_path,
+                required: false,
+                options: &[#(&#arg_idents),*],
+            };
+        });
+
+        tokens
+    }
+}
+
 impl Default for Subcommand {
     fn default() -> Self {
         Self { name: String::new(), description: String::new(), cmd_args: vec![] }
@@ -218,6 +243,68 @@ impl Default for Subcommand {
 }
 
 impl Subcommand {
+    pub(crate) fn new(name: String) -> Self {
+        Self { name, ..Default::default() }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct SubcommandGroup {
+    pub name: String,
+    pub description: String,
+    pub subcommands: Vec<Subcommand>,
+}
+
+impl SubcommandGroup {
+    pub fn as_tokens(&mut self, ident: &Ident) -> TokenStream2 {
+        let arg_path = quote!(crate::framework::Arg);
+        let subcommand_group_path = ApplicationCommandOptionType::SubCommandGroup;
+
+        let arg_idents = self
+            .subcommands
+            .iter()
+            .map(|arg| {
+                ident
+                    .with_suffix(self.name.as_str())
+                    .with_suffix(arg.name.as_str())
+                    .with_suffix(SUBCOMMAND)
+            })
+            .collect::<Vec<Ident>>();
+
+        let mut tokens = self
+            .subcommands
+            .iter_mut()
+            .zip(arg_idents.iter())
+            .map(|(subcommand, ident)| subcommand.as_tokens(ident))
+            .fold(quote! {}, |mut a, b| {
+                a.extend(b);
+                a
+            });
+
+        let SubcommandGroup { name, description, .. } = self;
+
+        tokens.extend(quote! {
+            #[allow(missing_docs)]
+            pub static #ident: #arg_path = #arg_path {
+                name: #name,
+                description: #description,
+                kind: #subcommand_group_path,
+                required: false,
+                options: &[#(&#arg_idents),*],
+            };
+        });
+
+        tokens
+    }
+}
+
+impl Default for SubcommandGroup {
+    fn default() -> Self {
+        Self { name: String::new(), description: String::new(), subcommands: vec![] }
+    }
+}
+
+impl SubcommandGroup {
     pub(crate) fn new(name: String) -> Self {
         Self { name, ..Default::default() }
     }
@@ -233,6 +320,7 @@ pub(crate) struct Options {
     pub supports_dm: bool,
     pub cmd_args: Vec<Arg>,
     pub subcommands: Vec<Subcommand>,
+    pub subcommand_groups: Vec<SubcommandGroup>,
 }
 
 impl Options {

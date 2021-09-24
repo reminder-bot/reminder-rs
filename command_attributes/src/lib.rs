@@ -36,6 +36,13 @@ macro_rules! match_options {
 
 #[proc_macro_attribute]
 pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
+    enum LastItem {
+        Fun,
+        SubFun,
+        SubGroup,
+        SubGroupFun,
+    }
+
     let mut fun = parse_macro_input!(input as CommandFun);
 
     let _name = if !attr.is_empty() {
@@ -46,6 +53,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let mut hooks: Vec<Ident> = Vec::new();
     let mut options = Options::new();
+    let mut last_desc = LastItem::Fun;
 
     for attribute in &fun.attributes {
         let span = attribute.span();
@@ -56,15 +64,39 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
 
         match name {
             "subcommand" => {
-                options
-                    .subcommands
-                    .push(Subcommand::new(propagate_err!(attributes::parse(values))));
+                let new_subcommand = Subcommand::new(propagate_err!(attributes::parse(values)));
+
+                if let Some(subcommand_group) = options.subcommand_groups.last_mut() {
+                    last_desc = LastItem::SubGroupFun;
+                    subcommand_group.subcommands.push(new_subcommand);
+                } else {
+                    last_desc = LastItem::SubFun;
+                    options.subcommands.push(new_subcommand);
+                }
+            }
+            "subcommandgroup" => {
+                let new_group = SubcommandGroup::new(propagate_err!(attributes::parse(values)));
+                last_desc = LastItem::SubGroup;
+
+                options.subcommand_groups.push(new_group);
             }
             "arg" => {
-                if let Some(subcommand) = options.subcommands.last_mut() {
-                    subcommand.cmd_args.push(propagate_err!(attributes::parse(values)));
+                if let Some(subcommand_group) = options.subcommand_groups.last_mut() {
+                    if let Some(subcommand) = subcommand_group.subcommands.last_mut() {
+                        subcommand.cmd_args.push(propagate_err!(attributes::parse(values)));
+                    } else {
+                        if let Some(subcommand) = options.subcommands.last_mut() {
+                            subcommand.cmd_args.push(propagate_err!(attributes::parse(values)));
+                        } else {
+                            options.cmd_args.push(propagate_err!(attributes::parse(values)));
+                        }
+                    }
                 } else {
-                    options.cmd_args.push(propagate_err!(attributes::parse(values)));
+                    if let Some(subcommand) = options.subcommands.last_mut() {
+                        subcommand.cmd_args.push(propagate_err!(attributes::parse(values)));
+                    } else {
+                        options.cmd_args.push(propagate_err!(attributes::parse(values)));
+                    }
                 }
             }
             "example" => {
@@ -72,10 +104,36 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
             }
             "description" => {
                 let line: String = propagate_err!(attributes::parse(values));
-                if let Some(subcommand) = options.subcommands.last_mut() {
-                    util::append_line(&mut subcommand.description, line);
-                } else {
-                    util::append_line(&mut options.description, line);
+
+                match last_desc {
+                    LastItem::Fun => {
+                        util::append_line(&mut options.description, line);
+                    }
+                    LastItem::SubFun => {
+                        util::append_line(
+                            &mut options.subcommands.last_mut().unwrap().description,
+                            line,
+                        );
+                    }
+                    LastItem::SubGroup => {
+                        util::append_line(
+                            &mut options.subcommand_groups.last_mut().unwrap().description,
+                            line,
+                        );
+                    }
+                    LastItem::SubGroupFun => {
+                        util::append_line(
+                            &mut options
+                                .subcommand_groups
+                                .last_mut()
+                                .unwrap()
+                                .subcommands
+                                .last_mut()
+                                .unwrap()
+                                .description,
+                            line,
+                        );
+                    }
                 }
             }
             "hook" => {
@@ -101,119 +159,80 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         supports_dm,
         mut cmd_args,
         mut subcommands,
+        mut subcommand_groups,
     } = options;
 
     let visibility = fun.visibility;
     let name = fun.name.clone();
     let body = fun.body;
 
-    let n = name.with_suffix(COMMAND);
-
-    let cooked = fun.cooked.clone();
+    let root_ident = name.with_suffix(COMMAND);
 
     let command_path = quote!(crate::framework::Command);
-    let arg_path = quote!(crate::framework::Arg);
-    let subcommand_path = ApplicationCommandOptionType::SubCommand;
 
     populate_fut_lifetimes_on_refs(&mut fun.args);
-    let args = fun.args;
+
+    let mut subcommand_group_idents = subcommand_groups
+        .iter()
+        .map(|subcommand| {
+            root_ident
+                .with_suffix(subcommand.name.replace("-", "_").as_str())
+                .with_suffix(SUBCOMMAND_GROUP)
+        })
+        .collect::<Vec<Ident>>();
 
     let mut subcommand_idents = subcommands
         .iter()
         .map(|subcommand| {
-            n.with_suffix(subcommand.name.replace("-", "_").as_str()).with_suffix(SUBCOMMAND)
+            root_ident
+                .with_suffix(subcommand.name.replace("-", "_").as_str())
+                .with_suffix(SUBCOMMAND)
         })
         .collect::<Vec<Ident>>();
-
-    let mut tokens = subcommands
-        .iter_mut()
-        .zip(subcommand_idents.iter())
-        .map(|(subcommand, sc_ident)| {
-            let arg_idents = subcommand
-                .cmd_args
-                .iter()
-                .map(|arg| {
-                    n.with_suffix(subcommand.name.as_str())
-                        .with_suffix(arg.name.as_str())
-                        .with_suffix(ARG)
-                })
-                .collect::<Vec<Ident>>();
-
-            let mut tokens = subcommand
-                .cmd_args
-                .iter_mut()
-                .zip(arg_idents.iter())
-                .map(|(arg, ident)| {
-                    let Arg { name, description, kind, required } = arg;
-
-                    quote! {
-                        #(#cooked)*
-                        #[allow(missing_docs)]
-                        pub static #ident: #arg_path = #arg_path {
-                            name: #name,
-                            description: #description,
-                            kind: #kind,
-                            required: #required,
-                            options: &[]
-                        };
-                    }
-                })
-                .fold(quote! {}, |mut a, b| {
-                    a.extend(b);
-                    a
-                });
-
-            let Subcommand { name, description, .. } = subcommand;
-
-            tokens.extend(quote! {
-                #(#cooked)*
-                #[allow(missing_docs)]
-                pub static #sc_ident: #arg_path = #arg_path {
-                    name: #name,
-                    description: #description,
-                    kind: #subcommand_path,
-                    required: false,
-                    options: &[#(&#arg_idents),*],
-                };
-            });
-
-            tokens
-        })
-        .fold(quote! {}, |mut a, b| {
-            a.extend(b);
-            a
-        });
 
     let mut arg_idents = cmd_args
         .iter()
-        .map(|arg| n.with_suffix(arg.name.replace("-", "_").as_str()).with_suffix(ARG))
+        .map(|arg| root_ident.with_suffix(arg.name.replace("-", "_").as_str()).with_suffix(ARG))
         .collect::<Vec<Ident>>();
 
-    let arg_tokens = cmd_args
-        .iter_mut()
-        .zip(arg_idents.iter())
-        .map(|(arg, ident)| {
-            let Arg { name, description, kind, required } = arg;
+    let mut tokens = quote! {};
 
-            quote! {
-                #(#cooked)*
-                #[allow(missing_docs)]
-                pub static #ident: #arg_path = #arg_path {
-                    name: #name,
-                    description: #description,
-                    kind: #kind,
-                    required: #required,
-                    options: &[],
-                };
-            }
-        })
-        .fold(quote! {}, |mut a, b| {
-            a.extend(b);
-            a
-        });
+    tokens.extend(
+        subcommand_groups
+            .iter_mut()
+            .zip(subcommand_group_idents.iter())
+            .map(|(group, group_ident)| group.as_tokens(group_ident))
+            .fold(quote! {}, |mut a, b| {
+                a.extend(b);
+                a
+            }),
+    );
 
-    tokens.extend(arg_tokens);
+    tokens.extend(
+        subcommands
+            .iter_mut()
+            .zip(subcommand_idents.iter())
+            .map(|(subcommand, sc_ident)| subcommand.as_tokens(sc_ident))
+            .fold(quote! {}, |mut a, b| {
+                a.extend(b);
+                a
+            }),
+    );
+
+    tokens.extend(
+        cmd_args.iter_mut().zip(arg_idents.iter()).map(|(arg, ident)| arg.as_tokens(ident)).fold(
+            quote! {},
+            |mut a, b| {
+                a.extend(b);
+                a
+            },
+        ),
+    );
+
+    arg_idents.append(&mut subcommand_group_idents);
     arg_idents.append(&mut subcommand_idents);
+
+    let args = fun.args;
 
     let variant = if args.len() == 2 {
         quote!(crate::framework::CommandFnType::Multi)
@@ -230,9 +249,8 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
     };
 
     tokens.extend(quote! {
-        #(#cooked)*
         #[allow(missing_docs)]
-        pub static #n: #command_path = #command_path {
+        pub static #root_ident: #command_path = #command_path {
             fun: #variant(#name),
             names: &[#_name, #(#aliases),*],
             desc: #description,
@@ -243,10 +261,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
             args: &[#(&#arg_idents),*],
             hooks: &[#(&#hooks),*],
         };
-    });
 
-    tokens.extend(quote! {
-        #(#cooked)*
         #[allow(missing_docs)]
         #visibility fn #name<'fut> (#(#args),*) -> ::serenity::futures::future::BoxFuture<'fut, ()> {
             use ::serenity::futures::future::FutureExt;
@@ -269,7 +284,6 @@ pub fn check(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let fn_name = n.with_suffix(CHECK);
     let visibility = fun.visibility;
 
-    let cooked = fun.cooked;
     let body = fun.body;
     let ret = fun.ret;
     populate_fut_lifetimes_on_refs(&mut fun.args);
@@ -279,7 +293,6 @@ pub fn check(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let uuid = Uuid::new_v4().as_u128();
 
     (quote! {
-        #(#cooked)*
         #[allow(missing_docs)]
         #visibility fn #fn_name<'fut>(#(#args),*) -> ::serenity::futures::future::BoxFuture<'fut, #ret> {
             use ::serenity::futures::future::FutureExt;
@@ -291,7 +304,6 @@ pub fn check(_attr: TokenStream, input: TokenStream) -> TokenStream {
             }.boxed()
         }
 
-        #(#cooked)*
         #[allow(missing_docs)]
         pub static #name: #hook_path = #hook_path {
             fun: #fn_name,

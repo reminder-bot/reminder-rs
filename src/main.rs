@@ -36,7 +36,7 @@ use sqlx::mysql::MySqlPool;
 use tokio::sync::RwLock;
 
 use crate::{
-    commands::{info_cmds, moderation_cmds, reminder_cmds},
+    commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
     component_models::ComponentDataModel,
     consts::{CNC_GUILD, DEFAULT_PREFIX, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
@@ -318,16 +318,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command(&reminder_cmds::PAUSE_COMMAND)
         .add_command(&reminder_cmds::OFFSET_COMMAND)
         .add_command(&reminder_cmds::NUDGE_COMMAND)
-        /*
         // to-do commands
-        .add_command("todo", &todo_cmds::TODO_USER_COMMAND)
-        .add_command("todo user", &todo_cmds::TODO_USER_COMMAND)
-        .add_command("todoc", &todo_cmds::TODO_CHANNEL_COMMAND)
-        .add_command("todo channel", &todo_cmds::TODO_CHANNEL_COMMAND)
-        .add_command("todos", &todo_cmds::TODO_GUILD_COMMAND)
-        .add_command("todo server", &todo_cmds::TODO_GUILD_COMMAND)
-        .add_command("todo guild", &todo_cmds::TODO_GUILD_COMMAND)
-        */
+        .add_command(&todo_cmds::TODO_COMMAND)
         // moderation commands
         .add_command(&moderation_cmds::BLACKLIST_COMMAND)
         .add_command(&moderation_cmds::RESTRICT_COMMAND)
