@@ -22,7 +22,7 @@ use crate::{
     },
     consts::{
         EMBED_DESCRIPTION_MAX_LENGTH, REGEX_CHANNEL_USER, REGEX_NATURAL_COMMAND_1,
-        REGEX_NATURAL_COMMAND_2, THEME_COLOR,
+        REGEX_NATURAL_COMMAND_2, SELECT_MAX_ENTRIES, THEME_COLOR,
     },
     framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
     hooks::{CHECK_GUILD_PERMISSIONS_HOOK, CHECK_MANAGED_PERMISSIONS_HOOK},
@@ -290,7 +290,7 @@ async fn look(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
 
     let channel_id = if let Some(Channel::Guild(channel)) = channel_opt {
         if Some(channel.guild_id) == invoke.guild_id() {
-            flags.channel_id.unwrap_or(invoke.channel_id())
+            flags.channel_id.unwrap_or_else(|| invoke.channel_id())
         } else {
             invoke.channel_id()
         }
@@ -374,45 +374,57 @@ async fn delete(ctx: &Context, invoke: CommandInvoke, _args: CommandOptions) {
     let _ = interaction
         .create_interaction_response(&ctx, |r| {
             *r = resp;
-            r
+            r.kind(InteractionResponseType::ChannelMessageWithSource)
         })
-        .await;
+        .await
+        .unwrap();
 }
 
-pub fn max_delete_page(reminders: &Vec<Reminder>, timezone: &Tz) -> usize {
+pub fn max_delete_page(reminders: &[Reminder], timezone: &Tz) -> usize {
+    let mut rows = 0;
+    let mut char_count = 0;
+
     reminders
         .iter()
         .enumerate()
         .map(|(count, reminder)| reminder.display_del(count, timezone))
-        .fold(0, |t, r| t + r.len())
-        .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH)
+        .fold(1, |mut pages, reminder| {
+            rows += 1;
+            char_count += reminder.len();
+
+            if char_count > EMBED_DESCRIPTION_MAX_LENGTH || rows > SELECT_MAX_ENTRIES {
+                rows = 1;
+                char_count = reminder.len();
+                pages += 1;
+            }
+
+            pages
+        })
 }
 
 pub async fn show_delete_page(
-    reminders: &Vec<Reminder>,
+    reminders: &[Reminder],
     page: usize,
     timezone: Tz,
 ) -> CreateInteractionResponse {
-    let pager = DelPager::new(timezone);
+    let pager = DelPager::new(page, timezone);
 
     if reminders.is_empty() {
         let mut embed = CreateEmbed::default();
         embed.title("Delete Reminders").description("No Reminders").color(*THEME_COLOR);
 
         let mut response = CreateInteractionResponse::default();
-        response.kind(InteractionResponseType::UpdateMessage).interaction_response_data(
-            |response| {
-                response.embeds(vec![embed]).components(|comp| {
-                    pager.create_button_row(0, comp);
-                    comp
-                })
-            },
-        );
+        response.interaction_response_data(|response| {
+            response.embeds(vec![embed]).components(|comp| {
+                pager.create_button_row(0, comp);
+                comp
+            })
+        });
 
         return response;
     }
 
-    let pages = max_delete_page(&reminders, &timezone);
+    let pages = max_delete_page(reminders, &timezone);
 
     let mut page = page;
     if page >= pages {
@@ -420,8 +432,12 @@ pub async fn show_delete_page(
     }
 
     let mut char_count = 0;
-    let mut skip_char_count = 0;
+    let mut rows = 0;
+    let mut skipped_rows = 0;
+    let mut skipped_char_count = 0;
     let mut first_num = 0;
+
+    let mut skipped_pages = 0;
 
     let (shown_reminders, display_vec): (Vec<&Reminder>, Vec<String>) = reminders
         .iter()
@@ -429,14 +445,24 @@ pub async fn show_delete_page(
         .map(|(count, reminder)| (reminder, reminder.display_del(count, &timezone)))
         .skip_while(|(_, p)| {
             first_num += 1;
-            skip_char_count += p.len();
+            skipped_rows += 1;
+            skipped_char_count += p.len();
 
-            skip_char_count < EMBED_DESCRIPTION_MAX_LENGTH * page
+            if skipped_char_count > EMBED_DESCRIPTION_MAX_LENGTH
+                || skipped_rows > SELECT_MAX_ENTRIES
+            {
+                skipped_rows = 1;
+                skipped_char_count = p.len();
+                skipped_pages += 1;
+            }
+
+            skipped_pages < page
         })
         .take_while(|(_, p)| {
+            rows += 1;
             char_count += p.len();
 
-            char_count < EMBED_DESCRIPTION_MAX_LENGTH
+            char_count < EMBED_DESCRIPTION_MAX_LENGTH && rows <= SELECT_MAX_ENTRIES
         })
         .unzip();
 
@@ -452,7 +478,7 @@ pub async fn show_delete_page(
         .color(*THEME_COLOR);
 
     let mut response = CreateInteractionResponse::default();
-    response.kind(InteractionResponseType::UpdateMessage).interaction_response_data(|d| {
+    response.interaction_response_data(|d| {
         d.embeds(vec![embed]).components(|comp| {
             pager.create_button_row(pages, comp);
 
@@ -596,7 +622,7 @@ DELETE FROM timers WHERE owner = ? AND name = ?
         "list" => {
             let timers = Timer::from_owner(owner, &pool).await;
 
-            if timers.len() > 0 {
+            if !timers.is_empty() {
                 let _ = invoke
                     .respond(
                         ctx.http.clone(),
@@ -699,7 +725,7 @@ async fn remind(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
                 let list = args
                     .get("channels")
                     .map(|arg| parse_mention_list(&arg.to_string()))
-                    .unwrap_or(vec![]);
+                    .unwrap_or_default();
 
                 if list.is_empty() {
                     vec![ReminderScope::Channel(interaction.channel_id.0)]

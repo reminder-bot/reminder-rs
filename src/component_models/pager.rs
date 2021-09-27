@@ -186,8 +186,8 @@ impl Pager for DelPager {
 }
 
 impl DelPager {
-    pub fn new(timezone: Tz) -> Self {
-        Self { page: 0, action: PageAction::First, timezone }
+    pub fn new(page: usize, timezone: Tz) -> Self {
+        Self { page, action: PageAction::Refresh, timezone }
     }
 
     pub fn buttons(

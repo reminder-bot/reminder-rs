@@ -174,7 +174,7 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 let _ = component
                     .create_interaction_response(&ctx, move |r| {
                         *r = resp;
-                        r
+                        r.kind(InteractionResponseType::UpdateMessage)
                     })
                     .await;
             }
@@ -195,7 +195,7 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 let _ = component
                     .create_interaction_response(&ctx, move |r| {
                         *r = resp;
-                        r
+                        r.kind(InteractionResponseType::UpdateMessage)
                     })
                     .await;
             }

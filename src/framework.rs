@@ -144,7 +144,7 @@ impl CommandInvoke {
                                 d.content(generic_response.content);
 
                                 if let Some(embed) = generic_response.embed {
-                                    d.add_embed(embed.clone());
+                                    d.add_embed(embed);
                                 }
 
                                 if let Some(components) = generic_response.components {
@@ -164,7 +164,7 @@ impl CommandInvoke {
                         d.content(generic_response.content);
 
                         if let Some(embed) = generic_response.embed {
-                            d.add_embed(embed.clone());
+                            d.add_embed(embed);
                         }
 
                         if let Some(components) = generic_response.components {
@@ -186,7 +186,7 @@ impl CommandInvoke {
                     m.content(generic_response.content);
 
                     if let Some(embed) = generic_response.embed {
-                        m.set_embed(embed.clone());
+                        m.set_embed(embed);
                     }
 
                     if let Some(components) = generic_response.components {
@@ -308,7 +308,7 @@ impl CommandOptions {
                 ApplicationCommandOptionType::String => {
                     cmd_opts.options.insert(
                         option.name,
-                        OptionValue::String(option.value.unwrap().to_string()),
+                        OptionValue::String(option.value.unwrap().as_str().unwrap().to_string()),
                     );
                 }
                 ApplicationCommandOptionType::Integer => {
@@ -404,10 +404,7 @@ pub enum CommandFnType {
 
 impl CommandFnType {
     pub fn is_slash(&self) -> bool {
-        match self {
-            CommandFnType::Text(_) => false,
-            _ => true,
-        }
+        !matches!(self, CommandFnType::Text(_))
     }
 }
 
