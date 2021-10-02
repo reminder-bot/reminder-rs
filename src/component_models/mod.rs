@@ -18,7 +18,7 @@ use serenity::{
 
 use crate::{
     commands::reminder_cmds::{max_delete_page, show_delete_page},
-    component_models::pager::{DelPager, LookPager, Pager},
+    component_models::pager::{DelPager, LookPager, Pager, TodoPager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
     models::reminder::Reminder,
     SQLPool,
@@ -31,6 +31,7 @@ pub enum ComponentDataModel {
     Restrict(Restrict),
     LookPager(LookPager),
     DelPager(DelPager),
+    TodoPager(TodoPager),
     DelSelector(DelSelector),
 }
 
@@ -168,8 +169,7 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
 
                 let max_pages = max_delete_page(&reminders, &pager.timezone);
 
-                let resp =
-                    show_delete_page(&reminders, pager.next_page(max_pages), pager.timezone).await;
+                let resp = show_delete_page(&reminders, pager.next_page(max_pages), pager.timezone);
 
                 let _ = component
                     .create_interaction_response(&ctx, move |r| {
@@ -190,7 +190,7 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 let reminders =
                     Reminder::from_guild(ctx, component.guild_id, component.user.id).await;
 
-                let resp = show_delete_page(&reminders, selector.page, selector.timezone).await;
+                let resp = show_delete_page(&reminders, selector.page, selector.timezone);
 
                 let _ = component
                     .create_interaction_response(&ctx, move |r| {
@@ -199,6 +199,7 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                     })
                     .await;
             }
+            ComponentDataModel::TodoPager(pager) => {}
         }
     }
 }

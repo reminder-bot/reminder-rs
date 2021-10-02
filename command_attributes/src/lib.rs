@@ -81,21 +81,28 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
                 options.subcommand_groups.push(new_group);
             }
             "arg" => {
-                if let Some(subcommand_group) = options.subcommand_groups.last_mut() {
-                    if let Some(subcommand) = subcommand_group.subcommands.last_mut() {
-                        subcommand.cmd_args.push(propagate_err!(attributes::parse(values)));
-                    } else {
-                        if let Some(subcommand) = options.subcommands.last_mut() {
-                            subcommand.cmd_args.push(propagate_err!(attributes::parse(values)));
-                        } else {
-                            options.cmd_args.push(propagate_err!(attributes::parse(values)));
-                        }
+                let arg = propagate_err!(attributes::parse(values));
+
+                match last_desc {
+                    LastItem::Fun => {
+                        options.cmd_args.push(arg);
                     }
-                } else {
-                    if let Some(subcommand) = options.subcommands.last_mut() {
-                        subcommand.cmd_args.push(propagate_err!(attributes::parse(values)));
-                    } else {
-                        options.cmd_args.push(propagate_err!(attributes::parse(values)));
+                    LastItem::SubFun => {
+                        options.subcommands.last_mut().unwrap().cmd_args.push(arg);
+                    }
+                    LastItem::SubGroup => {
+                        panic!("Argument not expected under subcommand group");
+                    }
+                    LastItem::SubGroupFun => {
+                        options
+                            .subcommand_groups
+                            .last_mut()
+                            .unwrap()
+                            .subcommands
+                            .last_mut()
+                            .unwrap()
+                            .cmd_args
+                            .push(arg);
                     }
                 }
             }

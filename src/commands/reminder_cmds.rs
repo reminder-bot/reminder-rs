@@ -369,7 +369,7 @@ async fn delete(ctx: &Context, invoke: CommandInvoke, _args: CommandOptions) {
 
     let reminders = Reminder::from_guild(ctx, interaction.guild_id, interaction.user.id).await;
 
-    let resp = show_delete_page(&reminders, 0, timezone).await;
+    let resp = show_delete_page(&reminders, 0, timezone);
 
     let _ = interaction
         .create_interaction_response(&ctx, |r| {
@@ -402,7 +402,7 @@ pub fn max_delete_page(reminders: &[Reminder], timezone: &Tz) -> usize {
         })
 }
 
-pub async fn show_delete_page(
+pub fn show_delete_page(
     reminders: &[Reminder],
     page: usize,
     timezone: Tz,

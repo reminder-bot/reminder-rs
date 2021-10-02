@@ -318,18 +318,4 @@ WHERE
             )
         }
     }
-
-    pub async fn delete(&self, ctx: &Context) {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
-        sqlx::query!(
-            "
-DELETE FROM reminders WHERE id = ?
-            ",
-            self.id
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-    }
 }

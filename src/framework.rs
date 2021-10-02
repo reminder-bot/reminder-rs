@@ -614,7 +614,18 @@ impl RegexFramework {
                                     s.name(option.name)
                                         .description(option.description)
                                         .kind(option.kind)
-                                        .required(option.required)
+                                        .required(option.required);
+
+                                    for sub_option in option.options {
+                                        s.create_sub_option(|ss| {
+                                            ss.name(sub_option.name)
+                                                .description(sub_option.description)
+                                                .kind(sub_option.kind)
+                                                .required(sub_option.required)
+                                        });
+                                    }
+
+                                    s
                                 });
                             }
 
