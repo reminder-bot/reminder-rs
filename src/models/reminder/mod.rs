@@ -70,43 +70,6 @@ WHERE
         .ok()
     }
 
-    pub async fn from_id(ctx: &Context, id: u32) -> Option<Self> {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
-        sqlx::query_as_unchecked!(
-            Self,
-            "
-SELECT
-    reminders.id,
-    reminders.uid,
-    channels.channel,
-    reminders.utc_time,
-    reminders.interval,
-    reminders.expires,
-    reminders.enabled,
-    reminders.content,
-    reminders.embed_description,
-    users.user AS set_by
-FROM
-    reminders
-INNER JOIN
-    channels
-ON
-    reminders.channel_id = channels.id
-LEFT JOIN
-    users
-ON
-    reminders.set_by = users.id
-WHERE
-    reminders.id = ?
-            ",
-            id
-        )
-        .fetch_one(&pool)
-        .await
-        .ok()
-    }
-
     pub async fn from_channel<C: Into<ChannelId>>(
         ctx: &Context,
         channel_id: C,

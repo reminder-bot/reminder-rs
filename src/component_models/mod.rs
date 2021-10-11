@@ -17,7 +17,10 @@ use serenity::{
 };
 
 use crate::{
-    commands::reminder_cmds::{max_delete_page, show_delete_page},
+    commands::{
+        reminder_cmds::{max_delete_page, show_delete_page},
+        todo_cmds::{max_todo_page, show_todo_page},
+    },
     component_models::pager::{DelPager, LookPager, Pager, TodoPager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
     models::reminder::Reminder,
@@ -33,6 +36,7 @@ pub enum ComponentDataModel {
     DelPager(DelPager),
     TodoPager(TodoPager),
     DelSelector(DelSelector),
+    TodoSelector(TodoSelector),
 }
 
 impl ComponentDataModel {
@@ -199,7 +203,80 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                     })
                     .await;
             }
-            ComponentDataModel::TodoPager(pager) => {}
+            ComponentDataModel::TodoPager(pager) => {
+                let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+
+                let values = sqlx::query!(
+                    // fucking braindead mysql use <=> instead of = for null comparison
+                    "SELECT id, value FROM todos WHERE user_id <=> ? AND channel_id <=> ? AND guild_id <=> ?",
+                    pager.user_id,
+                    pager.channel_id,
+                    pager.guild_id,
+                )
+                .fetch_all(&pool)
+                .await
+                .unwrap()
+                .iter()
+                .map(|row| (row.id as usize, row.value.clone()))
+                .collect::<Vec<(usize, String)>>();
+
+                let max_pages = max_todo_page(&values);
+
+                let resp = show_todo_page(
+                    &values,
+                    pager.next_page(max_pages),
+                    pager.user_id,
+                    pager.channel_id,
+                    pager.guild_id,
+                );
+
+                let _ = component
+                    .create_interaction_response(&ctx, move |r| {
+                        *r = resp;
+                        r.kind(InteractionResponseType::UpdateMessage)
+                    })
+                    .await;
+            }
+            ComponentDataModel::TodoSelector(selector) => {
+                let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+                let selected_id = component.data.values.join(",");
+
+                sqlx::query!("DELETE FROM todos WHERE FIND_IN_SET(id, ?)", selected_id)
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+
+                let values = sqlx::query!(
+                    // fucking braindead mysql use <=> instead of = for null comparison
+                    "SELECT id, value FROM todos WHERE user_id <=> ? AND channel_id <=> ? AND guild_id <=> ?",
+                    selector.user_id,
+                    selector.channel_id,
+                    selector.guild_id,
+                )
+                .fetch_all(&pool)
+                .await
+                .unwrap()
+                .iter()
+                .map(|row| (row.id as usize, row.value.clone()))
+                .collect::<Vec<(usize, String)>>();
+
+                let max_pages = max_todo_page(&values);
+
+                let resp = show_todo_page(
+                    &values,
+                    selector.page,
+                    selector.user_id,
+                    selector.channel_id,
+                    selector.guild_id,
+                );
+
+                let _ = component
+                    .create_interaction_response(&ctx, move |r| {
+                        *r = resp;
+                        r.kind(InteractionResponseType::UpdateMessage)
+                    })
+                    .await;
+            }
         }
     }
 }
@@ -215,4 +292,12 @@ pub struct Restrict {
 pub struct DelSelector {
     pub page: usize,
     pub timezone: Tz,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct TodoSelector {
+    pub page: usize,
+    pub user_id: Option<u64>,
+    pub channel_id: Option<u64>,
+    pub guild_id: Option<u64>,
 }

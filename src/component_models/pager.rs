@@ -221,9 +221,9 @@ impl DelPager {
 pub struct TodoPager {
     pub page: usize,
     action: PageAction,
-    pub user_id: Option<UserId>,
-    pub channel_id: Option<ChannelId>,
-    pub guild_id: Option<GuildId>,
+    pub user_id: Option<u64>,
+    pub channel_id: Option<u64>,
+    pub guild_id: Option<u64>,
 }
 
 impl Pager for TodoPager {
@@ -278,18 +278,18 @@ impl Pager for TodoPager {
 impl TodoPager {
     pub fn new(
         page: usize,
-        user_id: Option<UserId>,
-        channel_id: Option<ChannelId>,
-        guild_id: Option<GuildId>,
+        user_id: Option<u64>,
+        channel_id: Option<u64>,
+        guild_id: Option<u64>,
     ) -> Self {
         Self { page, action: PageAction::Refresh, user_id, channel_id, guild_id }
     }
 
     pub fn buttons(
         page: usize,
-        user_id: Option<UserId>,
-        channel_id: Option<ChannelId>,
-        guild_id: Option<GuildId>,
+        user_id: Option<u64>,
+        channel_id: Option<u64>,
+        guild_id: Option<u64>,
     ) -> (
         ComponentDataModel,
         ComponentDataModel,
