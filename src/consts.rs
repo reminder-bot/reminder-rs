@@ -8,9 +8,20 @@ pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX
 
 const THEME_COLOR_FALLBACK: u32 = 0x8fb677;
 
+pub const DEFAULT_AVATAR: AttachmentType = (
+    include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/assets/",
+        env!("WEBHOOK_AVATAR", "WEBHOOK_AVATAR not provided for compilation")
+    )) as &[u8],
+    env!("WEBHOOK_AVATAR"),
+)
+    .into();
+
 use std::{collections::HashSet, env, iter::FromIterator};
 
 use regex::{Regex, RegexBuilder};
+use serenity::http::AttachmentType;
 
 lazy_static! {
     pub static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();

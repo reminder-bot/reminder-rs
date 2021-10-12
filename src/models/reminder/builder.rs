@@ -15,6 +15,7 @@ use serenity::{
 use sqlx::MySqlPool;
 
 use crate::{
+    consts,
     consts::{MAX_TIME, MIN_INTERVAL},
     models::{
         channel_data::ChannelData,
@@ -29,20 +30,7 @@ async fn create_webhook(
     channel: GuildChannel,
     name: impl Display,
 ) -> SerenityResult<Webhook> {
-    channel
-        .create_webhook_with_avatar(
-            ctx.http(),
-            name,
-            (
-                include_bytes!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/assets/",
-                    env!("WEBHOOK_AVATAR", "WEBHOOK_AVATAR not provided for compilation")
-                )) as &[u8],
-                env!("WEBHOOK_AVATAR"),
-            ),
-        )
-        .await
+    channel.create_webhook_with_avatar(ctx.http(), name, consts::DEFAULT_AVATAR).await
 }
 
 #[derive(Hash, PartialEq, Eq)]

@@ -1,6 +1,5 @@
 # reminder-rs
-Reminder Bot for Discord, now in Rust.
-Old Python version: https://github.com/reminder-bot/bot
+Reminder Bot for Discord.
 
 ## How do I use it?
 We offer a hosted version of the bot. You can invite it with: **https://invite.reminder-bot.com**. The catch is that repeating 

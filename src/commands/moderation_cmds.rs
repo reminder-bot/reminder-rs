@@ -4,6 +4,7 @@ use levenshtein::levenshtein;
 use regex_command_attr::command;
 use serenity::{
     client::Context,
+    http::AttachmentType,
     model::{
         interactions::InteractionResponseType, misc::Mentionable,
         prelude::InteractionApplicationCommandCallbackDataFlags,
@@ -12,6 +13,7 @@ use serenity::{
 
 use crate::{
     component_models::{ComponentDataModel, Restrict},
+    consts,
     consts::THEME_COLOR,
     framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
     hooks::{CHECK_GUILD_PERMISSIONS_HOOK, CHECK_MANAGED_PERMISSIONS_HOOK},
@@ -424,4 +426,41 @@ Any commands ran as part of recording will be inconsequential")
 #[subcommand("avatar")]
 #[description("Change the webhook avatar")]
 #[arg(name = "url", description = "The URL of the image to use", kind = "String", required = true)]
-async fn configure_webhook(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {}
+async fn configure_webhook(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
+    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+    let mut channel_data = ctx.channel_data(invoke.channel_id()).await.unwrap();
+
+    let (username, avatar) = (
+        args.get("username").map_or("Reminder".to_string(), |i| i.to_string()),
+        args.get("url").map_or(consts::DEFAULT_AVATAR, |i| AttachmentType::Image(&i.to_string())),
+    );
+
+    if let (Some(id), Some(token)) = (channel_data.webhook_id, channel_data.webhook_token) {
+        match ctx.http.get_webhook_with_token(id, &token).await {
+            Ok(mut webhook) => {
+                webhook.edit(&ctx, Some(username), Some(avatar)).await;
+            }
+
+            Err(_) => {
+                let webhook = invoke
+                    .channel_id()
+                    .create_webhook_with_avatar(&ctx, username, avatar)
+                    .await
+                    .unwrap();
+
+                channel_data.webhook_token = webhook.token;
+                channel_data.webhook_id = Some(webhook.id.0);
+
+                channel_data.commit_changes(&pool).await;
+            }
+        }
+    } else {
+        let webhook =
+            invoke.channel_id().create_webhook_with_avatar(&ctx, username, avatar).await.unwrap();
+
+        channel_data.webhook_token = webhook.token;
+        channel_data.webhook_id = Some(webhook.id.0);
+
+        channel_data.commit_changes(&pool).await;
+    }
+}
