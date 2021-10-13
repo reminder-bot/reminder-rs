@@ -13,7 +13,7 @@ use serenity::{builder::CreateEmbed, client::Context, model::channel::Channel};
 use crate::{
     check_subscription_on_message,
     component_models::{
-        pager::{DelPager, LookPager, Pager},
+        pager::{DelData, LookData, Pager},
         ComponentDataModel, DelSelector,
     },
     consts::{
@@ -329,7 +329,7 @@ async fn look(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
             .fold(0, |t, r| t + r.len())
             .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
 
-        let pager = LookPager::new(flags, timezone);
+        let pager = Pager::new(0, LookData { flags, timezone });
 
         invoke
             .respond(
@@ -395,7 +395,7 @@ pub fn show_delete_page(
     page: usize,
     timezone: Tz,
 ) -> CreateGenericResponse {
-    let pager = DelPager::new(page, timezone);
+    let pager = Pager::new(page, DelData { timezone });
 
     if reminders.is_empty() {
         return CreateGenericResponse::new()
