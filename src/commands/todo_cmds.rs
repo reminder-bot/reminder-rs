@@ -1,9 +1,5 @@
 use regex_command_attr::command;
-use serenity::{
-    builder::{CreateEmbed, CreateInteractionResponse},
-    client::Context,
-    model::interactions::InteractionResponseType,
-};
+use serenity::client::Context;
 
 use crate::{
     component_models::{
@@ -53,7 +49,7 @@ use crate::{
 )]
 #[subcommand("view")]
 #[description("View and remove from your personal todo list")]
-async fn todo(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
+async fn todo(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     if invoke.guild_id().is_none() && args.subcommand_group != Some("user".to_string()) {
         let _ = invoke
             .respond(
@@ -106,15 +102,7 @@ async fn todo(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
 
                 let resp = show_todo_page(&values, 0, keys.0, keys.1, keys.2);
 
-                let interaction = invoke.interaction().unwrap();
-
-                let _ = interaction
-                    .create_interaction_response(&ctx, |r| {
-                        *r = resp;
-                        r.kind(InteractionResponseType::ChannelMessageWithSource)
-                    })
-                    .await
-                    .unwrap();
+                let _ = invoke.respond(&ctx, resp).await;
             }
         }
     }
@@ -147,7 +135,7 @@ pub fn show_todo_page(
     user_id: Option<u64>,
     channel_id: Option<u64>,
     guild_id: Option<u64>,
-) -> CreateInteractionResponse {
+) -> CreateGenericResponse {
     let pager = TodoPager::new(page, user_id, channel_id, guild_id);
 
     let pages = max_todo_page(todo_values);
@@ -204,16 +192,14 @@ pub fn show_todo_page(
     let todo_selector =
         ComponentDataModel::TodoSelector(TodoSelector { page, user_id, channel_id, guild_id });
 
-    let mut embed = CreateEmbed::default();
-    embed
-        .title(format!("{} Todo List", title))
-        .description(display)
-        .footer(|f| f.text(format!("Page {} of {}", page + 1, pages)))
-        .color(*THEME_COLOR);
-
-    let mut response = CreateInteractionResponse::default();
-    response.interaction_response_data(|d| {
-        d.embeds(vec![embed]).components(|comp| {
+    CreateGenericResponse::new()
+        .embed(|e| {
+            e.title(format!("{} Todo List", title))
+                .description(display)
+                .footer(|f| f.text(format!("Page {} of {}", page + 1, pages)))
+                .color(*THEME_COLOR)
+        })
+        .components(|comp| {
             pager.create_button_row(pages, comp);
 
             comp.create_action_row(|row| {
@@ -232,7 +218,4 @@ pub fn show_todo_page(
                 })
             })
         })
-    });
-
-    response
 }

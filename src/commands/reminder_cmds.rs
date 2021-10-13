@@ -8,11 +8,7 @@ use chrono::NaiveDateTime;
 use chrono_tz::Tz;
 use num_integer::Integer;
 use regex_command_attr::command;
-use serenity::{
-    builder::{CreateEmbed, CreateInteractionResponse},
-    client::Context,
-    model::{channel::Channel, interactions::InteractionResponseType},
-};
+use serenity::{builder::CreateEmbed, client::Context, model::channel::Channel};
 
 use crate::{
     check_subscription_on_message,
@@ -54,7 +50,7 @@ use crate::{
 )]
 #[supports_dm(false)]
 #[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn pause(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
+async fn pause(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let timezone = UserData::timezone_of(&invoke.author_id(), &pool).await;
@@ -140,7 +136,7 @@ async fn pause(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
     required = false
 )]
 #[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn offset(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
+async fn offset(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let combined_time = args.get("hours").map_or(0, |h| h.as_i64().unwrap() * 3600)
@@ -217,7 +213,7 @@ WHERE FIND_IN_SET(channels.`channel`, ?)",
     required = false
 )]
 #[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn nudge(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
+async fn nudge(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let combined_time = args.get("minutes").map_or(0, |m| m.as_i64().unwrap() * 60)
@@ -269,7 +265,7 @@ async fn nudge(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
     required = false
 )]
 #[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
-async fn look(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
+async fn look(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let timezone = UserData::timezone_of(&invoke.author_id(), &pool).await;
@@ -362,22 +358,14 @@ async fn look(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
 #[command("del")]
 #[description("Delete reminders")]
 #[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
-async fn delete(ctx: &Context, invoke: CommandInvoke, _args: CommandOptions) {
-    let interaction = invoke.interaction().unwrap();
+async fn delete(ctx: &Context, invoke: &mut CommandInvoke, _args: CommandOptions) {
+    let timezone = ctx.timezone(invoke.author_id()).await;
 
-    let timezone = ctx.timezone(interaction.user.id).await;
-
-    let reminders = Reminder::from_guild(ctx, interaction.guild_id, interaction.user.id).await;
+    let reminders = Reminder::from_guild(ctx, invoke.guild_id(), invoke.author_id()).await;
 
     let resp = show_delete_page(&reminders, 0, timezone);
 
-    let _ = interaction
-        .create_interaction_response(&ctx, |r| {
-            *r = resp;
-            r.kind(InteractionResponseType::ChannelMessageWithSource)
-        })
-        .await
-        .unwrap();
+    let _ = invoke.respond(&ctx, resp).await;
 }
 
 pub fn max_delete_page(reminders: &[Reminder], timezone: &Tz) -> usize {
@@ -406,22 +394,16 @@ pub fn show_delete_page(
     reminders: &[Reminder],
     page: usize,
     timezone: Tz,
-) -> CreateInteractionResponse {
+) -> CreateGenericResponse {
     let pager = DelPager::new(page, timezone);
 
     if reminders.is_empty() {
-        let mut embed = CreateEmbed::default();
-        embed.title("Delete Reminders").description("No Reminders").color(*THEME_COLOR);
-
-        let mut response = CreateInteractionResponse::default();
-        response.interaction_response_data(|response| {
-            response.embeds(vec![embed]).components(|comp| {
+        return CreateGenericResponse::new()
+            .embed(|e| e.title("Delete Reminders").description("No Reminders").color(*THEME_COLOR))
+            .components(|comp| {
                 pager.create_button_row(0, comp);
                 comp
-            })
-        });
-
-        return response;
+            });
     }
 
     let pages = max_delete_page(reminders, &timezone);
@@ -470,16 +452,14 @@ pub fn show_delete_page(
 
     let del_selector = ComponentDataModel::DelSelector(DelSelector { page, timezone });
 
-    let mut embed = CreateEmbed::default();
-    embed
-        .title("Delete Reminders")
-        .description(display)
-        .footer(|f| f.text(format!("Page {} of {}", page + 1, pages)))
-        .color(*THEME_COLOR);
-
-    let mut response = CreateInteractionResponse::default();
-    response.interaction_response_data(|d| {
-        d.embeds(vec![embed]).components(|comp| {
+    CreateGenericResponse::new()
+        .embed(|e| {
+            e.title("Delete Reminders")
+                .description(display)
+                .footer(|f| f.text(format!("Page {} of {}", page + 1, pages)))
+                .color(*THEME_COLOR)
+        })
+        .components(|comp| {
             pager.create_button_row(pages, comp);
 
             comp.create_action_row(|row| {
@@ -511,8 +491,6 @@ pub fn show_delete_page(
                 })
             })
         })
-    });
-    response
 }
 
 #[command("timer")]
@@ -526,7 +504,7 @@ pub fn show_delete_page(
 #[description("Delete a timer")]
 #[arg(name = "name", description = "Name of the timer to delete", kind = "String", required = true)]
 #[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
-async fn timer(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
+async fn timer(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     fn time_difference(start_time: NaiveDateTime) -> String {
         let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
         let now = NaiveDateTime::from_timestamp(unix_time, 0);
@@ -692,18 +670,10 @@ DELETE FROM timers WHERE owner = ? AND name = ?
     required = false
 )]
 #[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
-async fn remind(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
-    let interaction = invoke.interaction().unwrap();
+async fn remind(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
+    invoke.defer(&ctx).await;
 
-    // defer response since processing times can take some time
-    interaction
-        .create_interaction_response(&ctx, |r| {
-            r.kind(InteractionResponseType::DeferredChannelMessageWithSource)
-        })
-        .await
-        .unwrap();
-
-    let user_data = ctx.user_data(interaction.user.id).await.unwrap();
+    let user_data = ctx.user_data(invoke.author_id()).await.unwrap();
     let timezone = user_data.timezone();
 
     let time = {
@@ -728,7 +698,7 @@ async fn remind(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
                     .unwrap_or_default();
 
                 if list.is_empty() {
-                    vec![ReminderScope::Channel(interaction.channel_id.0)]
+                    vec![ReminderScope::Channel(invoke.channel_id().0)]
                 } else {
                     list
                 }
@@ -751,7 +721,7 @@ async fn remind(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
                 }
             };
 
-            let mut builder = MultiReminderBuilder::new(ctx, interaction.guild_id)
+            let mut builder = MultiReminderBuilder::new(ctx, invoke.guild_id())
                 .author(user_data)
                 .content(content)
                 .time(time)
@@ -764,16 +734,19 @@ async fn remind(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
 
             let embed = create_response(successes, errors, time);
 
-            interaction
-                .edit_original_interaction_response(&ctx, |r| r.add_embed(embed))
-                .await
-                .unwrap();
+            let _ = invoke
+                .respond(
+                    &ctx,
+                    CreateGenericResponse::new().embed(|c| {
+                        *c = embed;
+                        c
+                    }),
+                )
+                .await;
         }
         None => {
-            let _ = interaction
-                .edit_original_interaction_response(&ctx, |r| {
-                    r.content("Time could not be processed.")
-                })
+            let _ = invoke
+                .respond(&ctx, CreateGenericResponse::new().content("Time could not be processed"))
                 .await;
         }
     }

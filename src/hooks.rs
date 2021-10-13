@@ -10,7 +10,7 @@ use crate::{
 #[check]
 pub async fn macro_check(
     ctx: &Context,
-    invoke: &CommandInvoke,
+    invoke: &mut CommandInvoke,
     args: &CommandOptions,
 ) -> HookResult {
     if let Some(guild_id) = invoke.guild_id() {
@@ -44,7 +44,7 @@ pub async fn macro_check(
 #[check]
 pub async fn check_self_permissions(
     ctx: &Context,
-    invoke: &CommandInvoke,
+    invoke: &mut CommandInvoke,
     _args: &CommandOptions,
 ) -> HookResult {
     if let Some(guild) = invoke.guild(&ctx) {
@@ -97,7 +97,7 @@ pub async fn check_self_permissions(
 #[check]
 pub async fn check_managed_permissions(
     ctx: &Context,
-    invoke: &CommandInvoke,
+    invoke: &mut CommandInvoke,
     args: &CommandOptions,
 ) -> HookResult {
     if let Some(guild) = invoke.guild(&ctx) {
@@ -191,7 +191,7 @@ Please talk to your server admin, and ask them to use the `/restrict` command to
 #[check]
 pub async fn check_guild_permissions(
     ctx: &Context,
-    invoke: &CommandInvoke,
+    invoke: &mut CommandInvoke,
     _args: &CommandOptions,
 ) -> HookResult {
     if let Some(guild) = invoke.guild(&ctx) {

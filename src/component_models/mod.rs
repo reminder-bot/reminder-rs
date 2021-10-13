@@ -23,6 +23,7 @@ use crate::{
     },
     component_models::pager::{DelPager, LookPager, Pager, TodoPager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
+    framework::CommandInvoke,
     models::reminder::Reminder,
     SQLPool,
 };
@@ -175,12 +176,8 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
 
                 let resp = show_delete_page(&reminders, pager.next_page(max_pages), pager.timezone);
 
-                let _ = component
-                    .create_interaction_response(&ctx, move |r| {
-                        *r = resp;
-                        r.kind(InteractionResponseType::UpdateMessage)
-                    })
-                    .await;
+                let mut invoke = CommandInvoke::component(component);
+                let _ = invoke.respond(&ctx, resp).await;
             }
             ComponentDataModel::DelSelector(selector) => {
                 let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
@@ -196,12 +193,8 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
 
                 let resp = show_delete_page(&reminders, selector.page, selector.timezone);
 
-                let _ = component
-                    .create_interaction_response(&ctx, move |r| {
-                        *r = resp;
-                        r.kind(InteractionResponseType::UpdateMessage)
-                    })
-                    .await;
+                let mut invoke = CommandInvoke::component(component);
+                let _ = invoke.respond(&ctx, resp).await;
             }
             ComponentDataModel::TodoPager(pager) => {
                 let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
@@ -230,12 +223,8 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                     pager.guild_id,
                 );
 
-                let _ = component
-                    .create_interaction_response(&ctx, move |r| {
-                        *r = resp;
-                        r.kind(InteractionResponseType::UpdateMessage)
-                    })
-                    .await;
+                let mut invoke = CommandInvoke::component(component);
+                let _ = invoke.respond(&ctx, resp).await;
             }
             ComponentDataModel::TodoSelector(selector) => {
                 let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
@@ -260,8 +249,6 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 .map(|row| (row.id as usize, row.value.clone()))
                 .collect::<Vec<(usize, String)>>();
 
-                let max_pages = max_todo_page(&values);
-
                 let resp = show_todo_page(
                     &values,
                     selector.page,
@@ -270,12 +257,8 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                     selector.guild_id,
                 );
 
-                let _ = component
-                    .create_interaction_response(&ctx, move |r| {
-                        *r = resp;
-                        r.kind(InteractionResponseType::UpdateMessage)
-                    })
-                    .await;
+                let mut invoke = CommandInvoke::component(component);
+                let _ = invoke.respond(&ctx, resp).await;
             }
         }
     }

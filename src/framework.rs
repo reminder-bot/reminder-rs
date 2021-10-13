@@ -25,7 +25,8 @@ use serenity::{
             application_command::{
                 ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandOptionType,
             },
-            InteractionResponseType,
+            message_component::MessageComponentInteraction,
+            InteractionApplicationCommandCallbackDataFlags, InteractionResponseType,
         },
         prelude::application_command::ApplicationCommandInteractionDataOption,
     },
@@ -39,11 +40,23 @@ pub struct CreateGenericResponse {
     content: String,
     embed: Option<CreateEmbed>,
     components: Option<CreateComponents>,
+    flags: InteractionApplicationCommandCallbackDataFlags,
 }
 
 impl CreateGenericResponse {
     pub fn new() -> Self {
-        Self { content: "".to_string(), embed: None, components: None }
+        Self {
+            content: "".to_string(),
+            embed: None,
+            components: None,
+            flags: InteractionApplicationCommandCallbackDataFlags::empty(),
+        }
+    }
+
+    pub fn ephemeral(mut self) -> Self {
+        self.flags.insert(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL);
+
+        self
     }
 
     pub fn content<D: ToString>(mut self, content: D) -> Self {
@@ -72,35 +85,63 @@ impl CreateGenericResponse {
     }
 }
 
+#[derive(Clone)]
 enum InvokeModel {
     Slash(ApplicationCommandInteraction),
+    Component(MessageComponentInteraction),
     Text(Message),
 }
 
+#[derive(Clone)]
 pub struct CommandInvoke {
     model: InvokeModel,
     already_responded: bool,
+    deferred: bool,
 }
 
 impl CommandInvoke {
+    pub fn component(component: MessageComponentInteraction) -> Self {
+        Self { model: InvokeModel::Component(component), already_responded: false, deferred: false }
+    }
+
     fn slash(interaction: ApplicationCommandInteraction) -> Self {
-        Self { model: InvokeModel::Slash(interaction), already_responded: false }
+        Self { model: InvokeModel::Slash(interaction), already_responded: false, deferred: false }
     }
 
     fn msg(msg: Message) -> Self {
-        Self { model: InvokeModel::Text(msg), already_responded: false }
+        Self { model: InvokeModel::Text(msg), already_responded: false, deferred: false }
     }
 
-    pub fn interaction(self) -> Option<ApplicationCommandInteraction> {
-        match self.model {
-            InvokeModel::Slash(i) => Some(i),
-            InvokeModel::Text(_) => None,
+    pub async fn defer(&mut self, http: impl AsRef<Http>) {
+        if !self.deferred {
+            match &self.model {
+                InvokeModel::Slash(i) => {
+                    i.create_interaction_response(http, |r| {
+                        r.kind(InteractionResponseType::DeferredChannelMessageWithSource)
+                    })
+                    .await
+                    .unwrap();
+
+                    self.deferred = true;
+                }
+                InvokeModel::Component(i) => {
+                    i.create_interaction_response(http, |r| {
+                        r.kind(InteractionResponseType::DeferredChannelMessageWithSource)
+                    })
+                    .await
+                    .unwrap();
+
+                    self.deferred = true;
+                }
+                InvokeModel::Text(_) => (),
+            }
         }
     }
 
     pub fn channel_id(&self) -> ChannelId {
         match &self.model {
             InvokeModel::Slash(i) => i.channel_id,
+            InvokeModel::Component(i) => i.channel_id,
             InvokeModel::Text(m) => m.channel_id,
         }
     }
@@ -108,6 +149,7 @@ impl CommandInvoke {
     pub fn guild_id(&self) -> Option<GuildId> {
         match &self.model {
             InvokeModel::Slash(i) => i.guild_id,
+            InvokeModel::Component(i) => i.guild_id,
             InvokeModel::Text(m) => m.guild_id,
         }
     }
@@ -119,6 +161,7 @@ impl CommandInvoke {
     pub fn author_id(&self) -> UserId {
         match &self.model {
             InvokeModel::Slash(i) => i.user.id,
+            InvokeModel::Component(i) => i.user.id,
             InvokeModel::Text(m) => m.author.id,
         }
     }
@@ -126,18 +169,57 @@ impl CommandInvoke {
     pub async fn member(&self, cache_http: impl CacheHttp) -> Option<Member> {
         match &self.model {
             InvokeModel::Slash(i) => i.member.clone(),
+            InvokeModel::Component(i) => i.member.clone(),
             InvokeModel::Text(m) => m.member(cache_http).await.ok(),
         }
     }
 
     pub async fn respond(
-        &self,
+        &mut self,
         http: impl AsRef<Http>,
         generic_response: CreateGenericResponse,
     ) -> SerenityResult<()> {
         match &self.model {
             InvokeModel::Slash(i) => {
-                if !self.already_responded {
+                if self.already_responded {
+                    i.create_followup_message(http, |d| {
+                        d.content(generic_response.content);
+
+                        if let Some(embed) = generic_response.embed {
+                            d.add_embed(embed);
+                        }
+
+                        if let Some(components) = generic_response.components {
+                            d.components(|c| {
+                                *c = components;
+                                c
+                            });
+                        }
+
+                        d
+                    })
+                    .await
+                    .map(|_| ())
+                } else if self.deferred {
+                    i.edit_original_interaction_response(http, |d| {
+                        d.content(generic_response.content);
+
+                        if let Some(embed) = generic_response.embed {
+                            d.add_embed(embed);
+                        }
+
+                        if let Some(components) = generic_response.components {
+                            d.components(|c| {
+                                *c = components;
+                                c
+                            });
+                        }
+
+                        d
+                    })
+                    .await
+                    .map(|_| ())
+                } else {
                     i.create_interaction_response(http, |r| {
                         r.kind(InteractionResponseType::ChannelMessageWithSource)
                             .interaction_response_data(|d| {
@@ -159,7 +241,10 @@ impl CommandInvoke {
                     })
                     .await
                     .map(|_| ())
-                } else {
+                }
+            }
+            InvokeModel::Component(i) => {
+                if self.already_responded {
                     i.create_followup_message(http, |d| {
                         d.content(generic_response.content);
 
@@ -175,6 +260,47 @@ impl CommandInvoke {
                         }
 
                         d
+                    })
+                    .await
+                    .map(|_| ())
+                } else if self.deferred {
+                    i.edit_original_interaction_response(http, |d| {
+                        d.content(generic_response.content);
+
+                        if let Some(embed) = generic_response.embed {
+                            d.add_embed(embed);
+                        }
+
+                        if let Some(components) = generic_response.components {
+                            d.components(|c| {
+                                *c = components;
+                                c
+                            });
+                        }
+
+                        d
+                    })
+                    .await
+                    .map(|_| ())
+                } else {
+                    i.create_interaction_response(http, |r| {
+                        r.kind(InteractionResponseType::ChannelMessageWithSource)
+                            .interaction_response_data(|d| {
+                                d.content(generic_response.content);
+
+                                if let Some(embed) = generic_response.embed {
+                                    d.add_embed(embed);
+                                }
+
+                                if let Some(components) = generic_response.components {
+                                    d.components(|c| {
+                                        *c = components;
+                                        c
+                                    });
+                                }
+
+                                d
+                            })
                     })
                     .await
                     .map(|_| ())
@@ -200,7 +326,11 @@ impl CommandInvoke {
                 })
                 .await
                 .map(|_| ()),
-        }
+        }?;
+
+        self.already_responded = true;
+
+        Ok(())
     }
 }
 
@@ -263,7 +393,7 @@ impl OptionValue {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct CommandOptions {
-    pub command: &'static str,
+    pub command: String,
     pub subcommand: Option<String>,
     pub subcommand_group: Option<String>,
     pub options: HashMap<String, OptionValue>,
@@ -278,7 +408,7 @@ impl CommandOptions {
 impl CommandOptions {
     fn new(command: &'static Command) -> Self {
         Self {
-            command: command.names[0],
+            command: command.names[0].to_string(),
             subcommand: None,
             subcommand_group: None,
             options: Default::default(),
@@ -384,15 +514,16 @@ pub enum HookResult {
 }
 
 type SlashCommandFn =
-    for<'fut> fn(&'fut Context, CommandInvoke, CommandOptions) -> BoxFuture<'fut, ()>;
+    for<'fut> fn(&'fut Context, &'fut mut CommandInvoke, CommandOptions) -> BoxFuture<'fut, ()>;
 
-type TextCommandFn = for<'fut> fn(&'fut Context, CommandInvoke, String) -> BoxFuture<'fut, ()>;
+type TextCommandFn =
+    for<'fut> fn(&'fut Context, &'fut mut CommandInvoke, String) -> BoxFuture<'fut, ()>;
 
-type MultiCommandFn = for<'fut> fn(&'fut Context, CommandInvoke) -> BoxFuture<'fut, ()>;
+type MultiCommandFn = for<'fut> fn(&'fut Context, &'fut mut CommandInvoke) -> BoxFuture<'fut, ()>;
 
 pub type HookFn = for<'fut> fn(
     &'fut Context,
-    &'fut CommandInvoke,
+    &'fut mut CommandInvoke,
     &'fut CommandOptions,
 ) -> BoxFuture<'fut, HookResult>;
 
@@ -671,10 +802,10 @@ impl RegexFramework {
         };
 
         let args = CommandOptions::new(command).populate(&interaction);
-        let command_invoke = CommandInvoke::slash(interaction);
+        let mut command_invoke = CommandInvoke::slash(interaction);
 
         for hook in command.hooks {
-            match (hook.fun)(&ctx, &command_invoke, &args).await {
+            match (hook.fun)(&ctx, &mut command_invoke, &args).await {
                 HookResult::Continue => {}
                 HookResult::Halt => {
                     return;
@@ -683,7 +814,7 @@ impl RegexFramework {
         }
 
         for hook in &self.hooks {
-            match (hook.fun)(&ctx, &command_invoke, &args).await {
+            match (hook.fun)(&ctx, &mut command_invoke, &args).await {
                 HookResult::Continue => {}
                 HookResult::Halt => {
                     return;
@@ -697,12 +828,31 @@ impl RegexFramework {
             ctx.set_executing(user_id).await;
 
             match command.fun {
-                CommandFnType::Slash(t) => t(&ctx, command_invoke, args).await,
-                CommandFnType::Multi(m) => m(&ctx, command_invoke).await,
+                CommandFnType::Slash(t) => t(&ctx, &mut command_invoke, args).await,
+                CommandFnType::Multi(m) => m(&ctx, &mut command_invoke).await,
                 _ => (),
             }
 
             ctx.drop_executing(user_id).await;
+        }
+    }
+
+    pub async fn run_command_from_options(
+        &self,
+        ctx: &Context,
+        command_invoke: &mut CommandInvoke,
+        command_options: CommandOptions,
+    ) {
+        let command = {
+            self.commands_map
+                .get(&command_options.command)
+                .expect(&format!("Received invalid command: {}", command_options.command))
+        };
+
+        match command.fun {
+            CommandFnType::Slash(t) => t(&ctx, command_invoke, command_options).await,
+            CommandFnType::Multi(m) => m(&ctx, command_invoke).await,
+            _ => (),
         }
     }
 }
@@ -726,7 +876,7 @@ impl Framework for RegexFramework {
         }
 
         let user_id = msg.author.id;
-        let invoke = CommandInvoke::msg(msg.clone());
+        let mut invoke = CommandInvoke::msg(msg.clone());
 
         // Guild Command
         if let Some(guild) = msg.guild(&ctx) {
@@ -747,8 +897,8 @@ impl Framework for RegexFramework {
                             ctx.set_executing(user_id).await;
 
                             match command.fun {
-                                CommandFnType::Text(t) => t(&ctx, invoke, args).await,
-                                CommandFnType::Multi(m) => m(&ctx, invoke).await,
+                                CommandFnType::Text(t) => t(&ctx, &mut invoke, args).await,
+                                CommandFnType::Multi(m) => m(&ctx, &mut invoke).await,
                                 _ => {}
                             };
 
@@ -773,8 +923,8 @@ impl Framework for RegexFramework {
                     ctx.set_executing(user_id).await;
 
                     match command.fun {
-                        CommandFnType::Text(t) => t(&ctx, invoke, args).await,
-                        CommandFnType::Multi(m) => m(&ctx, invoke).await,
+                        CommandFnType::Text(t) => t(&ctx, &mut invoke, args).await,
+                        CommandFnType::Multi(m) => m(&ctx, &mut invoke).await,
                         _ => {}
                     };
 

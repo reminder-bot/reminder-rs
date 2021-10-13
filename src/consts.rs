@@ -8,7 +8,13 @@ pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX
 
 const THEME_COLOR_FALLBACK: u32 = 0x8fb677;
 
-pub const DEFAULT_AVATAR: AttachmentType = (
+use std::{collections::HashSet, env, iter::FromIterator};
+
+use regex::{Regex, RegexBuilder};
+use serenity::http::AttachmentType;
+
+lazy_static! {
+    pub static ref DEFAULT_AVATAR: AttachmentType<'static> = (
     include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/assets/",
@@ -18,31 +24,13 @@ pub const DEFAULT_AVATAR: AttachmentType = (
 )
     .into();
 
-use std::{collections::HashSet, env, iter::FromIterator};
-
-use regex::{Regex, RegexBuilder};
-use serenity::http::AttachmentType;
-
-lazy_static! {
     pub static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
 
     pub static ref REGEX_ROLE: Regex = Regex::new(r#"<@&(\d+)>"#).unwrap();
 
-    pub static ref REGEX_COMMANDS: Regex = Regex::new(r#"([a-z]+)"#).unwrap();
-
-    pub static ref REGEX_ALIAS: Regex =
-        Regex::new(r#"(?P<name>[\S]{1,12})(?:(?: (?P<cmd>.*)$)|$)"#).unwrap();
-
     pub static ref REGEX_CONTENT_SUBSTITUTION: Regex = Regex::new(r#"<<((?P<user>\d+)|(?P<role>.{1,100}))>>"#).unwrap();
 
     pub static ref REGEX_CHANNEL_USER: Regex = Regex::new(r#"\s*<(#|@)(?:!)?(\d+)>\s*"#).unwrap();
-
-    pub static ref REGEX_REMIND_COMMAND: Regex = RegexBuilder::new(
-    r#"(?P<mentions>(?:<@\d+>\s+|<@!\d+>\s+|<#\d+>\s+)*)(?P<time>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+)(?:\s+(?P<interval>(?:(?:\d+)(?:s|m|h|d|))+))?(?:\s+(?P<expires>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+))?\s+(?P<content>.*)"#
-    )
-        .dot_matches_new_line(true)
-        .build()
-        .unwrap();
 
     pub static ref REGEX_NATURAL_COMMAND_1: Regex = RegexBuilder::new(
     r#"(?P<time>.*?)(?:\s+)(?:send|say)(?:\s+)(?P<msg>.*?)(?:(?:\s+)to(?:\s+)(?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+))?$"#

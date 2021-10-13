@@ -2,18 +2,10 @@ use chrono::offset::Utc;
 use chrono_tz::{Tz, TZ_VARIANTS};
 use levenshtein::levenshtein;
 use regex_command_attr::command;
-use serenity::{
-    client::Context,
-    http::AttachmentType,
-    model::{
-        interactions::InteractionResponseType, misc::Mentionable,
-        prelude::InteractionApplicationCommandCallbackDataFlags,
-    },
-};
+use serenity::{client::Context, model::misc::Mentionable};
 
 use crate::{
     component_models::{ComponentDataModel, Restrict},
-    consts,
     consts::THEME_COLOR,
     framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
     hooks::{CHECK_GUILD_PERMISSIONS_HOOK, CHECK_MANAGED_PERMISSIONS_HOOK},
@@ -32,7 +24,7 @@ use crate::{
 #[supports_dm(false)]
 #[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
 #[can_blacklist(false)]
-async fn blacklist(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
+async fn blacklist(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let channel = match args.get("channel") {
@@ -75,7 +67,7 @@ async fn blacklist(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
     kind = "String",
     required = false
 )]
-async fn timezone(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
+async fn timezone(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
     let mut user_data = ctx.user_data(invoke.author_id()).await.unwrap();
 
@@ -182,7 +174,7 @@ You may want to use one of the popular timezones below, otherwise click [here](h
 #[description("Configure a prefix for text-based commands (deprecated)")]
 #[supports_dm(false)]
 #[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn prefix(ctx: &Context, invoke: CommandInvoke, args: String) {
+async fn prefix(ctx: &Context, invoke: &mut CommandInvoke, args: String) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     let guild_data = ctx.guild_data(invoke.guild_id().unwrap()).await.unwrap();
@@ -226,7 +218,7 @@ async fn prefix(ctx: &Context, invoke: CommandInvoke, args: String) {
 )]
 #[supports_dm(false)]
 #[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn restrict(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
+async fn restrict(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
     let framework = ctx.data.read().await.get::<RegexFramework>().cloned().unwrap();
 
@@ -310,10 +302,13 @@ async fn restrict(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
 #[subcommand("run")]
 #[description("Run a recorded macro")]
 #[arg(name = "name", description = "Name of the macro to run", kind = "String", required = true)]
+#[subcommand("delete")]
+#[description("Delete a recorded macro")]
+#[arg(name = "name", description = "Name of the macro to delete", kind = "String", required = true)]
 #[supports_dm(false)]
 #[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
-async fn macro_cmd(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
-    let interaction = invoke.interaction().unwrap();
+async fn macro_cmd(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
+    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
     match args.subcommand.clone().unwrap().as_str() {
         "record" => {
@@ -322,10 +317,10 @@ async fn macro_cmd(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
             {
                 let mut lock = macro_buffer.write().await;
 
-                let guild_id = interaction.guild_id.unwrap();
+                let guild_id = invoke.guild_id().unwrap();
 
                 lock.insert(
-                    (guild_id, interaction.user.id),
+                    (guild_id, invoke.author_id()),
                     CommandMacro {
                         guild_id,
                         name: args.get("name").unwrap().to_string(),
@@ -335,25 +330,22 @@ async fn macro_cmd(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
                 );
             }
 
-            let _ = interaction
-                .create_interaction_response(&ctx, |r| {
-                    r.kind(InteractionResponseType::ChannelMessageWithSource)
-                        .interaction_response_data(|d| {
-                            d.flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
-                                .create_embed(|e| {
-                                    e
+            let _ = invoke
+                .respond(
+                    &ctx,
+                    CreateGenericResponse::new().ephemeral().embed(|e| {
+                        e
                                     .title("Macro Recording Started")
                                     .description(
 "Run up to 5 commands, or type `/macro finish` to stop at any point.
 Any commands ran as part of recording will be inconsequential")
                                     .color(*THEME_COLOR)
-                                })
-                        })
-                })
+                    }),
+                )
                 .await;
         }
         "finish" => {
-            let key = (interaction.guild_id.unwrap(), interaction.user.id);
+            let key = (invoke.guild_id().unwrap(), invoke.author_id());
             let macro_buffer = ctx.data.read().await.get::<RecordingMacros>().cloned().unwrap();
 
             {
@@ -361,28 +353,22 @@ Any commands ran as part of recording will be inconsequential")
                 let contained = lock.get(&key);
 
                 if contained.map_or(true, |cmacro| cmacro.commands.is_empty()) {
-                    let _ = interaction
-                        .create_interaction_response(&ctx, |r| {
-                            r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                .interaction_response_data(|d| {
-                                    d.create_embed(|e| {
-                                        e.title("No Macro Recorded")
-                                            .description(
-                                                "Use `/macro record` to start recording a macro",
-                                            )
-                                            .color(*THEME_COLOR)
-                                    })
-                                })
-                        })
+                    let _ = invoke
+                        .respond(
+                            &ctx,
+                            CreateGenericResponse::new().embed(|e| {
+                                e.title("No Macro Recorded")
+                                    .description("Use `/macro record` to start recording a macro")
+                                    .color(*THEME_COLOR)
+                            }),
+                        )
                         .await;
                 } else {
-                    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
                     let command_macro = contained.unwrap();
                     let json = serde_json::to_string(&command_macro.commands).unwrap();
 
                     sqlx::query!(
-                        "INSERT INTO macro (guild_id, name, description, commands) VALUES ((SELECT id FROM guilds WHERE guild = ?), ?, ?, ?)",
+                        "INSERT INTO macro (guild_id, name, description, commands) VALUES (?, ?, ?, ?)",
                         command_macro.guild_id.0,
                         command_macro.name,
                         command_macro.description,
@@ -392,17 +378,15 @@ Any commands ran as part of recording will be inconsequential")
                         .await
                         .unwrap();
 
-                    let _ = interaction
-                        .create_interaction_response(&ctx, |r| {
-                            r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                .interaction_response_data(|d| {
-                                    d.create_embed(|e| {
-                                        e.title("Macro Recorded")
-                                            .description("Use `/macro run` to execute the macro")
-                                            .color(*THEME_COLOR)
-                                    })
-                                })
-                        })
+                    let _ = invoke
+                        .respond(
+                            &ctx,
+                            CreateGenericResponse::new().embed(|e| {
+                                e.title("Macro Recorded")
+                                    .description("Use `/macro run` to execute the macro")
+                                    .color(*THEME_COLOR)
+                            }),
+                        )
                         .await;
                 }
             }
@@ -413,54 +397,45 @@ Any commands ran as part of recording will be inconsequential")
             }
         }
         "list" => {}
-        "run" => {}
-        _ => {}
-    }
-}
+        "run" => {
+            let macro_name = args.get("name").unwrap().to_string();
 
-#[command("webhook")]
-#[description("Modify this channel's webhooks")]
-#[subcommand("username")]
-#[description("Change the webhook username")]
-#[arg(name = "username", description = "The username to use", kind = "String", required = true)]
-#[subcommand("avatar")]
-#[description("Change the webhook avatar")]
-#[arg(name = "url", description = "The URL of the image to use", kind = "String", required = true)]
-async fn configure_webhook(ctx: &Context, invoke: CommandInvoke, args: CommandOptions) {
-    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-    let mut channel_data = ctx.channel_data(invoke.channel_id()).await.unwrap();
+            match sqlx::query!(
+                "SELECT commands FROM macro WHERE guild_id = ? AND name = ?",
+                invoke.guild_id().unwrap().0,
+                macro_name
+            )
+            .fetch_one(&pool)
+            .await
+            {
+                Ok(row) => {
+                    invoke.defer(&ctx).await;
 
-    let (username, avatar) = (
-        args.get("username").map_or("Reminder".to_string(), |i| i.to_string()),
-        args.get("url").map_or(consts::DEFAULT_AVATAR, |i| AttachmentType::Image(&i.to_string())),
-    );
+                    let commands: Vec<CommandOptions> =
+                        serde_json::from_str(&row.commands).unwrap();
+                    let framework = ctx.data.read().await.get::<RegexFramework>().cloned().unwrap();
 
-    if let (Some(id), Some(token)) = (channel_data.webhook_id, channel_data.webhook_token) {
-        match ctx.http.get_webhook_with_token(id, &token).await {
-            Ok(mut webhook) => {
-                webhook.edit(&ctx, Some(username), Some(avatar)).await;
-            }
+                    for command in commands {
+                        framework.run_command_from_options(ctx, invoke, command).await;
+                    }
+                }
 
-            Err(_) => {
-                let webhook = invoke
-                    .channel_id()
-                    .create_webhook_with_avatar(&ctx, username, avatar)
-                    .await
-                    .unwrap();
+                Err(sqlx::Error::RowNotFound) => {
+                    let _ = invoke
+                        .respond(
+                            &ctx,
+                            CreateGenericResponse::new()
+                                .content(format!("Macro \"{}\" not found", macro_name)),
+                        )
+                        .await;
+                }
 
-                channel_data.webhook_token = webhook.token;
-                channel_data.webhook_id = Some(webhook.id.0);
-
-                channel_data.commit_changes(&pool).await;
+                Err(e) => {
+                    panic!("{}", e);
+                }
             }
         }
-    } else {
-        let webhook =
-            invoke.channel_id().create_webhook_with_avatar(&ctx, username, avatar).await.unwrap();
-
-        channel_data.webhook_token = webhook.token;
-        channel_data.webhook_id = Some(webhook.id.0);
-
-        channel_data.commit_changes(&pool).await;
+        "delete" => {}
+        _ => {}
     }
 }

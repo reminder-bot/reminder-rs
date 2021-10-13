@@ -30,7 +30,7 @@ async fn create_webhook(
     channel: GuildChannel,
     name: impl Display,
 ) -> SerenityResult<Webhook> {
-    channel.create_webhook_with_avatar(ctx.http(), name, consts::DEFAULT_AVATAR).await
+    channel.create_webhook_with_avatar(ctx.http(), name, consts::DEFAULT_AVATAR.clone()).await
 }
 
 #[derive(Hash, PartialEq, Eq)]
