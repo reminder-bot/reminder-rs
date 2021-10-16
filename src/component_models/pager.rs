@@ -2,7 +2,10 @@ use chrono_tz::Tz;
 use rmp_serde::Serializer;
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
-use serenity::{builder::CreateComponents, model::interactions::message_component::ButtonStyle};
+use serenity::{
+    builder::CreateComponents,
+    model::{id::UserId, interactions::message_component::ButtonStyle},
+};
 
 use crate::{component_models::ComponentDataModel, models::reminder::look_flags::LookFlags};
 
@@ -102,6 +105,7 @@ pub struct LookData {
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct DelData {
+    pub author_id: UserId,
     pub timezone: Tz,
 }
 

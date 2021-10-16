@@ -2,11 +2,14 @@ use chrono::offset::Utc;
 use chrono_tz::{Tz, TZ_VARIANTS};
 use levenshtein::levenshtein;
 use regex_command_attr::command;
-use serenity::{client::Context, model::misc::Mentionable};
+use serenity::{
+    client::Context,
+    model::{id::GuildId, misc::Mentionable},
+};
 
 use crate::{
-    component_models::{ComponentDataModel, Restrict},
-    consts::THEME_COLOR,
+    component_models::{pager::Pager, ComponentDataModel, Restrict},
+    consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
     framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
     hooks::{CHECK_GUILD_PERMISSIONS_HOOK, CHECK_MANAGED_PERMISSIONS_HOOK},
     models::{channel_data::ChannelData, command_macro::CommandMacro, CtxData},
@@ -335,11 +338,11 @@ async fn macro_cmd(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptio
                     &ctx,
                     CreateGenericResponse::new().ephemeral().embed(|e| {
                         e
-                                    .title("Macro Recording Started")
-                                    .description(
+                            .title("Macro Recording Started")
+                            .description(
 "Run up to 5 commands, or type `/macro finish` to stop at any point.
 Any commands ran as part of recording will be inconsequential")
-                                    .color(*THEME_COLOR)
+                            .color(*THEME_COLOR)
                     }),
                 )
                 .await;
@@ -396,7 +399,13 @@ Any commands ran as part of recording will be inconsequential")
                 lock.remove(&key);
             }
         }
-        "list" => {}
+        "list" => {
+            let macros = CommandMacro::from_guild(ctx, invoke.guild_id().unwrap()).await;
+
+            let resp = show_macro_page(&macros, 0, invoke.guild_id().unwrap());
+
+            invoke.respond(&ctx, resp).await;
+        }
         "run" => {
             let macro_name = args.get("name").unwrap().to_string();
 
@@ -435,7 +444,137 @@ Any commands ran as part of recording will be inconsequential")
                 }
             }
         }
-        "delete" => {}
+        "delete" => {
+            let macro_name = args.get("name").unwrap().to_string();
+
+            match sqlx::query!(
+                "SELECT id FROM macro WHERE guild_id = ? AND name = ?",
+                invoke.guild_id().unwrap().0,
+                macro_name
+            )
+            .fetch_one(&pool)
+            .await
+            {
+                Ok(row) => {
+                    sqlx::query!("DELETE FROM macro WHERE id = ?", row.id).execute(&pool).await;
+
+                    let _ = invoke
+                        .respond(
+                            &ctx,
+                            CreateGenericResponse::new()
+                                .content(format!("Macro \"{}\" deleted", macro_name)),
+                        )
+                        .await;
+                }
+
+                Err(sqlx::Error::RowNotFound) => {
+                    let _ = invoke
+                        .respond(
+                            &ctx,
+                            CreateGenericResponse::new()
+                                .content(format!("Macro \"{}\" not found", macro_name)),
+                        )
+                        .await;
+                }
+
+                Err(e) => {
+                    panic!("{}", e);
+                }
+            }
+        }
         _ => {}
     }
+}
+
+pub fn max_macro_page(macros: &[CommandMacro]) -> usize {
+    let mut skipped_char_count = 0;
+
+    macros
+        .iter()
+        .map(|m| {
+            if let Some(description) = &m.description {
+                format!("**{}**\n- *{}*\n- Has {} commands", m.name, description, m.commands.len())
+            } else {
+                format!("**{}**\n- Has {} commands", m.name, m.commands.len())
+            }
+        })
+        .fold(1, |mut pages, p| {
+            skipped_char_count += p.len();
+
+            if skipped_char_count > EMBED_DESCRIPTION_MAX_LENGTH {
+                skipped_char_count = p.len();
+                pages += 1;
+            }
+
+            pages
+        })
+}
+
+fn show_macro_page(
+    macros: &[CommandMacro],
+    page: usize,
+    guild_id: GuildId,
+) -> CreateGenericResponse {
+    let pager = Pager::new(page, guild_id);
+
+    if macros.is_empty() {
+        return CreateGenericResponse::new().embed(|e| {
+            e.title("Macros")
+                .description("No Macros Set Up. Use `/macro record` to get started.")
+                .color(*THEME_COLOR)
+        });
+    }
+
+    let pages = max_macro_page(macros);
+
+    let mut page = page;
+    if page >= pages {
+        page = pages - 1;
+    }
+
+    let mut char_count = 0;
+    let mut skipped_char_count = 0;
+
+    let mut skipped_pages = 0;
+
+    let display_vec: Vec<String> = macros
+        .iter()
+        .map(|m| {
+            if let Some(description) = &m.description {
+                format!("**{}**\n- *{}*\n- Has {} commands", m.name, description, m.commands.len())
+            } else {
+                format!("**{}**\n- Has {} commands", m.name, m.commands.len())
+            }
+        })
+        .skip_while(|p| {
+            skipped_char_count += p.len();
+
+            if skipped_char_count > EMBED_DESCRIPTION_MAX_LENGTH {
+                skipped_char_count = p.len();
+                skipped_pages += 1;
+            }
+
+            skipped_pages < page
+        })
+        .take_while(|p| {
+            char_count += p.len();
+
+            char_count < EMBED_DESCRIPTION_MAX_LENGTH
+        })
+        .collect::<Vec<String>>();
+
+    let display = display_vec.join("\n");
+
+    CreateGenericResponse::new()
+        .embed(|e| {
+            e.title("Macros")
+                .description(display)
+                .footer(|f| f.text(format!("Page {} of {}", page + 1, pages)))
+                .color(*THEME_COLOR)
+        })
+        .components(|comp| {
+            pager.create_button_row(pages, comp);
+
+            comp
+        })
 }

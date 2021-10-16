@@ -37,6 +37,7 @@ pub enum ComponentDataModel {
     LookPager(Pager<LookData>),
     DelPager(Pager<DelData>),
     TodoPager(Pager<TodoData>),
+    MacroPager(Pager<GuildId>),
 }
 
 impl ComponentDataModel {
@@ -89,7 +90,16 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                         .await
                         .unwrap();
                 } else {
-                    // tell them they cant do this
+                    component
+                        .create_interaction_response(&ctx, |r| {
+                            r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                .interaction_response_data(|response| response
+                                    .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
+                                    .content("Only the original command user can interact with this message")
+                                )
+                        })
+                        .await
+                        .unwrap();
                 }
             }
             ComponentDataModel::LookPager(pager) => {
@@ -168,16 +178,33 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                     .await;
             }
             ComponentDataModel::DelPager(pager) => {
-                let reminders =
-                    Reminder::from_guild(ctx, component.guild_id, component.user.id).await;
+                if component.user.id == pager.data.author_id {
+                    let reminders =
+                        Reminder::from_guild(ctx, component.guild_id, component.user.id).await;
 
-                let max_pages = max_delete_page(&reminders, &pager.data.timezone);
+                    let max_pages = max_delete_page(&reminders, &pager.data.timezone);
 
-                let resp =
-                    show_delete_page(&reminders, pager.next_page(max_pages), pager.data.timezone);
+                    let resp = show_delete_page(
+                        &reminders,
+                        pager.next_page(max_pages),
+                        pager.data.timezone,
+                        pager.data.author_id,
+                    );
 
-                let mut invoke = CommandInvoke::component(component);
-                let _ = invoke.respond(&ctx, resp).await;
+                    let mut invoke = CommandInvoke::component(component);
+                    let _ = invoke.respond(&ctx, resp).await;
+                } else {
+                    component
+                        .create_interaction_response(&ctx, |r| {
+                            r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                .interaction_response_data(|response| response
+                                    .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
+                                    .content("Only the original command user can interact with this message")
+                                )
+                        })
+                        .await
+                        .unwrap();
+                }
             }
             ComponentDataModel::DelSelector(selector) => {
                 let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
@@ -191,7 +218,12 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 let reminders =
                     Reminder::from_guild(ctx, component.guild_id, component.user.id).await;
 
-                let resp = show_delete_page(&reminders, selector.page, selector.timezone);
+                let resp = show_delete_page(
+                    &reminders,
+                    selector.page,
+                    selector.timezone,
+                    selector.author_id,
+                );
 
                 let mut invoke = CommandInvoke::component(component);
                 let _ = invoke.respond(&ctx, resp).await;
@@ -260,6 +292,7 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 let mut invoke = CommandInvoke::component(component);
                 let _ = invoke.respond(&ctx, resp).await;
             }
+            ComponentDataModel::MacroPager(pager) => {}
         }
     }
 }
@@ -275,6 +308,7 @@ pub struct Restrict {
 pub struct DelSelector {
     pub page: usize,
     pub timezone: Tz,
+    pub author_id: UserId,
 }
 
 #[derive(Serialize, Deserialize)]

@@ -305,9 +305,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command(&reminder_cmds::TIMER_COMMAND)
         .add_command(&reminder_cmds::REMIND_COMMAND)
         /*
-        .add_command("r", &reminder_cmds::REMIND_COMMAND)
-        .add_command("interval", &reminder_cmds::INTERVAL_COMMAND)
-        .add_command("i", &reminder_cmds::INTERVAL_COMMAND)
         .add_command("natural", &reminder_cmds::NATURAL_COMMAND)
         .add_command("n", &reminder_cmds::NATURAL_COMMAND)
         .add_command("", &reminder_cmds::NATURAL_COMMAND)
@@ -326,10 +323,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_command(&moderation_cmds::TIMEZONE_COMMAND)
         .add_command(&moderation_cmds::PREFIX_COMMAND)
         .add_command(&moderation_cmds::MACRO_CMD_COMMAND)
-        /*
-        .add_command("alias", &moderation_cmds::ALIAS_COMMAND)
-        .add_command("a", &moderation_cmds::ALIAS_COMMAND)
-        */
         .add_hook(&hooks::CHECK_SELF_PERMISSIONS_HOOK)
         .add_hook(&hooks::MACRO_CHECK_HOOK)
         .build();

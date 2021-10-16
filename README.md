@@ -38,3 +38,13 @@ __Other Variables__
 * `SHARD_COUNT` - default `None`, accepts the number of shards that are being ran
 * `SHARD_RANGE` - default `None`, if `SHARD_COUNT` is specified, specifies what range of shards to start on this process 
 * `DM_ENABLED` - default `1`, if `1`, Reminder Bot will respond to direct messages
+
+### Todo List
+
+* Implement remainder of the `macro` command
+* Convert aliases to macros
+* Block users from interacting with another users' components
+* Split out framework
+* Help command
+* Change all db keys to be discord IDs
+* Test everything

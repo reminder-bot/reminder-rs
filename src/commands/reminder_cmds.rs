@@ -8,7 +8,11 @@ use chrono::NaiveDateTime;
 use chrono_tz::Tz;
 use num_integer::Integer;
 use regex_command_attr::command;
-use serenity::{builder::CreateEmbed, client::Context, model::channel::Channel};
+use serenity::{
+    builder::CreateEmbed,
+    client::Context,
+    model::{channel::Channel, id::UserId},
+};
 
 use crate::{
     check_subscription_on_message,
@@ -363,7 +367,7 @@ async fn delete(ctx: &Context, invoke: &mut CommandInvoke, _args: CommandOptions
 
     let reminders = Reminder::from_guild(ctx, invoke.guild_id(), invoke.author_id()).await;
 
-    let resp = show_delete_page(&reminders, 0, timezone);
+    let resp = show_delete_page(&reminders, 0, timezone, invoke.author_id());
 
     let _ = invoke.respond(&ctx, resp).await;
 }
@@ -394,8 +398,9 @@ pub fn show_delete_page(
     reminders: &[Reminder],
     page: usize,
     timezone: Tz,
+    author_id: UserId,
 ) -> CreateGenericResponse {
-    let pager = Pager::new(page, DelData { timezone });
+    let pager = Pager::new(page, DelData { author_id, timezone });
 
     if reminders.is_empty() {
         return CreateGenericResponse::new()
@@ -450,7 +455,7 @@ pub fn show_delete_page(
 
     let display = display_vec.join("\n");
 
-    let del_selector = ComponentDataModel::DelSelector(DelSelector { page, timezone });
+    let del_selector = ComponentDataModel::DelSelector(DelSelector { page, timezone, author_id });
 
     CreateGenericResponse::new()
         .embed(|e| {
