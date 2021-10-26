@@ -3,7 +3,7 @@ use serenity::client::Context;
 
 use crate::{
     component_models::{
-        pager::{Pager, TodoData},
+        pager::{Pager, TodoPager},
         ComponentDataModel, TodoSelector,
     },
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, SELECT_MAX_ENTRIES, THEME_COLOR},
@@ -136,7 +136,7 @@ pub fn show_todo_page(
     channel_id: Option<u64>,
     guild_id: Option<u64>,
 ) -> CreateGenericResponse {
-    let pager = Pager::new(page, TodoData { user_id, channel_id, guild_id });
+    let pager = TodoPager::new(page, user_id, channel_id, guild_id);
 
     let pages = max_todo_page(todo_values);
     let mut page = page;

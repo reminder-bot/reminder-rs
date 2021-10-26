@@ -8,16 +8,12 @@ use chrono::NaiveDateTime;
 use chrono_tz::Tz;
 use num_integer::Integer;
 use regex_command_attr::command;
-use serenity::{
-    builder::CreateEmbed,
-    client::Context,
-    model::{channel::Channel, id::UserId},
-};
+use serenity::{builder::CreateEmbed, client::Context, model::channel::Channel};
 
 use crate::{
     check_subscription_on_message,
     component_models::{
-        pager::{DelData, LookData, Pager},
+        pager::{DelPager, LookPager, Pager},
         ComponentDataModel, DelSelector,
     },
     consts::{
@@ -333,7 +329,7 @@ async fn look(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
             .fold(0, |t, r| t + r.len())
             .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
 
-        let pager = Pager::new(0, LookData { flags, timezone });
+        let pager = LookPager::new(flags, timezone);
 
         invoke
             .respond(
@@ -367,7 +363,7 @@ async fn delete(ctx: &Context, invoke: &mut CommandInvoke, _args: CommandOptions
 
     let reminders = Reminder::from_guild(ctx, invoke.guild_id(), invoke.author_id()).await;
 
-    let resp = show_delete_page(&reminders, 0, timezone, invoke.author_id());
+    let resp = show_delete_page(&reminders, 0, timezone);
 
     let _ = invoke.respond(&ctx, resp).await;
 }
@@ -398,9 +394,8 @@ pub fn show_delete_page(
     reminders: &[Reminder],
     page: usize,
     timezone: Tz,
-    author_id: UserId,
 ) -> CreateGenericResponse {
-    let pager = Pager::new(page, DelData { author_id, timezone });
+    let pager = DelPager::new(page, timezone);
 
     if reminders.is_empty() {
         return CreateGenericResponse::new()
@@ -455,7 +450,7 @@ pub fn show_delete_page(
 
     let display = display_vec.join("\n");
 
-    let del_selector = ComponentDataModel::DelSelector(DelSelector { page, timezone, author_id });
+    let del_selector = ComponentDataModel::DelSelector(DelSelector { page, timezone });
 
     CreateGenericResponse::new()
         .embed(|e| {
