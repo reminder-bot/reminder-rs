@@ -7,8 +7,6 @@ pub enum ReminderError {
     PastTime,
     ShortInterval,
     InvalidTag,
-    InvalidTime,
-    InvalidExpiration,
     DiscordError(String),
 }
 
@@ -32,31 +30,7 @@ impl ToString for ReminderError {
             ReminderError::InvalidTag => {
                 "Couldn't find a location by your tag. Your tag must be either a channel or a user (not a role)".to_string()
             }
-            ReminderError::InvalidTime => {
-                "Your time failed to process. Please make it as clear as possible, for example `\"16th of july\"` or `\"in 20 minutes\"`".to_string()
-            }
-            ReminderError::InvalidExpiration => {
-                "Your expiration time failed to process. Please make it as clear as possible, for example `\"16th of july\"` or `\"in 20 minutes\"`".to_string()
-            }
             ReminderError::DiscordError(s) => format!("A Discord error occurred: **{}**", s),
         }
-    }
-}
-
-#[derive(Debug)]
-pub enum ContentError {
-    TooManyAttachments,
-    AttachmentTooLarge,
-    AttachmentDownloadFailed,
-}
-
-impl ToString for ContentError {
-    fn to_string(&self) -> String {
-        match self {
-            ContentError::TooManyAttachments => "remind/too_many_attachments",
-            ContentError::AttachmentTooLarge => "remind/attachment_too_large",
-            ContentError::AttachmentDownloadFailed => "remind/attachment_download_failed",
-        }
-        .to_string()
     }
 }

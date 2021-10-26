@@ -16,15 +16,10 @@ use crate::{
         pager::{DelPager, LookPager, Pager},
         ComponentDataModel, DelSelector,
     },
-    consts::{
-        EMBED_DESCRIPTION_MAX_LENGTH, REGEX_CHANNEL_USER, REGEX_NATURAL_COMMAND_1,
-        REGEX_NATURAL_COMMAND_2, SELECT_MAX_ENTRIES, THEME_COLOR,
-    },
+    consts::{EMBED_DESCRIPTION_MAX_LENGTH, REGEX_CHANNEL_USER, SELECT_MAX_ENTRIES, THEME_COLOR},
     framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
     hooks::{CHECK_GUILD_PERMISSIONS_HOOK, CHECK_MANAGED_PERMISSIONS_HOOK},
     models::{
-        channel_data::ChannelData,
-        guild_data::GuildData,
         reminder::{
             builder::{MultiReminderBuilder, ReminderScope},
             content::Content,
@@ -704,6 +699,7 @@ async fn remind(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions)
                 }
             };
 
+            // todo gate this on patreon subscription
             let interval = args
                 .get("repeat")
                 .map(|arg| {
@@ -805,178 +801,3 @@ fn parse_mention_list(mentions: &str) -> Vec<ReminderScope> {
         })
         .collect::<Vec<ReminderScope>>()
 }
-
-/*
-#[command("natural")]
-#[permission_level(Managed)]
-async fn natural(ctx: &Context, msg: &Message, args: String) {
-    let (pool, lm) = get_ctx_data(&ctx).await;
-
-    let user_data = UserData::from_user(&msg.author, &ctx, &pool).await.unwrap();
-
-    match REGEX_NATURAL_COMMAND_1.captures(&args) {
-        Some(captures) => {
-            let (expires, interval, string_content) =
-                if check_subscription_on_message(&ctx, msg).await {
-                    let rest_content = captures.name("msg").unwrap().as_str();
-
-                    match REGEX_NATURAL_COMMAND_2.captures(rest_content) {
-                        Some(secondary_captures) => {
-                            let expires =
-                                if let Some(expires_crop) = secondary_captures.name("expires") {
-                                    natural_parser(expires_crop.as_str(), &user_data.timezone).await
-                                } else {
-                                    None
-                                };
-
-                            let interval =
-                                if let Some(interval_crop) = secondary_captures.name("interval") {
-                                    humantime::parse_duration(interval_crop.as_str())
-                                        .or_else(|_| {
-                                            humantime::parse_duration(&format!(
-                                                "1 {}",
-                                                interval_crop.as_str()
-                                            ))
-                                        })
-                                        .map(|duration| duration.as_secs() as i64)
-                                        .ok()
-                                } else {
-                                    None
-                                };
-
-                            (
-                                expires,
-                                interval,
-                                if interval.is_some() {
-                                    secondary_captures.name("msg").unwrap().as_str()
-                                } else {
-                                    rest_content
-                                },
-                            )
-                        }
-
-                        None => (None, None, rest_content),
-                    }
-                } else {
-                    (None, None, captures.name("msg").unwrap().as_str())
-                };
-
-            let location_ids = if let Some(mentions) = captures.name("mentions").map(|m| m.as_str())
-            {
-                parse_mention_list(mentions)
-            } else {
-                vec![ReminderScope::Channel(msg.channel_id.into())]
-            };
-
-            if let Some(timestamp) =
-                natural_parser(captures.name("time").unwrap().as_str(), &user_data.timezone).await
-            {
-                let content_res = Content::build(string_content, msg).await;
-
-                match content_res {
-                    Ok(mut content) => {
-                        if let Some(guild) = msg.guild(&ctx) {
-                            content.substitute(guild);
-                        }
-
-                        let user_data = ctx.user_data(&msg.author).await.unwrap();
-
-                        let mut builder = MultiReminderBuilder::new(ctx, msg.guild_id)
-                            .author(user_data)
-                            .content(content)
-                            .interval(interval)
-                            .expires(expires)
-                            .time(timestamp);
-
-                        builder.set_scopes(location_ids);
-
-                        let (errors, successes) = builder.build().await;
-
-                        let success_part = match successes.len() {
-                            0 => "".to_string(),
-                            n => format!(
-                                "Reminder{s} for {locations} set for <t:{offset}:R>",
-                                s = if n > 1 { "s" } else { "" },
-                                locations = successes
-                                    .iter()
-                                    .map(|l| l.mention())
-                                    .collect::<Vec<String>>()
-                                    .join(", "),
-                                offset = timestamp
-                            ),
-                        };
-
-                        let error_part = match errors.len() {
-                            0 => "".to_string(),
-                            n => format!(
-                                "{n} reminder{s} failed to set:\n{errors}",
-                                s = if n > 1 { "s" } else { "" },
-                                n = n,
-                                errors = errors
-                                    .iter()
-                                    .map(|e| e.display(true))
-                                    .collect::<Vec<String>>()
-                                    .join("\n")
-                            ),
-                        };
-
-                        let _ = msg
-                            .channel_id
-                            .send_message(&ctx, |m| {
-                                m.embed(|e| {
-                                    e.title(format!(
-                                        "{n} Reminder{s} Set",
-                                        n = successes.len(),
-                                        s = if successes.len() > 1 { "s" } else { "" }
-                                    ))
-                                    .description(format!("{}\n\n{}", success_part, error_part))
-                                    .color(*THEME_COLOR)
-                                })
-                            })
-                            .await;
-                    }
-
-                    Err(content_error) => {
-                        let _ = msg
-                            .channel_id
-                            .send_message(ctx, |m| {
-                                m.embed(move |e| {
-                                    e.title("0 Reminders Set")
-                                        .description(content_error.to_string())
-                                        .color(*THEME_COLOR)
-                                })
-                            })
-                            .await;
-                    }
-                }
-            } else {
-                let _ = msg
-                    .channel_id
-                    .send_message(ctx, |m| {
-                        m.embed(move |e| {
-                            e.title(
-                                lm.get(&user_data.language, "remind/title")
-                                    .replace("{number}", "0"),
-                            )
-                            .description(lm.get(&user_data.language, "natural/invalid_time"))
-                            .color(*THEME_COLOR)
-                        })
-                    })
-                    .await;
-            }
-        }
-
-        None => {
-            command_help(
-                ctx,
-                msg,
-                lm,
-                &ctx.prefix(msg.guild_id).await,
-                &user_data.language,
-                "natural",
-            )
-            .await;
-        }
-    }
-}
-*/

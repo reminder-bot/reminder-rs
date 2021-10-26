@@ -243,9 +243,9 @@ impl CommandInvoke {
                     .map(|_| ())
                 }
             }
-            InvokeModel::Component(i) => {
-                if self.already_responded {
-                    i.create_followup_message(http, |d| {
+            InvokeModel::Component(i) => i
+                .create_interaction_response(http, |r| {
+                    r.kind(InteractionResponseType::UpdateMessage).interaction_response_data(|d| {
                         d.content(generic_response.content);
 
                         if let Some(embed) = generic_response.embed {
@@ -261,51 +261,9 @@ impl CommandInvoke {
 
                         d
                     })
-                    .await
-                    .map(|_| ())
-                } else if self.deferred {
-                    i.edit_original_interaction_response(http, |d| {
-                        d.content(generic_response.content);
-
-                        if let Some(embed) = generic_response.embed {
-                            d.add_embed(embed);
-                        }
-
-                        if let Some(components) = generic_response.components {
-                            d.components(|c| {
-                                *c = components;
-                                c
-                            });
-                        }
-
-                        d
-                    })
-                    .await
-                    .map(|_| ())
-                } else {
-                    i.create_interaction_response(http, |r| {
-                        r.kind(InteractionResponseType::ChannelMessageWithSource)
-                            .interaction_response_data(|d| {
-                                d.content(generic_response.content);
-
-                                if let Some(embed) = generic_response.embed {
-                                    d.add_embed(embed);
-                                }
-
-                                if let Some(components) = generic_response.components {
-                                    d.components(|c| {
-                                        *c = components;
-                                        c
-                                    });
-                                }
-
-                                d
-                            })
-                    })
-                    .await
-                    .map(|_| ())
-                }
-            }
+                })
+                .await
+                .map(|_| ()),
             InvokeModel::Text(m) => m
                 .channel_id
                 .send_message(http, |m| {
@@ -457,7 +415,12 @@ impl CommandOptions {
                     cmd_opts.options.insert(
                         option.name,
                         OptionValue::User(UserId(
-                            option.value.map(|m| m.as_u64()).flatten().unwrap(),
+                            option
+                                .value
+                                .map(|m| m.as_str().map(|s| s.parse::<u64>().ok()))
+                                .flatten()
+                                .flatten()
+                                .unwrap(),
                         )),
                     );
                 }
@@ -465,7 +428,12 @@ impl CommandOptions {
                     cmd_opts.options.insert(
                         option.name,
                         OptionValue::Channel(ChannelId(
-                            option.value.map(|m| m.as_u64()).flatten().unwrap(),
+                            option
+                                .value
+                                .map(|m| m.as_str().map(|s| s.parse::<u64>().ok()))
+                                .flatten()
+                                .flatten()
+                                .unwrap(),
                         )),
                     );
                 }

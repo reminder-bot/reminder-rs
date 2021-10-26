@@ -330,3 +330,82 @@ impl TodoPager {
         )
     }
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct MacroPager {
+    pub page: usize,
+    action: PageAction,
+}
+
+impl Pager for MacroPager {
+    fn next_page(&self, max_pages: usize) -> usize {
+        match self.action {
+            PageAction::First => 0,
+            PageAction::Previous => 0.max(self.page - 1),
+            PageAction::Refresh => self.page,
+            PageAction::Next => (max_pages - 1).min(self.page + 1),
+            PageAction::Last => max_pages - 1,
+        }
+    }
+
+    fn create_button_row(&self, max_pages: usize, comp: &mut CreateComponents) {
+        let next_page = self.next_page(max_pages);
+
+        let (page_first, page_prev, page_refresh, page_next, page_last) =
+            MacroPager::buttons(next_page);
+
+        comp.create_action_row(|row| {
+            row.create_button(|b| {
+                b.label("⏮️")
+                    .style(ButtonStyle::Primary)
+                    .custom_id(page_first.to_custom_id())
+                    .disabled(next_page == 0)
+            })
+            .create_button(|b| {
+                b.label("◀️")
+                    .style(ButtonStyle::Secondary)
+                    .custom_id(page_prev.to_custom_id())
+                    .disabled(next_page == 0)
+            })
+            .create_button(|b| {
+                b.label("🔁").style(ButtonStyle::Secondary).custom_id(page_refresh.to_custom_id())
+            })
+            .create_button(|b| {
+                b.label("▶️")
+                    .style(ButtonStyle::Secondary)
+                    .custom_id(page_next.to_custom_id())
+                    .disabled(next_page + 1 == max_pages)
+            })
+            .create_button(|b| {
+                b.label("⏭️")
+                    .style(ButtonStyle::Primary)
+                    .custom_id(page_last.to_custom_id())
+                    .disabled(next_page + 1 == max_pages)
+            })
+        });
+    }
+}
+
+impl MacroPager {
+    pub fn new(page: usize) -> Self {
+        Self { page, action: PageAction::Refresh }
+    }
+
+    pub fn buttons(
+        page: usize,
+    ) -> (
+        ComponentDataModel,
+        ComponentDataModel,
+        ComponentDataModel,
+        ComponentDataModel,
+        ComponentDataModel,
+    ) {
+        (
+            ComponentDataModel::MacroPager(MacroPager { page, action: PageAction::First }),
+            ComponentDataModel::MacroPager(MacroPager { page, action: PageAction::Previous }),
+            ComponentDataModel::MacroPager(MacroPager { page, action: PageAction::Refresh }),
+            ComponentDataModel::MacroPager(MacroPager { page, action: PageAction::Next }),
+            ComponentDataModel::MacroPager(MacroPager { page, action: PageAction::Last }),
+        )
+    }
+}

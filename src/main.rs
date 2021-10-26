@@ -304,11 +304,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // reminder commands
         .add_command(&reminder_cmds::TIMER_COMMAND)
         .add_command(&reminder_cmds::REMIND_COMMAND)
-        /*
-        .add_command("natural", &reminder_cmds::NATURAL_COMMAND)
-        .add_command("n", &reminder_cmds::NATURAL_COMMAND)
-        .add_command("", &reminder_cmds::NATURAL_COMMAND)
-        */
         // management commands
         .add_command(&reminder_cmds::DELETE_COMMAND)
         .add_command(&reminder_cmds::LOOK_COMMAND)
@@ -318,10 +313,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // to-do commands
         .add_command(&todo_cmds::TODO_COMMAND)
         // moderation commands
-        .add_command(&moderation_cmds::BLACKLIST_COMMAND)
         .add_command(&moderation_cmds::RESTRICT_COMMAND)
         .add_command(&moderation_cmds::TIMEZONE_COMMAND)
-        .add_command(&moderation_cmds::PREFIX_COMMAND)
         .add_command(&moderation_cmds::MACRO_CMD_COMMAND)
         .add_hook(&hooks::CHECK_SELF_PERMISSIONS_HOOK)
         .add_hook(&hooks::MACRO_CHECK_HOOK)

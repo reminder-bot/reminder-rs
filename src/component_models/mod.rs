@@ -18,13 +18,14 @@ use serenity::{
 
 use crate::{
     commands::{
+        moderation_cmds::{max_macro_page, show_macro_page},
         reminder_cmds::{max_delete_page, show_delete_page},
         todo_cmds::{max_todo_page, show_todo_page},
     },
-    component_models::pager::{DelPager, LookPager, Pager, TodoPager},
+    component_models::pager::{DelPager, LookPager, MacroPager, Pager, TodoPager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
     framework::CommandInvoke,
-    models::reminder::Reminder,
+    models::{command_macro::CommandMacro, reminder::Reminder},
     SQLPool,
 };
 
@@ -38,6 +39,7 @@ pub enum ComponentDataModel {
     TodoPager(TodoPager),
     DelSelector(DelSelector),
     TodoSelector(TodoSelector),
+    MacroPager(MacroPager),
 }
 
 impl ComponentDataModel {
@@ -258,6 +260,17 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 );
 
                 let mut invoke = CommandInvoke::component(component);
+                let _ = invoke.respond(&ctx, resp).await;
+            }
+            ComponentDataModel::MacroPager(pager) => {
+                let mut invoke = CommandInvoke::component(component);
+
+                let macros = CommandMacro::from_guild(ctx, invoke.guild_id().unwrap()).await;
+
+                let max_page = max_macro_page(&macros);
+                let page = pager.next_page(max_page);
+
+                let resp = show_macro_page(&macros, page);
                 let _ = invoke.respond(&ctx, resp).await;
             }
         }
