@@ -28,7 +28,6 @@ __Required Variables__
 __Other Variables__
 * `MIN_INTERVAL` - default `600`, defines the shortest interval the bot should accept
 * `LOCAL_TIMEZONE` - default `UTC`, necessary for calculations in the natural language processor
-* `DEFAULT_PREFIX` - default `$`, used for the default prefix on new guilds
 * `SUBSCRIPTION_ROLES` - default `None`, accepts a list of Discord role IDs that are given to subscribed users
 * `CNC_GUILD` - default `None`, accepts a single Discord guild ID for the server that the subscription roles belong to
 * `IGNORE_BOTS` - default `1`, if `1`, Reminder Bot will ignore all other bots

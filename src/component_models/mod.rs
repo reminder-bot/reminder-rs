@@ -92,7 +92,17 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                         .await
                         .unwrap();
                 } else {
-                    // tell them they cant do this
+                    let _ = component
+                        .create_interaction_response(&ctx, |r| {
+                            r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                .interaction_response_data(|d| {
+                                    d.flags(
+                                        InteractionApplicationCommandCallbackDataFlags::EPHEMERAL,
+                                    )
+                                    .content("Only the user who performed the command can use these components")
+                                })
+                        })
+                        .await;
                 }
             }
             ComponentDataModel::LookPager(pager) => {
@@ -199,9 +209,10 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 let _ = invoke.respond(&ctx, resp).await;
             }
             ComponentDataModel::TodoPager(pager) => {
-                let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+                if Some(component.user.id.0) == pager.user_id || pager.user_id.is_none() {
+                    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
-                let values = sqlx::query!(
+                    let values = sqlx::query!(
                     // fucking braindead mysql use <=> instead of = for null comparison
                     "SELECT id, value FROM todos WHERE user_id <=> ? AND channel_id <=> ? AND guild_id <=> ?",
                     pager.user_id,
@@ -215,29 +226,43 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 .map(|row| (row.id as usize, row.value.clone()))
                 .collect::<Vec<(usize, String)>>();
 
-                let max_pages = max_todo_page(&values);
+                    let max_pages = max_todo_page(&values);
 
-                let resp = show_todo_page(
-                    &values,
-                    pager.next_page(max_pages),
-                    pager.user_id,
-                    pager.channel_id,
-                    pager.guild_id,
-                );
+                    let resp = show_todo_page(
+                        &values,
+                        pager.next_page(max_pages),
+                        pager.user_id,
+                        pager.channel_id,
+                        pager.guild_id,
+                    );
 
-                let mut invoke = CommandInvoke::component(component);
-                let _ = invoke.respond(&ctx, resp).await;
+                    let mut invoke = CommandInvoke::component(component);
+                    let _ = invoke.respond(&ctx, resp).await;
+                } else {
+                    let _ = component
+                        .create_interaction_response(&ctx, |r| {
+                            r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                .interaction_response_data(|d| {
+                                    d.flags(
+                                        InteractionApplicationCommandCallbackDataFlags::EPHEMERAL,
+                                    )
+                                    .content("Only the user who performed the command can use these components")
+                                })
+                        })
+                        .await;
+                }
             }
             ComponentDataModel::TodoSelector(selector) => {
-                let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-                let selected_id = component.data.values.join(",");
+                if Some(component.user.id.0) == selector.user_id || selector.user_id.is_none() {
+                    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+                    let selected_id = component.data.values.join(",");
 
-                sqlx::query!("DELETE FROM todos WHERE FIND_IN_SET(id, ?)", selected_id)
-                    .execute(&pool)
-                    .await
-                    .unwrap();
+                    sqlx::query!("DELETE FROM todos WHERE FIND_IN_SET(id, ?)", selected_id)
+                        .execute(&pool)
+                        .await
+                        .unwrap();
 
-                let values = sqlx::query!(
+                    let values = sqlx::query!(
                     // fucking braindead mysql use <=> instead of = for null comparison
                     "SELECT id, value FROM todos WHERE user_id <=> ? AND channel_id <=> ? AND guild_id <=> ?",
                     selector.user_id,
@@ -251,16 +276,29 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
                 .map(|row| (row.id as usize, row.value.clone()))
                 .collect::<Vec<(usize, String)>>();
 
-                let resp = show_todo_page(
-                    &values,
-                    selector.page,
-                    selector.user_id,
-                    selector.channel_id,
-                    selector.guild_id,
-                );
+                    let resp = show_todo_page(
+                        &values,
+                        selector.page,
+                        selector.user_id,
+                        selector.channel_id,
+                        selector.guild_id,
+                    );
 
-                let mut invoke = CommandInvoke::component(component);
-                let _ = invoke.respond(&ctx, resp).await;
+                    let mut invoke = CommandInvoke::component(component);
+                    let _ = invoke.respond(&ctx, resp).await;
+                } else {
+                    let _ = component
+                        .create_interaction_response(&ctx, |r| {
+                            r.kind(InteractionResponseType::ChannelMessageWithSource)
+                                .interaction_response_data(|d| {
+                                    d.flags(
+                                        InteractionApplicationCommandCallbackDataFlags::EPHEMERAL,
+                                    )
+                                    .content("Only the user who performed the command can use these components")
+                                })
+                        })
+                        .await;
+                }
             }
             ComponentDataModel::MacroPager(pager) => {
                 let mut invoke = CommandInvoke::component(component);
