@@ -11,7 +11,6 @@ use regex_command_attr::command;
 use serenity::{builder::CreateEmbed, client::Context, model::channel::Channel};
 
 use crate::{
-    check_subscription_on_message,
     component_models::{
         pager::{DelPager, LookPager, Pager},
         ComponentDataModel, DelSelector,

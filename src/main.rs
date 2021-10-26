@@ -13,19 +13,17 @@ mod time_parser;
 use std::{collections::HashMap, env, sync::Arc, time::Instant};
 
 use chrono_tz::Tz;
-use dashmap::DashMap;
 use dotenv::dotenv;
 use log::info;
 use serenity::{
     async_trait,
-    cache::Cache,
     client::{bridge::gateway::GatewayIntents, Client},
     futures::TryFutureExt,
     http::{client::Http, CacheHttp},
     model::{
-        channel::{GuildChannel, Message},
+        channel::GuildChannel,
         gateway::{Activity, Ready},
-        guild::{Guild, GuildUnavailable},
+        guild::Guild,
         id::{GuildId, UserId},
         interactions::Interaction,
     },
@@ -38,16 +36,10 @@ use tokio::sync::RwLock;
 use crate::{
     commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
     component_models::ComponentDataModel,
-    consts::{CNC_GUILD, DEFAULT_PREFIX, SUBSCRIPTION_ROLES, THEME_COLOR},
+    consts::{CNC_GUILD, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
-    models::{command_macro::CommandMacro, guild_data::GuildData},
+    models::command_macro::CommandMacro,
 };
-
-struct GuildDataCache;
-
-impl TypeMapKey for GuildDataCache {
-    type Value = Arc<DashMap<GuildId, Arc<RwLock<GuildData>>>>;
-}
 
 struct SQLPool;
 
@@ -156,20 +148,6 @@ DELETE FROM channels WHERE channel = ?
         if is_new {
             let guild_id = guild.id.as_u64().to_owned();
 
-            {
-                let pool = ctx
-                    .data
-                    .read()
-                    .await
-                    .get::<SQLPool>()
-                    .cloned()
-                    .expect("Could not get SQLPool from data");
-
-                GuildData::from_guild(guild, &pool).await.unwrap_or_else(|_| {
-                    panic!("Failed to create new guild object for {}", guild_id)
-                });
-            }
-
             if let Ok(token) = env::var("DISCORDBOTS_TOKEN") {
                 let shard_count = ctx.cache.shard_count();
                 let current_shard_id = shard_id(guild_id, shard_count);
@@ -212,34 +190,6 @@ DELETE FROM channels WHERE channel = ?
                 }
             }
         }
-    }
-
-    async fn guild_delete(
-        &self,
-        ctx: Context,
-        deleted_guild: GuildUnavailable,
-        _guild: Option<Guild>,
-    ) {
-        let pool = ctx
-            .data
-            .read()
-            .await
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        let guild_data_cache = ctx.data.read().await.get::<GuildDataCache>().cloned().unwrap();
-        guild_data_cache.remove(&deleted_guild.id);
-
-        sqlx::query!(
-            "
-DELETE FROM guilds WHERE guild = ?
-            ",
-            deleted_guild.id.as_u64()
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
     }
 
     async fn ready(&self, ctx: Context, _: Ready) {
@@ -288,7 +238,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let dm_enabled = env::var("DM_ENABLED").map_or(true, |var| var == "1");
 
     let framework = RegexFramework::new(logged_in_id)
-        .default_prefix(DEFAULT_PREFIX.clone())
+        .default_prefix("")
         .case_insensitive(env::var("CASE_INSENSITIVE").map_or(true, |var| var == "1"))
         .ignore_bots(env::var("IGNORE_BOTS").map_or(true, |var| var == "1"))
         .debug_guild(env::var("DEBUG_GUILD").map_or(None, |g| {
@@ -337,8 +287,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .expect("Error occurred creating client");
 
     {
-        let guild_data_cache = dashmap::DashMap::new();
-
         let pool = MySqlPool::connect(
             &env::var("DATABASE_URL").expect("Missing DATABASE_URL from environment"),
         )
@@ -357,7 +305,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         let mut data = client.data.write().await;
 
-        data.insert::<GuildDataCache>(Arc::new(guild_data_cache));
         data.insert::<CurrentlyExecuting>(Arc::new(RwLock::new(HashMap::new())));
         data.insert::<SQLPool>(pool);
         data.insert::<PopularTimezones>(Arc::new(popular_timezones));
@@ -414,16 +361,4 @@ pub async fn check_subscription(cache_http: impl CacheHttp, user_id: impl Into<U
     } else {
         true
     }
-}
-
-pub async fn check_subscription_on_message(
-    cache_http: impl CacheHttp + AsRef<Cache>,
-    msg: &Message,
-) -> bool {
-    check_subscription(&cache_http, &msg.author).await
-        || if let Some(guild) = msg.guild(&cache_http) {
-            check_subscription(&cache_http, guild.owner_id).await
-        } else {
-            false
-        }
 }

@@ -5,7 +5,6 @@ authors = ["jellywx <judesouthworth@pm.me>"]
 edition = "2018"
 
 [dependencies]
-dashmap = "4.0"
 dotenv = "0.15"
 humantime = "2.1"
 tokio = { version = "1", features = ["process", "full"] }

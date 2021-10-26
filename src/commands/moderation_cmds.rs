@@ -12,7 +12,7 @@ use crate::{
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
     framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
     hooks::{CHECK_GUILD_PERMISSIONS_HOOK, CHECK_MANAGED_PERMISSIONS_HOOK},
-    models::{channel_data::ChannelData, command_macro::CommandMacro, CtxData},
+    models::{command_macro::CommandMacro, CtxData},
     PopularTimezones, RecordingMacros, RegexFramework, SQLPool,
 };
 

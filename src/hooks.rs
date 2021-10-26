@@ -107,7 +107,7 @@ pub async fn check_managed_permissions(
             return HookResult::Continue;
         }
 
-        let member = invoke.member(&ctx).await.unwrap();
+        let member = invoke.member().unwrap();
 
         let pool = ctx
             .data

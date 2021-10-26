@@ -1,35 +1,23 @@
 pub mod channel_data;
 pub mod command_macro;
-pub mod guild_data;
 pub mod reminder;
 pub mod timer;
 pub mod user_data;
 
-use std::sync::Arc;
-
 use chrono_tz::Tz;
 use serenity::{
     async_trait,
-    model::id::{ChannelId, GuildId, UserId},
+    model::id::{ChannelId, UserId},
     prelude::Context,
 };
-use tokio::sync::RwLock;
 
 use crate::{
-    consts::DEFAULT_PREFIX,
-    models::{channel_data::ChannelData, guild_data::GuildData, user_data::UserData},
-    GuildDataCache, SQLPool,
+    models::{channel_data::ChannelData, user_data::UserData},
+    SQLPool,
 };
 
 #[async_trait]
 pub trait CtxData {
-    async fn guild_data<G: Into<GuildId> + Send + Sync>(
-        &self,
-        guild_id: G,
-    ) -> Result<Arc<RwLock<GuildData>>, sqlx::Error>;
-
-    async fn prefix<G: Into<GuildId> + Send + Sync>(&self, guild_id: Option<G>) -> String;
-
     async fn user_data<U: Into<UserId> + Send + Sync>(
         &self,
         user_id: U,
@@ -45,45 +33,6 @@ pub trait CtxData {
 
 #[async_trait]
 impl CtxData for Context {
-    async fn guild_data<G: Into<GuildId> + Send + Sync>(
-        &self,
-        guild_id: G,
-    ) -> Result<Arc<RwLock<GuildData>>, sqlx::Error> {
-        let guild_id = guild_id.into();
-
-        let guild = guild_id.to_guild_cached(&self.cache).unwrap();
-
-        let guild_cache = self.data.read().await.get::<GuildDataCache>().cloned().unwrap();
-
-        let x = if let Some(guild_data) = guild_cache.get(&guild_id) {
-            Ok(guild_data.clone())
-        } else {
-            let pool = self.data.read().await.get::<SQLPool>().cloned().unwrap();
-
-            match GuildData::from_guild(guild, &pool).await {
-                Ok(d) => {
-                    let lock = Arc::new(RwLock::new(d));
-
-                    guild_cache.insert(guild_id, lock.clone());
-
-                    Ok(lock)
-                }
-
-                Err(e) => Err(e),
-            }
-        };
-
-        x
-    }
-
-    async fn prefix<G: Into<GuildId> + Send + Sync>(&self, guild_id: Option<G>) -> String {
-        if let Some(guild_id) = guild_id {
-            self.guild_data(guild_id).await.unwrap().read().await.prefix.clone()
-        } else {
-            DEFAULT_PREFIX.clone()
-        }
-    }
-
     async fn user_data<U: Into<UserId> + Send + Sync>(
         &self,
         user_id: U,

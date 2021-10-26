@@ -3,7 +3,6 @@ use regex_command_attr::command;
 use serenity::{builder::CreateEmbedFooter, client::Context};
 
 use crate::{
-    consts::DEFAULT_PREFIX,
     framework::{CommandInvoke, CreateGenericResponse},
     models::CtxData,
     THEME_COLOR,
@@ -28,8 +27,6 @@ fn footer(ctx: &Context) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut CreateEm
 #[description("Get information about the bot")]
 #[group("Info")]
 async fn info(ctx: &Context, invoke: &mut CommandInvoke) {
-    let prefix = ctx.prefix(invoke.guild_id()).await;
-    let current_user = ctx.cache.current_user();
     let footer = footer(ctx);
 
     let _ = invoke
@@ -38,18 +35,15 @@ async fn info(ctx: &Context, invoke: &mut CommandInvoke) {
             CreateGenericResponse::new().embed(|e| {
                 e.title("Info")
                     .description(format!(
-                        "Default prefix: `{default_prefix}`
-Reset prefix: `@{user} prefix {default_prefix}`
-Help: `{prefix}help`**Welcome to Reminder Bot!**
+                        "Help: `/help`
+
+**Welcome to Reminder Bot!**
 Developer: <@203532103185465344>
 Icon: <@253202252821430272>
 Find me on https://discord.jellywx.com and on https://github.com/JellyWX :)
 
 Invite the bot: https://invite.reminder-bot.com/
 Use our dashboard: https://reminder-bot.com/",
-                        default_prefix = *DEFAULT_PREFIX,
-                        user = current_user.name,
-                        prefix = prefix
                     ))
                     .footer(footer)
                     .color(*THEME_COLOR)

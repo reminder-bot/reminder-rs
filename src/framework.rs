@@ -7,7 +7,7 @@ use std::{
 };
 
 use log::info;
-use regex::{Match, Regex, RegexBuilder};
+use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use serenity::{
     async_trait,
@@ -16,11 +16,11 @@ use serenity::{
     client::Context,
     framework::Framework,
     futures::prelude::future::BoxFuture,
-    http::{CacheHttp, Http},
+    http::Http,
     model::{
         channel::Message,
         guild::{Guild, Member},
-        id::{ChannelId, GuildId, MessageId, RoleId, UserId},
+        id::{ChannelId, GuildId, RoleId, UserId},
         interactions::{
             application_command::{
                 ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandOptionType,
@@ -34,7 +34,7 @@ use serenity::{
     Result as SerenityResult,
 };
 
-use crate::{models::CtxData, LimitExecutors};
+use crate::LimitExecutors;
 
 pub struct CreateGenericResponse {
     content: String,
@@ -89,7 +89,6 @@ impl CreateGenericResponse {
 enum InvokeModel {
     Slash(ApplicationCommandInteraction),
     Component(MessageComponentInteraction),
-    Text(Message),
 }
 
 #[derive(Clone)]
@@ -106,10 +105,6 @@ impl CommandInvoke {
 
     fn slash(interaction: ApplicationCommandInteraction) -> Self {
         Self { model: InvokeModel::Slash(interaction), already_responded: false, deferred: false }
-    }
-
-    fn msg(msg: Message) -> Self {
-        Self { model: InvokeModel::Text(msg), already_responded: false, deferred: false }
     }
 
     pub async fn defer(&mut self, http: impl AsRef<Http>) {
@@ -133,7 +128,6 @@ impl CommandInvoke {
 
                     self.deferred = true;
                 }
-                InvokeModel::Text(_) => (),
             }
         }
     }
@@ -142,7 +136,6 @@ impl CommandInvoke {
         match &self.model {
             InvokeModel::Slash(i) => i.channel_id,
             InvokeModel::Component(i) => i.channel_id,
-            InvokeModel::Text(m) => m.channel_id,
         }
     }
 
@@ -150,7 +143,6 @@ impl CommandInvoke {
         match &self.model {
             InvokeModel::Slash(i) => i.guild_id,
             InvokeModel::Component(i) => i.guild_id,
-            InvokeModel::Text(m) => m.guild_id,
         }
     }
 
@@ -162,15 +154,13 @@ impl CommandInvoke {
         match &self.model {
             InvokeModel::Slash(i) => i.user.id,
             InvokeModel::Component(i) => i.user.id,
-            InvokeModel::Text(m) => m.author.id,
         }
     }
 
-    pub async fn member(&self, cache_http: impl CacheHttp) -> Option<Member> {
+    pub fn member(&self) -> Option<Member> {
         match &self.model {
             InvokeModel::Slash(i) => i.member.clone(),
             InvokeModel::Component(i) => i.member.clone(),
-            InvokeModel::Text(m) => m.member(cache_http).await.ok(),
         }
     }
 
@@ -261,26 +251,6 @@ impl CommandInvoke {
 
                         d
                     })
-                })
-                .await
-                .map(|_| ()),
-            InvokeModel::Text(m) => m
-                .channel_id
-                .send_message(http, |m| {
-                    m.content(generic_response.content);
-
-                    if let Some(embed) = generic_response.embed {
-                        m.set_embed(embed);
-                    }
-
-                    if let Some(components) = generic_response.components {
-                        m.components(|c| {
-                            *c = components;
-                            c
-                        });
-                    }
-
-                    m
                 })
                 .await
                 .map(|_| ()),
@@ -484,9 +454,6 @@ pub enum HookResult {
 type SlashCommandFn =
     for<'fut> fn(&'fut Context, &'fut mut CommandInvoke, CommandOptions) -> BoxFuture<'fut, ()>;
 
-type TextCommandFn =
-    for<'fut> fn(&'fut Context, &'fut mut CommandInvoke, String) -> BoxFuture<'fut, ()>;
-
 type MultiCommandFn = for<'fut> fn(&'fut Context, &'fut mut CommandInvoke) -> BoxFuture<'fut, ()>;
 
 pub type HookFn = for<'fut> fn(
@@ -497,14 +464,7 @@ pub type HookFn = for<'fut> fn(
 
 pub enum CommandFnType {
     Slash(SlashCommandFn),
-    Text(TextCommandFn),
     Multi(MultiCommandFn),
-}
-
-impl CommandFnType {
-    pub fn is_slash(&self) -> bool {
-        !matches!(self, CommandFnType::Text(_))
-    }
 }
 
 pub struct Hook {
@@ -697,44 +657,42 @@ impl RegexFramework {
         commands: &'a mut CreateApplicationCommands,
     ) -> &'a mut CreateApplicationCommands {
         for command in &self.commands {
-            if command.fun.is_slash() {
-                commands.create_application_command(|c| {
-                    c.name(command.names[0]).description(command.desc);
+            commands.create_application_command(|c| {
+                c.name(command.names[0]).description(command.desc);
 
-                    for arg in command.args {
-                        c.create_option(|o| {
-                            o.name(arg.name)
-                                .description(arg.description)
-                                .kind(arg.kind)
-                                .required(arg.required);
+                for arg in command.args {
+                    c.create_option(|o| {
+                        o.name(arg.name)
+                            .description(arg.description)
+                            .kind(arg.kind)
+                            .required(arg.required);
 
-                            for option in arg.options {
-                                o.create_sub_option(|s| {
-                                    s.name(option.name)
-                                        .description(option.description)
-                                        .kind(option.kind)
-                                        .required(option.required);
+                        for option in arg.options {
+                            o.create_sub_option(|s| {
+                                s.name(option.name)
+                                    .description(option.description)
+                                    .kind(option.kind)
+                                    .required(option.required);
 
-                                    for sub_option in option.options {
-                                        s.create_sub_option(|ss| {
-                                            ss.name(sub_option.name)
-                                                .description(sub_option.description)
-                                                .kind(sub_option.kind)
-                                                .required(sub_option.required)
-                                        });
-                                    }
+                                for sub_option in option.options {
+                                    s.create_sub_option(|ss| {
+                                        ss.name(sub_option.name)
+                                            .description(sub_option.description)
+                                            .kind(sub_option.kind)
+                                            .required(sub_option.required)
+                                    });
+                                }
 
-                                    s
-                                });
-                            }
+                                s
+                            });
+                        }
 
-                            o
-                        });
-                    }
+                        o
+                    });
+                }
 
-                    c
-                });
-            }
+                c
+            });
         }
 
         commands
@@ -798,7 +756,6 @@ impl RegexFramework {
             match command.fun {
                 CommandFnType::Slash(t) => t(&ctx, &mut command_invoke, args).await,
                 CommandFnType::Multi(m) => m(&ctx, &mut command_invoke).await,
-                _ => (),
             }
 
             ctx.drop_executing(user_id).await;
@@ -820,85 +777,11 @@ impl RegexFramework {
         match command.fun {
             CommandFnType::Slash(t) => t(&ctx, command_invoke, command_options).await,
             CommandFnType::Multi(m) => m(&ctx, command_invoke).await,
-            _ => (),
         }
     }
 }
 
 #[async_trait]
 impl Framework for RegexFramework {
-    async fn dispatch(&self, ctx: Context, msg: Message) {
-        async fn check_prefix(ctx: &Context, guild: &Guild, prefix_opt: Option<Match<'_>>) -> bool {
-            if let Some(prefix) = prefix_opt {
-                let guild_prefix = ctx.prefix(Some(guild.id)).await;
-
-                guild_prefix.as_str() == prefix.as_str()
-            } else {
-                true
-            }
-        }
-
-        // gate to prevent analysing messages unnecessarily
-        if (msg.author.bot && self.ignore_bots) || msg.content.is_empty() {
-            return;
-        }
-
-        let user_id = msg.author.id;
-        let mut invoke = CommandInvoke::msg(msg.clone());
-
-        // Guild Command
-        if let Some(guild) = msg.guild(&ctx) {
-            if let Some(full_match) = self.command_matcher.captures(&msg.content) {
-                if check_prefix(&ctx, &guild, full_match.name("prefix")).await {
-                    let command = self
-                        .commands_map
-                        .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
-                        .unwrap();
-
-                    let channel_data = ctx.channel_data(invoke.channel_id()).await.unwrap();
-
-                    if !command.can_blacklist || !channel_data.blacklisted {
-                        let args =
-                            full_match.name("args").map(|m| m.as_str()).unwrap_or("").to_string();
-
-                        if msg.id == MessageId(0) || !ctx.check_executing(user_id).await {
-                            ctx.set_executing(user_id).await;
-
-                            match command.fun {
-                                CommandFnType::Text(t) => t(&ctx, &mut invoke, args).await,
-                                CommandFnType::Multi(m) => m(&ctx, &mut invoke).await,
-                                _ => {}
-                            };
-
-                            ctx.drop_executing(user_id).await;
-                        }
-                    }
-                }
-            }
-        }
-        // DM Command
-        else if self.dm_enabled {
-            if let Some(full_match) = self.dm_regex_matcher.captures(&msg.content[..]) {
-                let command = self
-                    .commands_map
-                    .get(&full_match.name("cmd").unwrap().as_str().to_lowercase())
-                    .unwrap();
-                let args = full_match.name("args").map(|m| m.as_str()).unwrap_or("").to_string();
-
-                let user_id = invoke.author_id();
-
-                if msg.id == MessageId(0) || !ctx.check_executing(user_id).await {
-                    ctx.set_executing(user_id).await;
-
-                    match command.fun {
-                        CommandFnType::Text(t) => t(&ctx, &mut invoke, args).await,
-                        CommandFnType::Multi(m) => m(&ctx, &mut invoke).await,
-                        _ => {}
-                    };
-
-                    ctx.drop_executing(user_id).await;
-                }
-            }
-        }
-    }
+    async fn dispatch(&self, _ctx: Context, _msg: Message) {}
 }
