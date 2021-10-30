@@ -20,14 +20,23 @@ pub async fn macro_check(
             let mut lock = active_recordings.write().await;
 
             if let Some(command_macro) = lock.get_mut(&(guild_id, invoke.author_id())) {
-                command_macro.commands.push(args.clone());
+                if command_macro.commands.len() >= 5 {
+                    let _ = invoke
+                        .respond(
+                            &ctx,
+                            CreateGenericResponse::new().content("5 commands already recorded. Please use `/macro finish` to end recording."),
+                        )
+                        .await;
+                } else {
+                    command_macro.commands.push(args.clone());
 
-                let _ = invoke
-                    .respond(
-                        &ctx,
-                        CreateGenericResponse::new().content("Command recorded to macro"),
-                    )
-                    .await;
+                    let _ = invoke
+                        .respond(
+                            &ctx,
+                            CreateGenericResponse::new().content("Command recorded to macro"),
+                        )
+                        .await;
+                }
 
                 HookResult::Halt
             } else {

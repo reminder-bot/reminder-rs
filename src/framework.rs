@@ -7,7 +7,6 @@ use std::{
 };
 
 use log::info;
-use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use serenity::{
     async_trait,
@@ -34,7 +33,7 @@ use serenity::{
     Result as SerenityResult,
 };
 
-use crate::LimitExecutors;
+use crate::SQLPool;
 
 pub struct CreateGenericResponse {
     content: String,
@@ -512,12 +511,7 @@ impl Eq for Command {}
 pub struct RegexFramework {
     pub commands_map: HashMap<String, &'static Command>,
     pub commands: HashSet<&'static Command>,
-    command_matcher: Regex,
-    dm_regex_matcher: Regex,
-    default_prefix: String,
-    client_id: u64,
     ignore_bots: bool,
-    case_insensitive: bool,
     dm_enabled: bool,
     debug_guild: Option<GuildId>,
     hooks: Vec<&'static Hook>,
@@ -528,32 +522,15 @@ impl TypeMapKey for RegexFramework {
 }
 
 impl RegexFramework {
-    pub fn new<T: Into<u64>>(client_id: T) -> Self {
+    pub fn new() -> Self {
         Self {
             commands_map: HashMap::new(),
             commands: HashSet::new(),
-            command_matcher: Regex::new(r#"^$"#).unwrap(),
-            dm_regex_matcher: Regex::new(r#"^$"#).unwrap(),
-            default_prefix: "".to_string(),
-            client_id: client_id.into(),
             ignore_bots: true,
-            case_insensitive: true,
             dm_enabled: true,
             debug_guild: None,
             hooks: vec![],
         }
-    }
-
-    pub fn case_insensitive(mut self, case_insensitive: bool) -> Self {
-        self.case_insensitive = case_insensitive;
-
-        self
-    }
-
-    pub fn default_prefix<T: ToString>(mut self, new_prefix: T) -> Self {
-        self.default_prefix = new_prefix.to_string();
-
-        self
     }
 
     pub fn ignore_bots(mut self, ignore_bots: bool) -> Self {
@@ -586,68 +563,6 @@ impl RegexFramework {
 
     pub fn debug_guild(mut self, guild_id: Option<GuildId>) -> Self {
         self.debug_guild = guild_id;
-
-        self
-    }
-
-    pub fn build(mut self) -> Self {
-        {
-            let command_names;
-
-            {
-                let mut command_names_vec =
-                    self.commands_map.keys().map(|k| &k[..]).collect::<Vec<&str>>();
-
-                command_names_vec.sort_unstable_by_key(|a| a.len());
-
-                command_names = command_names_vec.join("|");
-            }
-
-            info!("Command names: {}", command_names);
-
-            {
-                let match_string =
-                    r#"^(?:(?:<@ID>\s*)|(?:<@!ID>\s*)|(?P<prefix>\S{1,5}?))(?P<cmd>COMMANDS)(?:$|\s+(?P<args>.*))$"#
-                        .replace("COMMANDS", command_names.as_str())
-                        .replace("ID", self.client_id.to_string().as_str());
-
-                self.command_matcher = RegexBuilder::new(match_string.as_str())
-                    .case_insensitive(self.case_insensitive)
-                    .dot_matches_new_line(true)
-                    .build()
-                    .unwrap();
-            }
-        }
-
-        {
-            let dm_command_names;
-
-            {
-                let mut command_names_vec = self
-                    .commands_map
-                    .iter()
-                    .filter_map(
-                        |(key, command)| if command.supports_dm { Some(&key[..]) } else { None },
-                    )
-                    .collect::<Vec<&str>>();
-
-                command_names_vec.sort_unstable_by_key(|a| a.len());
-
-                dm_command_names = command_names_vec.join("|");
-            }
-
-            {
-                let match_string = r#"^(?:(?:<@ID>\s+)|(?:<@!ID>\s+)|(\$)|())(?P<cmd>COMMANDS)(?:$|\s+(?P<args>.*))$"#
-                    .replace("COMMANDS", dm_command_names.as_str())
-                    .replace("ID", self.client_id.to_string().as_str());
-
-                self.dm_regex_matcher = RegexBuilder::new(match_string.as_str())
-                    .case_insensitive(self.case_insensitive)
-                    .dot_matches_new_line(true)
-                    .build()
-                    .unwrap();
-            }
-        }
 
         self
     }
@@ -721,6 +636,15 @@ impl RegexFramework {
     }
 
     pub async fn execute(&self, ctx: Context, interaction: ApplicationCommandInteraction) {
+        {
+            if let Some(guild_id) = interaction.guild_id {
+                let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+                let _ = sqlx::query!("INSERT IGNORE INTO guilds (guild) VALUES (?)", guild_id.0)
+                    .execute(&pool)
+                    .await;
+            }
+        }
+
         let command = {
             self.commands_map
                 .get(&interaction.data.name)
@@ -748,17 +672,9 @@ impl RegexFramework {
             }
         }
 
-        let user_id = command_invoke.author_id();
-
-        if !ctx.check_executing(user_id).await {
-            ctx.set_executing(user_id).await;
-
-            match command.fun {
-                CommandFnType::Slash(t) => t(&ctx, &mut command_invoke, args).await,
-                CommandFnType::Multi(m) => m(&ctx, &mut command_invoke).await,
-            }
-
-            ctx.drop_executing(user_id).await;
+        match command.fun {
+            CommandFnType::Slash(t) => t(&ctx, &mut command_invoke, args).await,
+            CommandFnType::Multi(m) => m(&ctx, &mut command_invoke).await,
         }
     }
 

@@ -14,17 +14,20 @@ impl CommandMacro {
         let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
         let guild_id = guild_id.into();
 
-        sqlx::query!("SELECT * FROM macro WHERE guild_id = ?", guild_id.0)
-            .fetch_all(&pool)
-            .await
-            .unwrap()
-            .iter()
-            .map(|row| Self {
-                guild_id: GuildId(row.guild_id),
-                name: row.name.clone(),
-                description: row.description.clone(),
-                commands: serde_json::from_str(&row.commands).unwrap(),
-            })
-            .collect::<Vec<Self>>()
+        sqlx::query!(
+            "SELECT * FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?)",
+            guild_id.0
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap()
+        .iter()
+        .map(|row| Self {
+            guild_id,
+            name: row.name.clone(),
+            description: row.description.clone(),
+            commands: serde_json::from_str(&row.commands).unwrap(),
+        })
+        .collect::<Vec<Self>>()
     }
 }

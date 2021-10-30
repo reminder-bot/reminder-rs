@@ -41,7 +41,5 @@ __Other Variables__
 ### Todo List
 
 * Convert aliases to macros
-* Block users from interacting with another users' components
 * Help command
-* Change all db keys to be discord IDs
 * Test everything

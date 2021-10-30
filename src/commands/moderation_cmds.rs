@@ -127,82 +127,6 @@ You may want to use one of the popular timezones below, otherwise click [here](h
     }
 }
 
-#[command("restrict")]
-#[description("Configure which roles can use commands on the bot")]
-#[arg(
-    name = "role",
-    description = "The role to configure command permissions for",
-    kind = "Role",
-    required = true
-)]
-#[supports_dm(false)]
-#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn restrict(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
-    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-    let framework = ctx.data.read().await.get::<RegexFramework>().cloned().unwrap();
-
-    if let Some(OptionValue::Role(role)) = args.get("role") {
-        let restricted_commands =
-            sqlx::query!("SELECT command FROM command_restrictions WHERE role_id = (SELECT id FROM roles WHERE role = ?)", role.0)
-                .fetch_all(&pool)
-                .await
-                .unwrap()
-                .iter()
-                .map(|row| row.command.clone())
-                .collect::<Vec<String>>();
-
-        let restrictable_commands = framework
-            .commands
-            .iter()
-            .filter(|c| c.hooks.contains(&&CHECK_MANAGED_PERMISSIONS_HOOK))
-            .map(|c| c.names[0].to_string())
-            .collect::<Vec<String>>();
-
-        let len = restrictable_commands.len();
-
-        let restrict_pl = ComponentDataModel::Restrict(Restrict {
-            role_id: *role,
-            author_id: invoke.author_id(),
-            guild_id: invoke.guild_id().unwrap(),
-        });
-
-        invoke
-            .respond(
-                ctx.http.clone(),
-                CreateGenericResponse::new()
-                    .content(format!(
-                        "Select the commands to allow to {} from below:",
-                        role.mention()
-                    ))
-                    .components(|c| {
-                        c.create_action_row(|row| {
-                            row.create_select_menu(|select| {
-                                select
-                                    .custom_id(restrict_pl.to_custom_id())
-                                    .options(|options| {
-                                        for command in restrictable_commands {
-                                            options.create_option(|opt| {
-                                                opt.label(&command)
-                                                    .value(&command)
-                                                    .default_selection(
-                                                        restricted_commands.contains(&command),
-                                                    )
-                                            });
-                                        }
-
-                                        options
-                                    })
-                                    .min_values(0)
-                                    .max_values(len as u64)
-                            })
-                        })
-                    }),
-            )
-            .await
-            .unwrap();
-    }
-}
-
 #[command("macro")]
 #[description("Record and replay command sequences")]
 #[subcommand("record")]
@@ -231,37 +155,82 @@ async fn macro_cmd(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptio
 
     match args.subcommand.clone().unwrap().as_str() {
         "record" => {
-            let macro_buffer = ctx.data.read().await.get::<RecordingMacros>().cloned().unwrap();
+            let guild_id = invoke.guild_id().unwrap();
 
-            {
-                let mut lock = macro_buffer.write().await;
+            let name = args.get("name").unwrap().to_string();
 
-                let guild_id = invoke.guild_id().unwrap();
+            let row = sqlx::query!(
+                "SELECT 1 as _e FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?",
+                guild_id.0,
+                name
+            )
+            .fetch_one(&pool)
+            .await;
 
-                lock.insert(
-                    (guild_id, invoke.author_id()),
-                    CommandMacro {
-                        guild_id,
-                        name: args.get("name").unwrap().to_string(),
-                        description: args.get("description").map(|d| d.to_string()),
-                        commands: vec![],
-                    },
-                );
-            }
+            if row.is_ok() {
+                let _ = invoke
+                    .respond(
+                        &ctx,
+                        CreateGenericResponse::new().ephemeral().embed(|e| {
+                            e
+                            .title("Unique Name Required")
+                            .description("A macro already exists under this name. Please select a unique name for your macro.")
+                            .color(*THEME_COLOR)
+                        }),
+                    )
+                    .await;
+            } else {
+                let macro_buffer = ctx.data.read().await.get::<RecordingMacros>().cloned().unwrap();
 
-            let _ = invoke
-                .respond(
-                    &ctx,
-                    CreateGenericResponse::new().ephemeral().embed(|e| {
-                        e
-                            .title("Macro Recording Started")
-                            .description(
+                let okay = {
+                    let mut lock = macro_buffer.write().await;
+
+                    if lock.contains_key(&(guild_id, invoke.author_id())) {
+                        false
+                    } else {
+                        lock.insert(
+                            (guild_id, invoke.author_id()),
+                            CommandMacro {
+                                guild_id,
+                                name,
+                                description: args.get("description").map(|d| d.to_string()),
+                                commands: vec![],
+                            },
+                        );
+                        true
+                    }
+                };
+
+                if okay {
+                    let _ = invoke
+                        .respond(
+                            &ctx,
+                            CreateGenericResponse::new().ephemeral().embed(|e| {
+                                e
+                                .title("Macro Recording Started")
+                                .description(
 "Run up to 5 commands, or type `/macro finish` to stop at any point.
 Any commands ran as part of recording will be inconsequential")
-                            .color(*THEME_COLOR)
-                    }),
-                )
-                .await;
+                                .color(*THEME_COLOR)
+                            }),
+                        )
+                        .await;
+                } else {
+                    let _ = invoke
+                        .respond(
+                            &ctx,
+                            CreateGenericResponse::new().ephemeral().embed(|e| {
+                                e.title("Macro Already Recording")
+                                    .description(
+                                        "You are already recording a macro in this server.
+Please use `/macro finish` to end this recording before starting another.",
+                                    )
+                                    .color(*THEME_COLOR)
+                            }),
+                        )
+                        .await;
+                }
+            }
         }
         "finish" => {
             let key = (invoke.guild_id().unwrap(), invoke.author_id());
@@ -287,7 +256,7 @@ Any commands ran as part of recording will be inconsequential")
                     let json = serde_json::to_string(&command_macro.commands).unwrap();
 
                     sqlx::query!(
-                        "INSERT INTO macro (guild_id, name, description, commands) VALUES (?, ?, ?, ?)",
+                        "INSERT INTO macro (guild_id, name, description, commands) VALUES ((SELECT id FROM guilds WHERE guild = ?), ?, ?, ?)",
                         command_macro.guild_id.0,
                         command_macro.name,
                         command_macro.description,
@@ -326,7 +295,7 @@ Any commands ran as part of recording will be inconsequential")
             let macro_name = args.get("name").unwrap().to_string();
 
             match sqlx::query!(
-                "SELECT commands FROM macro WHERE guild_id = ? AND name = ?",
+                "SELECT commands FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?",
                 invoke.guild_id().unwrap().0,
                 macro_name
             )
@@ -364,7 +333,7 @@ Any commands ran as part of recording will be inconsequential")
             let macro_name = args.get("name").unwrap().to_string();
 
             match sqlx::query!(
-                "SELECT id FROM macro WHERE guild_id = ? AND name = ?",
+                "SELECT id FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?",
                 invoke.guild_id().unwrap().0,
                 macro_name
             )

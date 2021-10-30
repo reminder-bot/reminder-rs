@@ -71,7 +71,7 @@ async fn todo(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
                 let task = task.to_string();
 
                 sqlx::query!(
-                    "INSERT INTO todos (user_id, channel_id, guild_id, value) VALUES (?, ?, ?, ?)",
+                    "INSERT INTO todos (user_id, channel_id, guild_id, value) VALUES ((SELECT id FROM users WHERE user = ?), (SELECT id FROM channels WHERE channel = ?), (SELECT id FROM guilds WHERE guild = ?), ?)",
                     keys.0,
                     keys.1,
                     keys.2,
@@ -88,7 +88,11 @@ async fn todo(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
             None => {
                 let values = sqlx::query!(
                     // fucking braindead mysql use <=> instead of = for null comparison
-                    "SELECT id, value FROM todos WHERE user_id <=> ? AND channel_id <=> ? AND guild_id <=> ?",
+                    "SELECT todos.id, value FROM todos
+INNER JOIN users ON todos.user_id = users.id
+INNER JOIN channels ON todos.channel_id = channels.id
+INNER JOIN guilds ON todos.guild_id = guilds.id
+WHERE users.user <=> ? AND channels.channel <=> ? AND guilds.guild <=> ?",
                     keys.0,
                     keys.1,
                     keys.2,

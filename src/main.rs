@@ -10,7 +10,7 @@ mod hooks;
 mod models;
 mod time_parser;
 
-use std::{collections::HashMap, env, sync::Arc, time::Instant};
+use std::{collections::HashMap, env, sync::Arc};
 
 use chrono_tz::Tz;
 use dotenv::dotenv;
@@ -18,12 +18,11 @@ use log::info;
 use serenity::{
     async_trait,
     client::{bridge::gateway::GatewayIntents, Client},
-    futures::TryFutureExt,
     http::{client::Http, CacheHttp},
     model::{
         channel::GuildChannel,
         gateway::{Activity, Ready},
-        guild::Guild,
+        guild::{Guild, GuildUnavailable},
         id::{GuildId, UserId},
         interactions::Interaction,
     },
@@ -59,53 +58,10 @@ impl TypeMapKey for PopularTimezones {
     type Value = Arc<Vec<Tz>>;
 }
 
-struct CurrentlyExecuting;
-
-impl TypeMapKey for CurrentlyExecuting {
-    type Value = Arc<RwLock<HashMap<UserId, Instant>>>;
-}
-
 struct RecordingMacros;
 
 impl TypeMapKey for RecordingMacros {
     type Value = Arc<RwLock<HashMap<(GuildId, UserId), CommandMacro>>>;
-}
-
-#[async_trait]
-trait LimitExecutors {
-    async fn check_executing(&self, user: UserId) -> bool;
-    async fn set_executing(&self, user: UserId);
-    async fn drop_executing(&self, user: UserId);
-}
-
-#[async_trait]
-impl LimitExecutors for Context {
-    async fn check_executing(&self, user: UserId) -> bool {
-        let currently_executing =
-            self.data.read().await.get::<CurrentlyExecuting>().cloned().unwrap();
-
-        let lock = currently_executing.read().await;
-
-        lock.get(&user).map_or(false, |now| now.elapsed().as_secs() < 4)
-    }
-
-    async fn set_executing(&self, user: UserId) {
-        let currently_executing =
-            self.data.read().await.get::<CurrentlyExecuting>().cloned().unwrap();
-
-        let mut lock = currently_executing.write().await;
-
-        lock.insert(user, Instant::now());
-    }
-
-    async fn drop_executing(&self, user: UserId) {
-        let currently_executing =
-            self.data.read().await.get::<CurrentlyExecuting>().cloned().unwrap();
-
-        let mut lock = currently_executing.write().await;
-
-        lock.remove(&user);
-    }
 }
 
 struct Handler;
@@ -147,6 +103,14 @@ DELETE FROM channels WHERE channel = ?
     async fn guild_create(&self, ctx: Context, guild: Guild, is_new: bool) {
         if is_new {
             let guild_id = guild.id.as_u64().to_owned();
+
+            {
+                let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+
+                let _ = sqlx::query!("INSERT INTO guilds (guild) VALUES (?)", guild_id)
+                    .execute(&pool)
+                    .await;
+            }
 
             if let Ok(token) = env::var("DISCORDBOTS_TOKEN") {
                 let shard_count = ctx.cache.shard_count();
@@ -192,6 +156,13 @@ DELETE FROM channels WHERE channel = ?
         }
     }
 
+    async fn guild_delete(&self, ctx: Context, incomplete: GuildUnavailable, _full: Option<Guild>) {
+        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+        let _ = sqlx::query!("DELETE FROM guilds WHERE guild = ?", incomplete.id.0)
+            .execute(&pool)
+            .await;
+    }
+
     async fn ready(&self, ctx: Context, _: Ready) {
         ctx.set_activity(Activity::watching("for /remind")).await;
     }
@@ -199,10 +170,6 @@ DELETE FROM channels WHERE channel = ?
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         match interaction {
             Interaction::ApplicationCommand(application_command) => {
-                if application_command.guild_id.is_none() {
-                    return;
-                }
-
                 let framework = ctx
                     .data
                     .read()
@@ -232,14 +199,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let http = Http::new_with_token(&token);
 
-    let logged_in_id = http.get_current_user().map_ok(|user| user.id.as_u64().to_owned()).await?;
     let application_id = http.get_current_application_info().await?.id;
 
     let dm_enabled = env::var("DM_ENABLED").map_or(true, |var| var == "1");
 
-    let framework = RegexFramework::new(logged_in_id)
-        .default_prefix("")
-        .case_insensitive(env::var("CASE_INSENSITIVE").map_or(true, |var| var == "1"))
+    let framework = RegexFramework::new()
         .ignore_bots(env::var("IGNORE_BOTS").map_or(true, |var| var == "1"))
         .debug_guild(env::var("DEBUG_GUILD").map_or(None, |g| {
             Some(GuildId(g.parse::<u64>().expect("DEBUG_GUILD must be a guild ID")))
@@ -263,12 +227,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // to-do commands
         .add_command(&todo_cmds::TODO_COMMAND)
         // moderation commands
-        .add_command(&moderation_cmds::RESTRICT_COMMAND)
         .add_command(&moderation_cmds::TIMEZONE_COMMAND)
         .add_command(&moderation_cmds::MACRO_CMD_COMMAND)
         .add_hook(&hooks::CHECK_SELF_PERMISSIONS_HOOK)
-        .add_hook(&hooks::MACRO_CHECK_HOOK)
-        .build();
+        .add_hook(&hooks::MACRO_CHECK_HOOK);
 
     let framework_arc = Arc::new(framework);
 
@@ -305,7 +267,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         let mut data = client.data.write().await;
 
-        data.insert::<CurrentlyExecuting>(Arc::new(RwLock::new(HashMap::new())));
         data.insert::<SQLPool>(pool);
         data.insert::<PopularTimezones>(Arc::new(popular_timezones));
         data.insert::<ReqwestClient>(Arc::new(reqwest::Client::new()));

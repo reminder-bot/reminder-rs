@@ -33,7 +33,6 @@ use crate::{
 #[serde(tag = "type")]
 #[repr(u8)]
 pub enum ComponentDataModel {
-    Restrict(Restrict),
     LookPager(LookPager),
     DelPager(DelPager),
     TodoPager(TodoPager),
@@ -57,54 +56,6 @@ impl ComponentDataModel {
 
     pub async fn act(&self, ctx: &Context, component: MessageComponentInteraction) {
         match self {
-            ComponentDataModel::Restrict(restrict) => {
-                if restrict.author_id == component.user.id {
-                    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
-                    let _ = sqlx::query!(
-                        "
-INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id FROM guilds WHERE guild = ?))
-                        ",
-                        restrict.role_id.0,
-                        restrict.guild_id.0
-                    )
-                    .execute(&pool)
-                    .await;
-
-                    for command in &component.data.values {
-                        let _ = sqlx::query!(
-                            "INSERT INTO command_restrictions (role_id, command) VALUES ((SELECT id FROM roles WHERE role = ?), ?)",
-                            restrict.role_id.0,
-                            command
-                        )
-                        .execute(&pool)
-                        .await;
-                    }
-
-                    component
-                        .create_interaction_response(&ctx, |r| {
-                            r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                .interaction_response_data(|response| response
-                                    .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
-                                    .content("Role permissions updated")
-                                )
-                        })
-                        .await
-                        .unwrap();
-                } else {
-                    let _ = component
-                        .create_interaction_response(&ctx, |r| {
-                            r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                .interaction_response_data(|d| {
-                                    d.flags(
-                                        InteractionApplicationCommandCallbackDataFlags::EPHEMERAL,
-                                    )
-                                    .content("Only the user who performed the command can use these components")
-                                })
-                        })
-                        .await;
-                }
-            }
             ComponentDataModel::LookPager(pager) => {
                 let flags = pager.flags;
 
@@ -313,13 +264,6 @@ INSERT IGNORE INTO roles (role, name, guild_id) VALUES (?, \"Role\", (SELECT id 
             }
         }
     }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Restrict {
-    pub role_id: RoleId,
-    pub author_id: UserId,
-    pub guild_id: GuildId,
 }
 
 #[derive(Serialize, Deserialize)]

@@ -56,8 +56,7 @@ CREATE TABLE reminders_new (
     -- , CONSTRAINT interval_enabled_mutin CHECK (`enabled` = 1 OR `interval` IS NULL)
     # disallow an expiry time if interval is unspecified
     -- , CONSTRAINT interval_expires_mutin CHECK (`expires` IS NULL OR `interval` IS NOT NULL)
-)
-COLLATE utf8mb4_unicode_ci;
+);
 
 # import data from other tables
 INSERT INTO reminders_new (
