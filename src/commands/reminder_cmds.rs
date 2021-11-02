@@ -17,7 +17,7 @@ use crate::{
     },
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, REGEX_CHANNEL_USER, SELECT_MAX_ENTRIES, THEME_COLOR},
     framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
-    hooks::{CHECK_GUILD_PERMISSIONS_HOOK, CHECK_MANAGED_PERMISSIONS_HOOK},
+    hooks::CHECK_GUILD_PERMISSIONS_HOOK,
     models::{
         reminder::{
             builder::{MultiReminderBuilder, ReminderScope},
@@ -258,7 +258,7 @@ async fn nudge(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) 
     kind = "Boolean",
     required = false
 )]
-#[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
+#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
 async fn look(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
@@ -351,7 +351,7 @@ async fn look(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
 
 #[command("del")]
 #[description("Delete reminders")]
-#[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
+#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
 async fn delete(ctx: &Context, invoke: &mut CommandInvoke, _args: CommandOptions) {
     let timezone = ctx.timezone(invoke.author_id()).await;
 
@@ -497,7 +497,7 @@ pub fn show_delete_page(
 #[subcommand("delete")]
 #[description("Delete a timer")]
 #[arg(name = "name", description = "Name of the timer to delete", kind = "String", required = true)]
-#[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
+#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
 async fn timer(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     fn time_difference(start_time: NaiveDateTime) -> String {
         let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
@@ -663,7 +663,7 @@ DELETE FROM timers WHERE owner = ? AND name = ?
     kind = "Boolean",
     required = false
 )]
-#[hook(CHECK_MANAGED_PERMISSIONS_HOOK)]
+#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
 async fn remind(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     invoke.defer(&ctx).await;
 

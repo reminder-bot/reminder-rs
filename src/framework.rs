@@ -156,13 +156,6 @@ impl CommandInvoke {
         }
     }
 
-    pub fn member(&self) -> Option<Member> {
-        match &self.model {
-            InvokeModel::Slash(i) => i.member.clone(),
-            InvokeModel::Component(i) => i.member.clone(),
-        }
-    }
-
     pub async fn respond(
         &mut self,
         http: impl AsRef<Http>,
