@@ -9,16 +9,13 @@ use std::{
 use log::info;
 use serde::{Deserialize, Serialize};
 use serenity::{
-    async_trait,
     builder::{CreateApplicationCommands, CreateComponents, CreateEmbed},
     cache::Cache,
     client::Context,
-    framework::Framework,
     futures::prelude::future::BoxFuture,
     http::Http,
     model::{
-        channel::Message,
-        guild::{Guild, Member},
+        guild::Guild,
         id::{ChannelId, GuildId, RoleId, UserId},
         interactions::{
             application_command::{
@@ -688,9 +685,4 @@ impl RegexFramework {
             CommandFnType::Multi(m) => m(&ctx, command_invoke).await,
         }
     }
-}
-
-#[async_trait]
-impl Framework for RegexFramework {
-    async fn dispatch(&self, _ctx: Context, _msg: Message) {}
 }

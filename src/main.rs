@@ -244,7 +244,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         })
         .application_id(application_id.0)
         .event_handler(Handler)
-        .framework_arc(framework_arc.clone())
         .await
         .expect("Error occurred creating client");
 
