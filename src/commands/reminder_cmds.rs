@@ -11,6 +11,7 @@ use regex_command_attr::command;
 use serenity::{builder::CreateEmbed, client::Context, model::channel::Channel};
 
 use crate::{
+    check_subscription,
     component_models::{
         pager::{DelPager, LookPager, Pager},
         ComponentDataModel, DelSelector,
@@ -665,6 +666,17 @@ DELETE FROM timers WHERE owner = ? AND name = ?
 )]
 #[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
 async fn remind(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
+    if args.get("repeat").is_none() && args.get("expires").is_some() {
+        let _ = invoke
+            .respond(
+                &ctx,
+                CreateGenericResponse::new().content("`expires` can only be used with `repeat`"),
+            )
+            .await;
+
+        return;
+    }
+
     invoke.defer(&ctx).await;
 
     let user_data = ctx.user_data(invoke.author_id()).await.unwrap();
@@ -698,22 +710,33 @@ async fn remind(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions)
                 }
             };
 
-            // todo gate this on patreon subscription
-            let interval = args
-                .get("repeat")
-                .map(|arg| {
-                    humantime::parse_duration(&arg.to_string())
-                        .or_else(|_| humantime::parse_duration(&format!("1 {}", arg.to_string())))
-                        .map(|duration| duration.as_secs() as i64)
-                        .ok()
-                })
-                .flatten();
-            let expires = {
-                if let Some(arg) = args.get("expires") {
-                    natural_parser(&arg.to_string(), &timezone.to_string()).await
+            let (interval, expires) = if let Some(repeat) = args.get("repeat") {
+                if check_subscription(&ctx, invoke.author_id()).await {
+                    (
+                        humantime::parse_duration(&repeat.to_string())
+                            .or_else(|_| {
+                                humantime::parse_duration(&format!("1 {}", repeat.to_string()))
+                            })
+                            .map(|duration| duration.as_secs() as i64)
+                            .ok(),
+                        {
+                            if let Some(arg) = args.get("expires") {
+                                natural_parser(&arg.to_string(), &timezone.to_string()).await
+                            } else {
+                                None
+                            }
+                        },
+                    )
                 } else {
-                    None
+                    let _ = invoke
+                        .respond(&ctx, CreateGenericResponse::new()
+                            .content("`repeat` is only available to Patreon subscribers or self-hosted users")
+                        ).await;
+
+                    return;
                 }
+            } else {
+                (None, None)
             };
 
             let mut builder = MultiReminderBuilder::new(ctx, invoke.guild_id())
