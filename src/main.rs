@@ -235,13 +235,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let framework_arc = Arc::new(framework);
 
     let mut client = Client::builder(&token)
-        .intents(if dm_enabled {
-            GatewayIntents::GUILD_MESSAGES
-                | GatewayIntents::GUILDS
-                | GatewayIntents::DIRECT_MESSAGES
-        } else {
-            GatewayIntents::GUILD_MESSAGES | GatewayIntents::GUILDS
-        })
+        .intents(GatewayIntents::GUILDS)
         .application_id(application_id.0)
         .event_handler(Handler)
         .await
