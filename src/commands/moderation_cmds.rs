@@ -7,7 +7,7 @@ use serenity::{
     model::{
         channel::Message,
         id::{ChannelId, MessageId, RoleId},
-        interactions::ButtonStyle,
+        interactions::message_component::ButtonStyle,
     },
 };
 
@@ -46,13 +46,11 @@ async fn blacklist(ctx: &Context, msg: &Message, args: String) {
 
     let (channel, local) = match capture_opt {
         Some(capture) => (
-            ChannelId(capture.as_str().parse::<u64>().unwrap())
-                .to_channel_cached(&ctx)
-                .await,
+            ChannelId(capture.as_str().parse::<u64>().unwrap()).to_channel_cached(&ctx),
             false,
         ),
 
-        None => (msg.channel(&ctx).await, true),
+        None => (msg.channel(&ctx).await.ok(), true),
     };
 
     let mut channel_data = ChannelData::from_channel(channel.unwrap(), &pool)
@@ -394,7 +392,7 @@ async fn restrict(ctx: &Context, msg: &Message, args: String) {
     let (pool, lm) = get_ctx_data(&ctx).await;
 
     let language = UserData::language_of(&msg.author, &pool).await;
-    let guild_data = GuildData::from_guild(msg.guild(&ctx).await.unwrap(), &pool)
+    let guild_data = GuildData::from_guild(msg.guild(&ctx).unwrap(), &pool)
         .await
         .unwrap();
 
@@ -411,7 +409,7 @@ async fn restrict(ctx: &Context, msg: &Message, args: String) {
                 .unwrap(),
         );
 
-        let role_opt = role_id.to_role_cached(&ctx).await;
+        let role_opt = role_id.to_role_cached(&ctx);
 
         if let Some(role) = role_opt {
             let _ = sqlx::query!(
@@ -624,7 +622,7 @@ SELECT command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHER
                                 .get::<FrameworkCtx>().cloned().expect("Could not get FrameworkCtx from data");
 
                             let mut new_msg = msg.clone();
-                            new_msg.content = format!("<@{}> {}", &ctx.cache.current_user_id().await, row.command);
+                            new_msg.content = format!("<@{}> {}", &ctx.cache.current_user_id(), row.command);
                             new_msg.id = MessageId(0);
 
                             framework.dispatch(ctx.clone(), new_msg).await;

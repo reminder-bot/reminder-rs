@@ -8,7 +8,6 @@ use serenity::{
         channel::{Channel, GuildChannel},
         guild::Guild,
         id::{ChannelId, GuildId, UserId},
-        interactions::ButtonStyle,
         misc::Mentionable,
         webhook::Webhook,
     },
@@ -26,7 +25,7 @@ use crate::{
     models::{
         channel_data::ChannelData,
         guild_data::GuildData,
-        reminder::{LookFlags, Reminder, ReminderAction},
+        reminder::{LookFlags, Reminder},
         timer::Timer,
         user_data::UserData,
         CtxGuildData,
@@ -153,7 +152,7 @@ async fn offset(ctx: &Context, msg: &Message, args: String) {
         let parser = TimeParser::new(&args, user_data.timezone());
 
         if let Ok(displacement) = parser.displacement() {
-            if let Some(guild) = msg.guild(&ctx).await {
+            if let Some(guild) = msg.guild(&ctx) {
                 let guild_data = GuildData::from_guild(guild, &pool).await.unwrap();
 
                 sqlx::query!(
@@ -162,7 +161,7 @@ UPDATE reminders
     INNER JOIN `channels`
         ON `channels`.id = reminders.channel_id
     SET
-        reminders.`utc_time` = reminders.`utc_time` + ?
+        reminders.`utc_time` = DATE_ADD(reminders.`utc_time`, INTERVAL ? SECOND)
     WHERE channels.guild_id = ?
                     ",
                     displacement,
@@ -174,7 +173,7 @@ UPDATE reminders
             } else {
                 sqlx::query!(
                     "
-UPDATE reminders SET `utc_time` = `utc_time` + ? WHERE reminders.channel_id = ?
+UPDATE reminders SET `utc_time` = DATE_ADD(`utc_time`, INTERVAL ? SECOND) WHERE reminders.channel_id = ?
                     ",
                     displacement,
                     user_data.dm_channel
@@ -263,7 +262,7 @@ async fn look(ctx: &Context, msg: &Message, args: String) {
 
     let flags = LookFlags::from_string(&args);
 
-    let channel_opt = msg.channel_id.to_channel_cached(&ctx).await;
+    let channel_opt = msg.channel_id.to_channel_cached(&ctx);
 
     let channel_id = if let Some(Channel::Guild(channel)) = channel_opt {
         if Some(channel.guild_id) == msg.guild_id {
@@ -1028,22 +1027,6 @@ async fn remind_command(ctx: &Context, msg: &Message, args: String, command: Rem
                                         .description(format!("{}\n\n{}", success_part, error_part))
                                         .color(*THEME_COLOR)
                                     })
-                                    .components(|c| {
-                                        if ok_locations.len() == 1 {
-                                            c.create_action_row(|r| {
-                                                r.create_button(|b| {
-                                                    b.style(ButtonStyle::Danger)
-                                                        .label("Delete")
-                                                        .custom_id(ok_reminders[0].signed_action(
-                                                            msg.author.id,
-                                                            ReminderAction::Delete,
-                                                        ))
-                                                })
-                                            });
-                                        }
-
-                                        c
-                                    })
                                 })
                                 .await;
                         }
@@ -1321,7 +1304,7 @@ async fn create_reminder<'a, U: Into<u64>, T: TryInto<i64>>(
     let user_id = user_id.into();
 
     if let Some(g_id) = guild_id {
-        if let Some(guild) = g_id.to_guild_cached(&ctx).await {
+        if let Some(guild) = g_id.to_guild_cached(&ctx) {
             content.substitute(guild);
         }
     }

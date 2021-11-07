@@ -19,7 +19,7 @@ use serenity::{
         channel::Message,
         guild::{Guild, GuildUnavailable},
         id::{GuildId, UserId},
-        interactions::{Interaction, InteractionData, InteractionType},
+        interactions::Interaction,
     },
     prelude::{Context, EventHandler, TypeMapKey},
     utils::shard_id,
@@ -46,7 +46,6 @@ use dashmap::DashMap;
 
 use tokio::sync::RwLock;
 
-use crate::models::reminder::{Reminder, ReminderAction};
 use chrono::Utc;
 use chrono_tz::Tz;
 use serenity::model::prelude::{
@@ -187,13 +186,12 @@ DELETE FROM channels WHERE channel = ?
             }
 
             if let Ok(token) = env::var("DISCORDBOTS_TOKEN") {
-                let shard_count = ctx.cache.shard_count().await;
+                let shard_count = ctx.cache.shard_count();
                 let current_shard_id = shard_id(guild_id, shard_count);
 
                 let guild_count = ctx
                     .cache
                     .guilds()
-                    .await
                     .iter()
                     .filter(|g| shard_id(g.as_u64().to_owned(), shard_count) == current_shard_id)
                     .count() as u64;
@@ -215,7 +213,7 @@ DELETE FROM channels WHERE channel = ?
                     .post(
                         format!(
                             "https://top.gg/api/bots/{}/stats",
-                            ctx.cache.current_user_id().await.as_u64()
+                            ctx.cache.current_user_id().as_u64()
                         )
                         .as_str(),
                     )
@@ -268,12 +266,11 @@ DELETE FROM guilds WHERE guild = ?
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         let (pool, lm) = get_ctx_data(&&ctx).await;
 
-        match interaction.kind {
-            InteractionType::ApplicationCommand => {}
-            InteractionType::MessageComponent => {
-                if let (Some(InteractionData::MessageComponent(data)), Some(member)) =
-                    (interaction.clone().data, interaction.clone().member)
-                {
+        match interaction {
+            Interaction::MessageComponent(interaction) => {
+                if let Some(member) = interaction.clone().member {
+                    let data = interaction.data.clone();
+
                     if data.custom_id.starts_with("timezone:") {
                         let mut user_data = UserData::from_user(&member.user, &ctx, &pool)
                             .await
@@ -341,40 +338,6 @@ DELETE FROM guilds WHERE guild = ?
                                         })
                                 })
                                 .await;
-                        }
-                    } else {
-                        match Reminder::from_interaction(&ctx, member.user.id, data.custom_id).await
-                        {
-                            Ok((reminder, action)) => {
-                                let response = match action {
-                                    ReminderAction::Delete => {
-                                        reminder.delete(&ctx).await;
-                                        "Reminder has been deleted"
-                                    }
-                                };
-
-                                let _ = interaction
-                                    .create_interaction_response(&ctx, |r| {
-                                        r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                            .interaction_response_data(|d| d
-                                                .content(response)
-                                                .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
-                                            )
-                                    })
-                                    .await;
-                            }
-
-                            Err(ie) => {
-                                let _ = interaction
-                                    .create_interaction_response(&ctx, |r| {
-                                        r.kind(InteractionResponseType::ChannelMessageWithSource)
-                                            .interaction_response_data(|d| d
-                                                .content(ie.to_string())
-                                                .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
-                                            )
-                                    })
-                                    .await;
-                            }
                         }
                     }
                 }
@@ -574,7 +537,7 @@ pub async fn check_subscription_on_message(
     msg: &Message,
 ) -> bool {
     check_subscription(&cache_http, &msg.author).await
-        || if let Some(guild) = msg.guild(&cache_http).await {
+        || if let Some(guild) = msg.guild(&cache_http) {
             check_subscription(&cache_http, guild.owner_id).await
         } else {
             false

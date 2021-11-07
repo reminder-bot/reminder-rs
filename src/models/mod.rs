@@ -31,7 +31,7 @@ impl CtxGuildData for Context {
     ) -> Result<Arc<RwLock<GuildData>>, sqlx::Error> {
         let guild_id = guild_id.into();
 
-        let guild = guild_id.to_guild_cached(&self.cache).await.unwrap();
+        let guild = guild_id.to_guild_cached(&self.cache).unwrap();
 
         let guild_cache = self
             .data

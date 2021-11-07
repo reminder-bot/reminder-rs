@@ -312,10 +312,10 @@ impl Framework for RegexFramework {
             guild: &Guild,
             channel: &GuildChannel,
         ) -> SerenityResult<PermissionCheck> {
-            let user_id = ctx.cache.current_user_id().await;
+            let user_id = ctx.cache.current_user_id();
 
             let guild_perms = guild.member_permissions(&ctx, user_id).await?;
-            let channel_perms = channel.permissions_for_user(ctx, user_id).await?;
+            let channel_perms = channel.permissions_for_user(ctx, user_id)?;
 
             let basic_perms = channel_perms.send_messages();
 
@@ -347,8 +347,8 @@ impl Framework for RegexFramework {
         if (msg.author.bot && self.ignore_bots) || msg.content.is_empty() {
         } else {
             // Guild Command
-            if let (Some(guild), Some(Channel::Guild(channel))) =
-                (msg.guild(&ctx).await, msg.channel(&ctx).await)
+            if let (Some(guild), Ok(Channel::Guild(channel))) =
+                (msg.guild(&ctx), msg.channel(&ctx).await)
             {
                 let data = ctx.data.read().await;
 
