@@ -8,6 +8,26 @@ use crate::{
 };
 
 #[check]
+pub async fn guild_only(
+    ctx: &Context,
+    invoke: &mut CommandInvoke,
+    _args: &CommandOptions,
+) -> HookResult {
+    if invoke.guild_id().is_some() {
+        HookResult::Continue
+    } else {
+        let _ = invoke
+            .respond(
+                &ctx,
+                CreateGenericResponse::new().content("This command can only be used in servers"),
+            )
+            .await;
+
+        HookResult::Halt
+    }
+}
+
+#[check]
 pub async fn macro_check(
     ctx: &Context,
     invoke: &mut CommandInvoke,

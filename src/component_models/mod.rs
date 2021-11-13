@@ -48,7 +48,9 @@ impl ComponentDataModel {
     }
 
     pub fn from_custom_id(data: &String) -> Self {
-        let buf = base64::decode(data).unwrap();
+        let buf = base64::decode(data)
+            .map_err(|e| format!("Could not decode `custom_id' {}: {:?}", data, e))
+            .unwrap();
         let cur = Cursor::new(buf);
         rmp_serde::from_read(cur).unwrap()
     }

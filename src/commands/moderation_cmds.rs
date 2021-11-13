@@ -8,7 +8,7 @@ use crate::{
     component_models::pager::{MacroPager, Pager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
     framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
-    hooks::CHECK_GUILD_PERMISSIONS_HOOK,
+    hooks::{CHECK_GUILD_PERMISSIONS_HOOK, GUILD_ONLY_HOOK},
     models::{command_macro::CommandMacro, CtxData},
     PopularTimezones, RecordingMacros, RegexFramework, SQLPool,
 };
@@ -146,6 +146,7 @@ You may want to use one of the popular timezones below, otherwise click [here](h
 #[description("Delete a recorded macro")]
 #[arg(name = "name", description = "Name of the macro to delete", kind = "String", required = true)]
 #[supports_dm(false)]
+#[hook(GUILD_ONLY_HOOK)]
 #[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
 async fn macro_cmd(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
