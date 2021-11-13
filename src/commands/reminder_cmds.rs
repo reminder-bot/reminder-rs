@@ -11,7 +11,7 @@ use regex_command_attr::command;
 use serenity::{builder::CreateEmbed, client::Context, model::channel::Channel};
 
 use crate::{
-    check_subscription,
+    check_guild_subscription, check_subscription,
     component_models::{
         pager::{DelPager, LookPager, Pager},
         ComponentDataModel, DelSelector,
@@ -164,7 +164,7 @@ async fn offset(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions)
 UPDATE reminders
 INNER JOIN
     `channels` ON `channels`.id = reminders.channel_id
-SET reminders.`utc_time` = reminders.`utc_time` + ?
+SET reminders.`utc_time` = DATE_ADD(reminders.`utc_time`, INTERVAL ? SECOND)
 WHERE FIND_IN_SET(channels.`channel`, ?)",
                 combined_time,
                 channels
@@ -647,7 +647,7 @@ DELETE FROM timers WHERE owner = ? AND name = ?
     required = false
 )]
 #[arg(
-    name = "repeat",
+    name = "interval",
     description = "(Patreon only) Time to wait before repeating the reminder. Leave blank for one-shot reminder",
     kind = "String",
     required = false
@@ -666,11 +666,11 @@ DELETE FROM timers WHERE owner = ? AND name = ?
 )]
 #[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
 async fn remind(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
-    if args.get("repeat").is_none() && args.get("expires").is_some() {
+    if args.get("interval").is_none() && args.get("expires").is_some() {
         let _ = invoke
             .respond(
                 &ctx,
-                CreateGenericResponse::new().content("`expires` can only be used with `repeat`"),
+                CreateGenericResponse::new().content("`expires` can only be used with `interval`"),
             )
             .await;
 
@@ -704,14 +704,21 @@ async fn remind(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions)
                     .unwrap_or_default();
 
                 if list.is_empty() {
-                    vec![ReminderScope::Channel(invoke.channel_id().0)]
+                    if invoke.guild_id().is_some() {
+                        vec![ReminderScope::Channel(invoke.channel_id().0)]
+                    } else {
+                        vec![ReminderScope::User(invoke.author_id().0)]
+                    }
                 } else {
                     list
                 }
             };
 
-            let (interval, expires) = if let Some(repeat) = args.get("repeat") {
-                if check_subscription(&ctx, invoke.author_id()).await {
+            let (interval, expires) = if let Some(repeat) = args.get("interval") {
+                if check_subscription(&ctx, invoke.author_id()).await
+                    || (invoke.guild_id().is_some()
+                        && check_guild_subscription(&ctx, invoke.guild_id().unwrap()).await)
+                {
                     (
                         humantime::parse_duration(&repeat.to_string())
                             .or_else(|_| {
@@ -739,28 +746,48 @@ async fn remind(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions)
                 (None, None)
             };
 
-            let mut builder = MultiReminderBuilder::new(ctx, invoke.guild_id())
-                .author(user_data)
-                .content(content)
-                .time(time)
-                .expires(expires)
-                .interval(interval);
+            if interval.is_none() && args.get("interval").is_some() {
+                let _ = invoke
+                    .respond(
+                        &ctx,
+                        CreateGenericResponse::new().content(
+                            "Repeat interval could not be processed. Try and format the repetition similar to `1 hour` or `4 days`",
+                        ),
+                    )
+                    .await;
+            } else if expires.is_none() && args.get("expires").is_some() {
+                let _ = invoke
+                    .respond(
+                        &ctx,
+                        CreateGenericResponse::new().content(
+                            "Expiry time failed to process. Please make it as clear as possible",
+                        ),
+                    )
+                    .await;
+            } else {
+                let mut builder = MultiReminderBuilder::new(ctx, invoke.guild_id())
+                    .author(user_data)
+                    .content(content)
+                    .time(time)
+                    .expires(expires)
+                    .interval(interval);
 
-            builder.set_scopes(scopes);
+                builder.set_scopes(scopes);
 
-            let (errors, successes) = builder.build().await;
+                let (errors, successes) = builder.build().await;
 
-            let embed = create_response(successes, errors, time);
+                let embed = create_response(successes, errors, time);
 
-            let _ = invoke
-                .respond(
-                    &ctx,
-                    CreateGenericResponse::new().embed(|c| {
-                        *c = embed;
-                        c
-                    }),
-                )
-                .await;
+                let _ = invoke
+                    .respond(
+                        &ctx,
+                        CreateGenericResponse::new().embed(|c| {
+                            *c = embed;
+                            c
+                        }),
+                    )
+                    .await;
+            }
         }
         None => {
             let _ = invoke

@@ -23,9 +23,51 @@ fn footer(ctx: &Context) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut CreateEm
 }
 
 #[command]
+#[description("Get an overview of the bot commands")]
+async fn help(ctx: &Context, invoke: &mut CommandInvoke) {
+    let footer = footer(ctx);
+
+    let _ = invoke
+        .respond(
+            &ctx,
+            CreateGenericResponse::new().embed(|e| {
+                e.title("Help")
+                    .color(*THEME_COLOR)
+                    .description(
+                        "__Info Commands__
+`/help` `/info` `/donate` `/dashboard` `/clock`
+*run these commands with no options*
+
+__Reminder Commands__
+`/remind` - Create a new reminder that will send a message at a certain time
+`/timer` - Start a timer from now, that will count time passed. Also used to view and remove timers
+
+__Reminder Management__
+`/del` - Delete reminders
+`/look` - View reminders
+`/pause` - Pause all reminders on the channel
+`/offset` - Move all reminders by a certain time
+`/nudge` - Move all new reminders on this channel by a certain time
+
+__Todo Commands__
+`/todo` - Add, view and manage the server, channel or user todo lists
+
+__Setup Commands__
+`/timezone` - Set your timezone (necessary for `/remind` to work properly)
+
+__Advanced Commands__
+`/macro` - Record and replay command sequences
+                    ",
+                    )
+                    .footer(footer)
+            }),
+        )
+        .await;
+}
+
+#[command]
 #[aliases("invite")]
 #[description("Get information about the bot")]
-#[group("Info")]
 async fn info(ctx: &Context, invoke: &mut CommandInvoke) {
     let footer = footer(ctx);
 

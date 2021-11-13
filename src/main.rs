@@ -68,18 +68,6 @@ struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
-    async fn cache_ready(&self, ctx: Context, _: Vec<GuildId>) {
-        let framework = ctx
-            .data
-            .read()
-            .await
-            .get::<RegexFramework>()
-            .cloned()
-            .expect("RegexFramework not found in context");
-
-        framework.build_slash(ctx).await;
-    }
-
     async fn channel_delete(&self, ctx: Context, channel: &GuildChannel) {
         let pool = ctx
             .data
@@ -210,7 +198,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }))
         .dm_enabled(dm_enabled)
         // info commands
-        //.add_command("help", &info_cmds::HELP_COMMAND)
+        .add_command(&info_cmds::HELP_COMMAND)
         .add_command(&info_cmds::INFO_COMMAND)
         .add_command(&info_cmds::DONATE_COMMAND)
         .add_command(&info_cmds::DASHBOARD_COMMAND)
@@ -267,6 +255,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         data.insert::<RecordingMacros>(Arc::new(RwLock::new(HashMap::new())));
     }
 
+    framework_arc.build_slash(&client.cache_and_http.http).await;
+
     if let Ok((Some(lower), Some(upper))) = env::var("SHARD_RANGE").map(|sr| {
         let mut split =
             sr.split(',').map(|val| val.parse::<u64>().expect("SHARD_RANGE not an integer"));
@@ -314,5 +304,18 @@ pub async fn check_subscription(cache_http: impl CacheHttp, user_id: impl Into<U
         false
     } else {
         true
+    }
+}
+
+pub async fn check_guild_subscription(
+    cache_http: impl CacheHttp,
+    guild_id: impl Into<GuildId>,
+) -> bool {
+    if let Some(guild) = cache_http.cache().unwrap().guild(guild_id) {
+        let owner = guild.owner_id;
+
+        check_subscription(&cache_http, owner).await
+    } else {
+        false
     }
 }

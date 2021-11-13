@@ -33,7 +33,6 @@ __Other Variables__
 * `IGNORE_BOTS` - default `1`, if `1`, Reminder Bot will ignore all other bots
 * `PYTHON_LOCATION` - default `venv/bin/python3`. Can be changed if your Python executable is located somewhere else
 * `THEME_COLOR` - default `8fb677`. Specifies the hex value of the color to use on info message embeds 
-* `CASE_INSENSITIVE` - default `1`, if `1`, commands will be treated with case insensitivity (so both `$help` and `$HELP` will work)
 * `SHARD_COUNT` - default `None`, accepts the number of shards that are being ran
 * `SHARD_RANGE` - default `None`, if `SHARD_COUNT` is specified, specifies what range of shards to start on this process 
 * `DM_ENABLED` - default `1`, if `1`, Reminder Bot will respond to direct messages
