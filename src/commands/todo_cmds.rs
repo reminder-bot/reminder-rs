@@ -274,7 +274,12 @@ DELETE FROM todos WHERE user_id = (SELECT id FROM users WHERE user = ?) AND guil
 
                 self.add(extra, pool).await.unwrap();
 
-                let _ = msg.channel_id.say(&ctx, content).await;
+                let _ = msg
+                    .channel_id
+                    .send_message(&ctx, |m| {
+                        m.content(content).allowed_mentions(|m| m.empty_parse())
+                    })
+                    .await;
             }
 
             SubCommand::Remove => {
@@ -286,7 +291,12 @@ DELETE FROM todos WHERE user_id = (SELECT id FROM users WHERE user = ?) AND guil
                             1,
                         );
 
-                        let _ = msg.channel_id.say(&ctx, content).await;
+                        let _ = msg
+                            .channel_id
+                            .send_message(&ctx, |m| {
+                                m.content(content).allowed_mentions(|m| m.empty_parse())
+                            })
+                            .await;
                     } else {
                         let _ = msg
                             .channel_id
