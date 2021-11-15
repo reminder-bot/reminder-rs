@@ -162,6 +162,7 @@ impl CommandInvoke {
             InvokeModel::Slash(i) => {
                 if self.already_responded {
                     i.create_followup_message(http, |d| {
+                        d.allowed_mentions(|m| m.empty_parse());
                         d.content(generic_response.content);
 
                         if let Some(embed) = generic_response.embed {
@@ -181,6 +182,7 @@ impl CommandInvoke {
                     .map(|_| ())
                 } else if self.deferred {
                     i.edit_original_interaction_response(http, |d| {
+                        d.allowed_mentions(|m| m.empty_parse());
                         d.content(generic_response.content);
 
                         if let Some(embed) = generic_response.embed {
@@ -202,6 +204,7 @@ impl CommandInvoke {
                     i.create_interaction_response(http, |r| {
                         r.kind(InteractionResponseType::ChannelMessageWithSource)
                             .interaction_response_data(|d| {
+                                d.allowed_mentions(|m| m.empty_parse());
                                 d.content(generic_response.content);
 
                                 if let Some(embed) = generic_response.embed {
@@ -225,6 +228,7 @@ impl CommandInvoke {
             InvokeModel::Component(i) => i
                 .create_interaction_response(http, |r| {
                     r.kind(InteractionResponseType::UpdateMessage).interaction_response_data(|d| {
+                        d.allowed_mentions(|m| m.empty_parse());
                         d.content(generic_response.content);
 
                         if let Some(embed) = generic_response.embed {

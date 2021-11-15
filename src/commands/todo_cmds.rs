@@ -8,6 +8,7 @@ use crate::{
     },
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, SELECT_MAX_ENTRIES, THEME_COLOR},
     framework::{CommandInvoke, CommandOptions, CreateGenericResponse},
+    hooks::CHECK_GUILD_PERMISSIONS_HOOK,
     SQLPool,
 };
 
@@ -49,6 +50,7 @@ use crate::{
 )]
 #[subcommand("view")]
 #[description("View and remove from your personal todo list")]
+#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
 async fn todo(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
     if invoke.guild_id().is_none() && args.subcommand_group != Some("user".to_string()) {
         let _ = invoke
@@ -106,7 +108,7 @@ WHERE users.user <=> ? AND channels.channel <=> ? AND guilds.guild <=> ?",
 
                 let resp = show_todo_page(&values, 0, keys.0, keys.1, keys.2);
 
-                let _ = invoke.respond(&ctx, resp).await;
+                invoke.respond(&ctx, resp).await.unwrap();
             }
         }
     }
@@ -193,33 +195,43 @@ pub fn show_todo_page(
         "Server"
     };
 
-    let todo_selector =
-        ComponentDataModel::TodoSelector(TodoSelector { page, user_id, channel_id, guild_id });
-
-    CreateGenericResponse::new()
-        .embed(|e| {
+    if todo_ids.is_empty() {
+        CreateGenericResponse::new().embed(|e| {
             e.title(format!("{} Todo List", title))
-                .description(display)
+                .description("Todo List Empty!")
                 .footer(|f| f.text(format!("Page {} of {}", page + 1, pages)))
                 .color(*THEME_COLOR)
         })
-        .components(|comp| {
-            pager.create_button_row(pages, comp);
+    } else {
+        let todo_selector =
+            ComponentDataModel::TodoSelector(TodoSelector { page, user_id, channel_id, guild_id });
 
-            comp.create_action_row(|row| {
-                row.create_select_menu(|menu| {
-                    menu.custom_id(todo_selector.to_custom_id()).options(|opt| {
-                        for (count, (id, disp)) in todo_ids.iter().zip(&display_vec).enumerate() {
-                            opt.create_option(|o| {
-                                o.label(format!("Mark {} complete", count + first_num))
-                                    .value(id)
-                                    .description(disp.split_once(" ").unwrap_or(("", "")).1)
-                            });
-                        }
+        CreateGenericResponse::new()
+            .embed(|e| {
+                e.title(format!("{} Todo List", title))
+                    .description(display)
+                    .footer(|f| f.text(format!("Page {} of {}", page + 1, pages)))
+                    .color(*THEME_COLOR)
+            })
+            .components(|comp| {
+                pager.create_button_row(pages, comp);
 
-                        opt
+                comp.create_action_row(|row| {
+                    row.create_select_menu(|menu| {
+                        menu.custom_id(todo_selector.to_custom_id()).options(|opt| {
+                            for (count, (id, disp)) in todo_ids.iter().zip(&display_vec).enumerate()
+                            {
+                                opt.create_option(|o| {
+                                    o.label(format!("Mark {} complete", count + first_num))
+                                        .value(id)
+                                        .description(disp.split_once(" ").unwrap_or(("", "")).1)
+                                });
+                            }
+
+                            opt
+                        })
                     })
                 })
             })
-        })
+    }
 }
