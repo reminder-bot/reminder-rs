@@ -164,19 +164,46 @@ impl ComponentDataModel {
                 if Some(component.user.id.0) == pager.user_id || pager.user_id.is_none() {
                     let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
-                    let values = sqlx::query!(
-                    // fucking braindead mysql use <=> instead of = for null comparison
-                    "SELECT id, value FROM todos WHERE user_id <=> ? AND channel_id <=> ? AND guild_id <=> ?",
-                    pager.user_id,
-                    pager.channel_id,
-                    pager.guild_id,
-                )
-                .fetch_all(&pool)
-                .await
-                .unwrap()
-                .iter()
-                .map(|row| (row.id as usize, row.value.clone()))
-                .collect::<Vec<(usize, String)>>();
+                    let values = if let Some(uid) = pager.user_id {
+                        sqlx::query!(
+                            "SELECT todos.id, value FROM todos
+    INNER JOIN users ON todos.user_id = users.id
+    WHERE users.user = ?",
+                            uid,
+                        )
+                        .fetch_all(&pool)
+                        .await
+                        .unwrap()
+                        .iter()
+                        .map(|row| (row.id as usize, row.value.clone()))
+                        .collect::<Vec<(usize, String)>>()
+                    } else if let Some(cid) = pager.channel_id {
+                        sqlx::query!(
+                            "SELECT todos.id, value FROM todos
+    INNER JOIN channels ON todos.channel_id = channels.id
+    WHERE channels.channel = ?",
+                            cid,
+                        )
+                        .fetch_all(&pool)
+                        .await
+                        .unwrap()
+                        .iter()
+                        .map(|row| (row.id as usize, row.value.clone()))
+                        .collect::<Vec<(usize, String)>>()
+                    } else {
+                        sqlx::query!(
+                            "SELECT todos.id, value FROM todos
+    INNER JOIN guilds ON todos.guild_id = guilds.id
+    WHERE guilds.guild = ?",
+                            pager.guild_id,
+                        )
+                        .fetch_all(&pool)
+                        .await
+                        .unwrap()
+                        .iter()
+                        .map(|row| (row.id as usize, row.value.clone()))
+                        .collect::<Vec<(usize, String)>>()
+                    };
 
                     let max_pages = max_todo_page(&values);
 

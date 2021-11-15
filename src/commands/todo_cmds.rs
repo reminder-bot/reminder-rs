@@ -88,23 +88,46 @@ async fn todo(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
                     .await;
             }
             None => {
-                let values = sqlx::query!(
-                    // fucking braindead mysql use <=> instead of = for null comparison
-                    "SELECT todos.id, value FROM todos
+                let values = if let Some(uid) = keys.0 {
+                    sqlx::query!(
+                        "SELECT todos.id, value FROM todos
 INNER JOIN users ON todos.user_id = users.id
+WHERE users.user = ?",
+                        uid,
+                    )
+                    .fetch_all(&pool)
+                    .await
+                    .unwrap()
+                    .iter()
+                    .map(|row| (row.id as usize, row.value.clone()))
+                    .collect::<Vec<(usize, String)>>()
+                } else if let Some(cid) = keys.1 {
+                    sqlx::query!(
+                        "SELECT todos.id, value FROM todos
 INNER JOIN channels ON todos.channel_id = channels.id
+WHERE channels.channel = ?",
+                        cid,
+                    )
+                    .fetch_all(&pool)
+                    .await
+                    .unwrap()
+                    .iter()
+                    .map(|row| (row.id as usize, row.value.clone()))
+                    .collect::<Vec<(usize, String)>>()
+                } else {
+                    sqlx::query!(
+                        "SELECT todos.id, value FROM todos
 INNER JOIN guilds ON todos.guild_id = guilds.id
-WHERE users.user <=> ? AND channels.channel <=> ? AND guilds.guild <=> ?",
-                    keys.0,
-                    keys.1,
-                    keys.2,
-                )
-                .fetch_all(&pool)
-                .await
-                .unwrap()
-                .iter()
-                .map(|row| (row.id as usize, row.value.clone()))
-                .collect::<Vec<(usize, String)>>();
+WHERE guilds.guild = ?",
+                        keys.2,
+                    )
+                    .fetch_all(&pool)
+                    .await
+                    .unwrap()
+                    .iter()
+                    .map(|row| (row.id as usize, row.value.clone()))
+                    .collect::<Vec<(usize, String)>>()
+                };
 
                 let resp = show_todo_page(&values, 0, keys.0, keys.1, keys.2);
 
