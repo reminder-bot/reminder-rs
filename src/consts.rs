@@ -23,8 +23,6 @@ lazy_static! {
         env!("WEBHOOK_AVATAR"),
     )
         .into();
-    pub static ref REGEX_CHANNEL: Regex = Regex::new(r#"^\s*<#(\d+)>\s*$"#).unwrap();
-    pub static ref REGEX_ROLE: Regex = Regex::new(r#"<@&(\d+)>"#).unwrap();
     pub static ref REGEX_CHANNEL_USER: Regex = Regex::new(r#"\s*<(#|@)(?:!)?(\d+)>\s*"#).unwrap();
     pub static ref SUBSCRIPTION_ROLES: HashSet<u64> = HashSet::from_iter(
         env::var("SUBSCRIPTION_ROLES")

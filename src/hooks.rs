@@ -1,4 +1,3 @@
-use log::warn;
 use regex_command_attr::check;
 use serenity::{client::Context, model::channel::Channel};
 
@@ -81,7 +80,7 @@ pub async fn check_self_permissions(
 
         let manage_webhooks =
             guild.member_permissions(&ctx, user_id).await.map_or(false, |p| p.manage_webhooks());
-        let (send_messages, embed_links) = invoke
+        let (view_channel, send_messages, embed_links) = invoke
             .channel_id()
             .to_channel_cached(&ctx)
             .map(|c| {
@@ -92,29 +91,30 @@ pub async fn check_self_permissions(
                 }
             })
             .flatten()
-            .map_or((false, false), |p| (p.send_messages(), p.embed_links()));
+            .map_or((false, false, false), |p| {
+                (p.read_messages(), p.send_messages(), p.embed_links())
+            });
 
         if manage_webhooks && send_messages && embed_links {
             HookResult::Continue
         } else {
-            if send_messages {
-                let _ = invoke
-                    .respond(
-                        &ctx,
-                        CreateGenericResponse::new().content(format!(
-                            "Please ensure the bot has the correct permissions:
+            let _ = invoke
+                .respond(
+                    &ctx,
+                    CreateGenericResponse::new().content(format!(
+                        "Please ensure the bot has the correct permissions:
 
-✅     **Send Message**
+{}     **View Channel**
+{}     **Send Message**
 {}     **Embed Links**
 {}     **Manage Webhooks**",
-                            if manage_webhooks { "✅" } else { "❌" },
-                            if embed_links { "✅" } else { "❌" },
-                        )),
-                    )
-                    .await;
-            } else {
-                warn!("Missing permissions in guild {}", guild.id);
-            }
+                        if view_channel { "✅" } else { "❌" },
+                        if send_messages { "✅" } else { "❌" },
+                        if manage_webhooks { "✅" } else { "❌" },
+                        if embed_links { "✅" } else { "❌" },
+                    )),
+                )
+                .await;
 
             HookResult::Halt
         }
