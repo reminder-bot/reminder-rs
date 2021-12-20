@@ -41,4 +41,3 @@ __Other Variables__
 
 * Convert aliases to macros
 * Help command
-* Test everything

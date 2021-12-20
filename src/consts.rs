@@ -14,6 +14,11 @@ use regex::Regex;
 use serenity::http::AttachmentType;
 
 lazy_static! {
+    pub static ref REMIND_INTERVAL: u64 = env::var("REMIND_INTERVAL")
+        .map(|inner| inner.parse::<u64>().ok())
+        .ok()
+        .flatten()
+        .unwrap_or(10);
     pub static ref DEFAULT_AVATAR: AttachmentType<'static> = (
         include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
