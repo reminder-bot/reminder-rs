@@ -46,7 +46,7 @@ use tokio::{
 use crate::{
     commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
     component_models::ComponentDataModel,
-    consts::{CNC_GUILD, SUBSCRIPTION_ROLES, THEME_COLOR, REMIND_INTERVAL},
+    consts::{CNC_GUILD, REMIND_INTERVAL, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
     models::command_macro::CommandMacro,
 };
@@ -96,12 +96,9 @@ impl EventHandler for Handler {
                     let reminders = sender::Reminder::fetch_reminders(&pool).await;
 
                     if reminders.len() > 0 {
-                        info!("=================================================");
-                        info!("Preparing to send {} reminders:", reminders.len());
+                        info!("Preparing to send {} reminders.", reminders.len());
 
                         for reminder in reminders {
-                            info!("Sending {:?}", reminder);
-
                             reminder.send(pool.clone(), ctx.clone()).await;
                         }
                     }

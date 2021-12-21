@@ -1,20 +1,22 @@
 use chrono::Duration;
+use chrono_tz::Tz;
 use log::{error, info, warn};
+use num_integer::Integer;
+use regex::{Captures, Regex};
 use serenity::{
     builder::CreateEmbed,
     http::{CacheHttp, Http, StatusCode},
-    model::{channel::Embed as SerenityEmbed, id::ChannelId, webhook::Webhook},
+    model::{
+        channel::{Channel, Embed as SerenityEmbed},
+        id::ChannelId,
+        webhook::Webhook,
+    },
     Error, Result,
 };
 use sqlx::{
     types::chrono::{NaiveDateTime, Utc},
     MySqlPool,
 };
-
-use chrono_tz::Tz;
-use num_integer::Integer;
-use regex::{Captures, Regex};
-use serenity::model::channel::Channel;
 
 lazy_static! {
     pub static ref TIMEFROM_REGEX: Regex =
@@ -29,12 +31,8 @@ fn fmt_displacement(format: &str, seconds: u64) -> String {
     let mut hours: u64 = 0;
     let mut minutes: u64 = 0;
 
-    for (rep, time_type, div) in [
-        ("%d", &mut days, 86400),
-        ("%h", &mut hours, 3600),
-        ("%m", &mut minutes, 60),
-    ]
-    .iter_mut()
+    for (rep, time_type, div) in
+        [("%d", &mut days, 86400), ("%h", &mut hours, 3600), ("%m", &mut minutes, 60)].iter_mut()
     {
         if format.contains(*rep) {
             let (divided, new_seconds) = seconds.div_rem(&div);
@@ -441,12 +439,8 @@ DELETE FROM reminders WHERE `id` = ?
                         Err(e) => Err(e),
                     }
                 }
-                Err(e) => {
-                    Err(e)
-                }
-                _ => {
-                    Err(Error::Other("Channel not of valid type"))
-                }
+                Err(e) => Err(e),
+                _ => Err(Error::Other("Channel not of valid type")),
             }
         }
 
@@ -518,7 +512,8 @@ UPDATE `channels` SET paused = 0, paused_until = NULL WHERE `channel` = ?
             let result = if let (Some(webhook_id), Some(webhook_token)) =
                 (self.webhook_id, &self.webhook_token)
             {
-                let webhook_res = cache_http.http().get_webhook_with_token(webhook_id, webhook_token).await;
+                let webhook_res =
+                    cache_http.http().get_webhook_with_token(webhook_id, webhook_token).await;
 
                 if let Ok(webhook) = webhook_res {
                     send_to_webhook(cache_http, &self, webhook, embed).await
