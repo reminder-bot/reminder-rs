@@ -16,7 +16,8 @@ use sqlx::MySqlPool;
 
 use crate::{
     consts,
-    consts::{MAX_TIME, MIN_INTERVAL},
+    consts::{DAY, MAX_TIME, MIN_INTERVAL},
+    interval_parser::Interval,
     models::{
         channel_data::ChannelData,
         reminder::{content::Content, errors::ReminderError, helper::generate_uid, Reminder},
@@ -54,7 +55,8 @@ pub struct ReminderBuilder {
     channel: u32,
     utc_time: NaiveDateTime,
     timezone: String,
-    interval: Option<i64>,
+    interval_secs: Option<i64>,
+    interval_months: Option<i64>,
     expires: Option<NaiveDateTime>,
     content: String,
     tts: bool,
@@ -86,7 +88,8 @@ INSERT INTO reminders (
     `channel_id`,
     `utc_time`,
     `timezone`,
-    `interval`,
+    `interval_seconds`,
+    `interval_months`,
     `expires`,
     `content`,
     `tts`,
@@ -104,6 +107,7 @@ INSERT INTO reminders (
     ?,
     ?,
     ?,
+    ?,
     ?
 )
             ",
@@ -111,7 +115,8 @@ INSERT INTO reminders (
                         self.channel,
                         utc_time,
                         self.timezone,
-                        self.interval,
+                        self.interval_secs,
+                        self.interval_months,
                         self.expires,
                         self.content,
                         self.tts,
@@ -136,7 +141,7 @@ pub struct MultiReminderBuilder<'a> {
     scopes: Vec<ReminderScope>,
     utc_time: NaiveDateTime,
     timezone: Tz,
-    interval: Option<i64>,
+    interval: Option<Interval>,
     expires: Option<NaiveDateTime>,
     content: Content,
     set_by: Option<u32>,
@@ -157,6 +162,12 @@ impl<'a> MultiReminderBuilder<'a> {
             ctx,
             guild_id,
         }
+    }
+
+    pub fn timezone(mut self, timezone: Tz) -> Self {
+        self.timezone = timezone;
+
+        self
     }
 
     pub fn content(mut self, content: Content) -> Self {
@@ -188,7 +199,7 @@ impl<'a> MultiReminderBuilder<'a> {
         self
     }
 
-    pub fn interval(mut self, interval: Option<i64>) -> Self {
+    pub fn interval(mut self, interval: Option<Interval>) -> Self {
         self.interval = interval;
 
         self
@@ -205,9 +216,10 @@ impl<'a> MultiReminderBuilder<'a> {
 
         let mut ok_locs = HashSet::new();
 
-        if self.interval.map_or(false, |i| (i as i64) < *MIN_INTERVAL) {
+        if self.interval.map_or(false, |i| ((i.sec + i.month * 30 * DAY) as i64) < *MIN_INTERVAL) {
             errors.insert(ReminderError::ShortInterval);
-        } else if self.interval.map_or(false, |i| (i as i64) > *MAX_TIME) {
+        } else if self.interval.map_or(false, |i| ((i.sec + i.month * 30 * DAY) as i64) > *MAX_TIME)
+        {
             errors.insert(ReminderError::LongInterval);
         } else {
             for scope in self.scopes {
@@ -275,7 +287,8 @@ impl<'a> MultiReminderBuilder<'a> {
                             channel: c,
                             utc_time: self.utc_time,
                             timezone: self.timezone.to_string(),
-                            interval: self.interval,
+                            interval_secs: self.interval.map(|i| i.sec as i64),
+                            interval_months: self.interval.map(|i| i.month as i64),
                             expires: self.expires,
                             content: self.content.content.clone(),
                             tts: self.content.tts,

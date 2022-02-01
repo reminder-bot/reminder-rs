@@ -11,7 +11,7 @@ const THEME_COLOR_FALLBACK: u32 = 0x8fb677;
 use std::{collections::HashSet, env, iter::FromIterator};
 
 use regex::Regex;
-use serenity::http::AttachmentType;
+use serenity::model::prelude::AttachmentType;
 
 lazy_static! {
     pub static ref DEFAULT_AVATAR: AttachmentType<'static> = (

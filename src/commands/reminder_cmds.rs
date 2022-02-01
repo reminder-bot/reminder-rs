@@ -19,6 +19,7 @@ use crate::{
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, REGEX_CHANNEL_USER, SELECT_MAX_ENTRIES, THEME_COLOR},
     framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
     hooks::CHECK_GUILD_PERMISSIONS_HOOK,
+    interval_parser::parse_duration,
     models::{
         reminder::{
             builder::{MultiReminderBuilder, ReminderScope},
@@ -720,11 +721,8 @@ async fn remind(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions)
                         && check_guild_subscription(&ctx, invoke.guild_id().unwrap()).await)
                 {
                     (
-                        humantime::parse_duration(&repeat.to_string())
-                            .or_else(|_| {
-                                humantime::parse_duration(&format!("1 {}", repeat.to_string()))
-                            })
-                            .map(|duration| duration.as_secs() as i64)
+                        parse_duration(&repeat.to_string())
+                            .or_else(|_| parse_duration(&format!("1 {}", repeat.to_string())))
                             .ok(),
                         {
                             if let Some(arg) = args.get("expires") {
@@ -769,6 +767,7 @@ async fn remind(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions)
                     .author(user_data)
                     .content(content)
                     .time(time)
+                    .timezone(timezone)
                     .expires(expires)
                     .interval(interval);
 

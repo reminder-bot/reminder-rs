@@ -13,10 +13,7 @@ use serenity::{
 use sqlx::MySqlPool;
 
 use crate::{
-    models::reminder::{
-        helper::longhand_displacement,
-        look_flags::{LookFlags, TimeDisplayType},
-    },
+    models::reminder::look_flags::{LookFlags, TimeDisplayType},
     SQLPool,
 };
 
@@ -26,7 +23,8 @@ pub struct Reminder {
     pub uid: String,
     pub channel: u64,
     pub utc_time: NaiveDateTime,
-    pub interval: Option<u32>,
+    pub interval_seconds: Option<u32>,
+    pub interval_months: Option<u32>,
     pub expires: Option<NaiveDateTime>,
     pub enabled: bool,
     pub content: String,
@@ -44,7 +42,8 @@ SELECT
     reminders.uid,
     channels.channel,
     reminders.utc_time,
-    reminders.interval,
+    reminders.interval_seconds,
+    reminders.interval_months,
     reminders.expires,
     reminders.enabled,
     reminders.content,
@@ -88,7 +87,8 @@ SELECT
     reminders.uid,
     channels.channel,
     reminders.utc_time,
-    reminders.interval,
+    reminders.interval_seconds,
+    reminders.interval_months,
     reminders.expires,
     reminders.enabled,
     reminders.content,
@@ -141,7 +141,8 @@ SELECT
     reminders.uid,
     channels.channel,
     reminders.utc_time,
-    reminders.interval,
+    reminders.interval_seconds,
+    reminders.interval_months,
     reminders.expires,
     reminders.enabled,
     reminders.content,
@@ -173,7 +174,8 @@ SELECT
     reminders.uid,
     channels.channel,
     reminders.utc_time,
-    reminders.interval,
+    reminders.interval_seconds,
+    reminders.interval_months,
     reminders.expires,
     reminders.enabled,
     reminders.content,
@@ -206,7 +208,8 @@ SELECT
     reminders.uid,
     channels.channel,
     reminders.utc_time,
-    reminders.interval,
+    reminders.interval_seconds,
+    reminders.interval_months,
     reminders.expires,
     reminders.enabled,
     reminders.content,
@@ -264,12 +267,11 @@ WHERE
             TimeDisplayType::Relative => format!("<t:{}:R>", self.utc_time.timestamp()),
         };
 
-        if let Some(interval) = self.interval {
+        if self.interval_seconds.is_some() || self.interval_months.is_some() {
             format!(
-                "'{}' *occurs next at* **{}**, repeating every **{}** (set by {})",
+                "'{}' *occurs next at* **{}**, repeating (set by {})",
                 self.display_content(),
                 time_display,
-                longhand_displacement(interval as u64),
                 self.set_by.map(|i| format!("<@{}>", i)).unwrap_or_else(|| "unknown".to_string())
             )
         } else {

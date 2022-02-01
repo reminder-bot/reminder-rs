@@ -7,6 +7,7 @@ mod component_models;
 mod consts;
 mod framework;
 mod hooks;
+mod interval_parser;
 mod models;
 mod time_parser;
 
@@ -17,12 +18,12 @@ use dotenv::dotenv;
 use log::info;
 use serenity::{
     async_trait,
-    client::{bridge::gateway::GatewayIntents, Client},
+    client::Client,
     http::{client::Http, CacheHttp},
     model::{
         channel::GuildChannel,
-        gateway::{Activity, Ready},
-        guild::{Guild, GuildUnavailable},
+        gateway::{Activity, GatewayIntents, Ready},
+        guild::{Guild, UnavailableGuild},
         id::{GuildId, UserId},
         interactions::Interaction,
     },
@@ -144,7 +145,7 @@ DELETE FROM channels WHERE channel = ?
         }
     }
 
-    async fn guild_delete(&self, ctx: Context, incomplete: GuildUnavailable, _full: Option<Guild>) {
+    async fn guild_delete(&self, ctx: Context, incomplete: UnavailableGuild, _full: Option<Guild>) {
         let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
         let _ = sqlx::query!("DELETE FROM guilds WHERE guild = ?", incomplete.id.0)
             .execute(&pool)
