@@ -1216,7 +1216,7 @@ dependencies = [
 
 [[package]]
 name = "reminder_rs"
-version = "1.6.0-beta2"
+version = "1.6.0-beta3"
 dependencies = [
  "base64",
  "chrono",
