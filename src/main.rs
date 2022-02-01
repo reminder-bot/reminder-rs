@@ -9,9 +9,17 @@ mod framework;
 mod hooks;
 mod interval_parser;
 mod models;
+mod sender;
 mod time_parser;
 
-use std::{collections::HashMap, env, sync::Arc};
+use std::{
+    collections::HashMap,
+    env,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use chrono_tz::Tz;
 use dotenv::dotenv;
@@ -31,12 +39,15 @@ use serenity::{
     utils::shard_id,
 };
 use sqlx::mysql::MySqlPool;
-use tokio::sync::RwLock;
+use tokio::{
+    sync::RwLock,
+    time::{Duration, Instant},
+};
 
 use crate::{
     commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
     component_models::ComponentDataModel,
-    consts::{CNC_GUILD, SUBSCRIPTION_ROLES, THEME_COLOR},
+    consts::{CNC_GUILD, REMIND_INTERVAL, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
     models::command_macro::CommandMacro,
 };
@@ -65,10 +76,42 @@ impl TypeMapKey for RecordingMacros {
     type Value = Arc<RwLock<HashMap<(GuildId, UserId), CommandMacro>>>;
 }
 
-struct Handler;
+struct Handler {
+    is_loop_running: AtomicBool,
+}
 
 #[async_trait]
 impl EventHandler for Handler {
+    async fn cache_ready(&self, ctx_base: Context, _guilds: Vec<GuildId>) {
+        info!("Cache Ready!");
+        info!("Preparing to send reminders");
+
+        if !self.is_loop_running.load(Ordering::Relaxed) {
+            let ctx = ctx_base.clone();
+
+            tokio::spawn(async move {
+                let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+
+                loop {
+                    let sleep_until = Instant::now() + Duration::from_secs(*REMIND_INTERVAL);
+                    let reminders = sender::Reminder::fetch_reminders(&pool).await;
+
+                    if reminders.len() > 0 {
+                        info!("Preparing to send {} reminders.", reminders.len());
+
+                        for reminder in reminders {
+                            reminder.send(pool.clone(), ctx.clone()).await;
+                        }
+                    }
+
+                    tokio::time::sleep_until(sleep_until).await;
+                }
+            });
+
+            self.is_loop_running.swap(true, Ordering::Relaxed);
+        }
+    }
+
     async fn channel_delete(&self, ctx: Context, channel: &GuildChannel) {
         let pool = ctx
             .data
@@ -186,9 +229,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment");
 
-    let http = Http::new_with_token(&token);
+    let application_id = {
+        let http = Http::new_with_token(&token);
 
-    let application_id = http.get_current_application_info().await?.id;
+        http.get_current_application_info().await?.id
+    };
 
     let dm_enabled = env::var("DM_ENABLED").map_or(true, |var| var == "1");
 
@@ -226,7 +271,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut client = Client::builder(&token)
         .intents(GatewayIntents::GUILDS)
         .application_id(application_id.0)
-        .event_handler(Handler)
+        .event_handler(Handler { is_loop_running: AtomicBool::from(false) })
         .await
         .expect("Error occurred creating client");
 
