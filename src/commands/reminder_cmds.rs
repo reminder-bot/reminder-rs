@@ -323,7 +323,7 @@ async fn look(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
             .iter()
             .map(|reminder| reminder.display(&flags, &timezone))
             .fold(0, |t, r| t + r.len())
-            .div_ceil(&EMBED_DESCRIPTION_MAX_LENGTH);
+            .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
 
         let pager = LookPager::new(flags, timezone);
 

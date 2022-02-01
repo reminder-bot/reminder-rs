@@ -257,7 +257,8 @@ pub struct Reminder {
     timezone: String,
     restartable: bool,
     expires: Option<NaiveDateTime>,
-    interval: Option<u32>,
+    interval_seconds: Option<u32>,
+    interval_months: Option<u32>,
 
     avatar: Option<String>,
     username: Option<String>,
@@ -289,7 +290,8 @@ SELECT
     reminders.`timezone` AS timezone,
     reminders.`restartable` AS restartable,
     reminders.`expires` AS expires,
-    reminders.`interval` AS 'interval',
+    reminders.`interval_seconds` AS 'interval_seconds',
+    reminders.`interval_months` AS 'interval_months',
 
     reminders.`avatar` AS avatar,
     reminders.`username` AS username
@@ -327,12 +329,27 @@ UPDATE channels SET webhook_id = NULL, webhook_token = NULL WHERE channel = ?
     }
 
     async fn refresh(&self, pool: &MySqlPool) {
-        if let Some(interval) = self.interval {
+        if self.interval_seconds.is_some() || self.interval_months.is_some() {
             let now = Utc::now().naive_local();
             let mut updated_reminder_time = self.utc_time;
 
-            while updated_reminder_time < now {
-                updated_reminder_time += Duration::seconds(interval as i64);
+            if let Some(interval) = self.interval_months {
+                let row = sqlx::query!(
+                    "SELECT DATE_ADD(?, INTERVAL ? MONTH) AS new_time",
+                    updated_reminder_time,
+                    interval
+                )
+                .fetch_one(pool)
+                .await
+                .unwrap();
+
+                updated_reminder_time = row.new_time.unwrap();
+            }
+
+            if let Some(interval) = self.interval_seconds {
+                while updated_reminder_time < now {
+                    updated_reminder_time += Duration::seconds(interval as i64);
+                }
             }
 
             if self.expires.map_or(false, |expires| {
