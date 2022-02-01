@@ -24,7 +24,7 @@ async fn macro_check(ctx: Context<'_>) -> bool {
                     if let Some(command_macro) = lock.get_mut(&(guild_id, ctx.author().id)) {
                         if command_macro.commands.len() >= MACRO_MAX_COMMANDS {
                             let _ = ctx.send(|m| {
-                                m.ephemeral(false).content(
+                                m.ephemeral(true).content(
                                     "5 commands already recorded. Please use `/macro finish` to end recording.",
                                 )
                             })
@@ -36,7 +36,7 @@ async fn macro_check(ctx: Context<'_>) -> bool {
                             command_macro.commands.push(command_options);
 
                             let _ = ctx
-                                .send(|m| m.ephemeral(false).content("Command recorded to macro"))
+                                .send(|m| m.ephemeral(true).content("Command recorded to macro"))
                                 .await;
                         }
 

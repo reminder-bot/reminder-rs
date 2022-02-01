@@ -6,8 +6,11 @@ use poise::CreateReply;
 use crate::{
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
     hooks::guild_only,
-    models::{command_macro::CommandMacro, CtxData},
-    Context, Error,
+    models::{
+        command_macro::{CommandMacro, CommandOptions},
+        CtxData,
+    },
+    Context, Data, Error,
 };
 
 async fn timezone_autocomplete(ctx: Context<'_>, partial: String) -> Vec<String> {
@@ -303,6 +306,26 @@ pub async fn list_macro(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
+fn find_command<'a>(
+    commands: &'a [poise::Command<Data, Error>],
+    searching_name: &str,
+    command_options: &CommandOptions,
+) -> Option<&'a poise::Command<Data, Error>> {
+    commands.iter().find_map(|cmd| {
+        if searching_name != cmd.name {
+            None
+        } else {
+            if let Some(subgroup) = &command_options.subcommand_group {
+                find_command(&cmd.subcommands, &subgroup, &command_options)
+            } else if let Some(subcommand) = &command_options.subcommand {
+                find_command(&cmd.subcommands, &subcommand, &command_options)
+            } else {
+                Some(cmd)
+            }
+        }
+    })
+}
+
 /// Run a recorded macro
 #[poise::command(slash_command, rename = "run", check = "guild_only")]
 pub async fn run_macro(
@@ -323,7 +346,24 @@ SELECT commands FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild =
         Ok(row) => {
             ctx.defer().await?;
 
-            // TODO TODO TODO!!!!!!!! RUN COMMAND FROM MACRO
+            let commands: Vec<CommandOptions> = serde_json::from_str(&row.commands)?;
+
+            for command in commands {
+                let cmd =
+                    find_command(&ctx.framework().options().commands, &command.command, &command);
+
+                if let Some(cmd) = cmd {
+                    let mut executing_ctx = ctx.clone();
+
+                    executing_ctx.command = cmd;
+                } else {
+                    ctx.send(|m| {
+                        m.ephemeral(true)
+                            .content(format!("Command `{}` not found", command.command))
+                    })
+                    .await?;
+                }
+            }
         }
 
         Err(sqlx::Error::RowNotFound) => {

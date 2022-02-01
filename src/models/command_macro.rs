@@ -1,13 +1,21 @@
 use std::collections::HashMap;
 
-use poise::serenity::model::{
-    id::{ChannelId, GuildId, RoleId, UserId},
-    interactions::application_command::{
-        ApplicationCommandInteraction, ApplicationCommandInteractionDataOption,
-        ApplicationCommandOptionType,
+use poise::{
+    serenity::{
+        json::Value,
+        model::{
+            id::{ChannelId, GuildId, RoleId, UserId},
+            interactions::application_command::{
+                ApplicationCommandInteraction, ApplicationCommandInteractionData,
+                ApplicationCommandInteractionDataOption, ApplicationCommandOptionType,
+                ApplicationCommandType,
+            },
+        },
     },
+    ApplicationCommandOrAutocompleteInteraction,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Number;
 use sqlx::Executor;
 
 use crate::Database;
@@ -90,6 +98,32 @@ impl OptionValue {
             OptionValue::Number(n) => n.to_string(),
         }
     }
+
+    fn as_value(&self) -> Value {
+        match self {
+            OptionValue::String(s) => Value::String(s.to_string()),
+            OptionValue::Integer(i) => Value::Number(i.to_owned().into()),
+            OptionValue::Boolean(b) => Value::Bool(b.to_owned()),
+            OptionValue::User(u) => Value::String(u.to_string()),
+            OptionValue::Channel(c) => Value::String(c.to_string()),
+            OptionValue::Role(r) => Value::String(r.to_string()),
+            OptionValue::Mentionable(m) => Value::String(m.to_string()),
+            OptionValue::Number(n) => Value::Number(Number::from_f64(n.to_owned()).unwrap()),
+        }
+    }
+
+    fn kind(&self) -> ApplicationCommandOptionType {
+        match self {
+            OptionValue::String(_) => ApplicationCommandOptionType::String,
+            OptionValue::Integer(_) => ApplicationCommandOptionType::Integer,
+            OptionValue::Boolean(_) => ApplicationCommandOptionType::Boolean,
+            OptionValue::User(_) => ApplicationCommandOptionType::User,
+            OptionValue::Channel(_) => ApplicationCommandOptionType::Channel,
+            OptionValue::Role(_) => ApplicationCommandOptionType::Role,
+            OptionValue::Mentionable(_) => ApplicationCommandOptionType::Mentionable,
+            OptionValue::Number(_) => ApplicationCommandOptionType::Number,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -98,6 +132,27 @@ pub struct CommandOptions {
     pub subcommand: Option<String>,
     pub subcommand_group: Option<String>,
     pub options: HashMap<String, OptionValue>,
+}
+
+impl Into<ApplicationCommandInteractionData> for CommandOptions {
+    fn into(self) -> ApplicationCommandInteractionData {
+        ApplicationCommandInteractionData {
+            name: self.command,
+            kind: ApplicationCommandType::ChatInput,
+            options: self
+                .options
+                .iter()
+                .map(|(name, value)| ApplicationCommandInteractionDataOption {
+                    name: name.to_string(),
+                    value: Some(value.as_value()),
+                    kind: value.kind(),
+                    options: vec![],
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
 }
 
 impl CommandOptions {
