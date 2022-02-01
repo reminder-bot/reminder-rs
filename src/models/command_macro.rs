@@ -1,6 +1,16 @@
-use serenity::{client::Context, model::id::GuildId};
+use std::collections::HashMap;
 
-use crate::{framework::CommandOptions, SQLPool};
+use poise::serenity::model::{
+    id::{ChannelId, GuildId, RoleId, UserId},
+    interactions::application_command::{
+        ApplicationCommandInteraction, ApplicationCommandInteractionDataOption,
+        ApplicationCommandOptionType,
+    },
+};
+use serde::{Deserialize, Serialize};
+use sqlx::Executor;
+
+use crate::Database;
 
 pub struct CommandMacro {
     pub guild_id: GuildId,
@@ -10,15 +20,17 @@ pub struct CommandMacro {
 }
 
 impl CommandMacro {
-    pub async fn from_guild(ctx: &Context, guild_id: impl Into<GuildId>) -> Vec<Self> {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+    pub async fn from_guild(
+        db_pool: impl Executor<'_, Database = Database>,
+        guild_id: impl Into<GuildId>,
+    ) -> Vec<Self> {
         let guild_id = guild_id.into();
 
         sqlx::query!(
             "SELECT * FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?)",
             guild_id.0
         )
-        .fetch_all(&pool)
+        .fetch_all(db_pool)
         .await
         .unwrap()
         .iter()
@@ -29,5 +41,172 @@ impl CommandMacro {
             commands: serde_json::from_str(&row.commands).unwrap(),
         })
         .collect::<Vec<Self>>()
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub enum OptionValue {
+    String(String),
+    Integer(i64),
+    Boolean(bool),
+    User(UserId),
+    Channel(ChannelId),
+    Role(RoleId),
+    Mentionable(u64),
+    Number(f64),
+}
+
+impl OptionValue {
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            OptionValue::Integer(i) => Some(*i),
+            _ => None,
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            OptionValue::Boolean(b) => Some(*b),
+            _ => None,
+        }
+    }
+
+    pub fn as_channel_id(&self) -> Option<ChannelId> {
+        match self {
+            OptionValue::Channel(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            OptionValue::String(s) => s.to_string(),
+            OptionValue::Integer(i) => i.to_string(),
+            OptionValue::Boolean(b) => b.to_string(),
+            OptionValue::User(u) => u.to_string(),
+            OptionValue::Channel(c) => c.to_string(),
+            OptionValue::Role(r) => r.to_string(),
+            OptionValue::Mentionable(m) => m.to_string(),
+            OptionValue::Number(n) => n.to_string(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct CommandOptions {
+    pub command: String,
+    pub subcommand: Option<String>,
+    pub subcommand_group: Option<String>,
+    pub options: HashMap<String, OptionValue>,
+}
+
+impl CommandOptions {
+    pub fn new(command: impl ToString) -> Self {
+        Self {
+            command: command.to_string(),
+            subcommand: None,
+            subcommand_group: None,
+            options: Default::default(),
+        }
+    }
+
+    pub fn populate(&mut self, interaction: &ApplicationCommandInteraction) {
+        fn match_option(
+            option: ApplicationCommandInteractionDataOption,
+            cmd_opts: &mut CommandOptions,
+        ) {
+            match option.kind {
+                ApplicationCommandOptionType::SubCommand => {
+                    cmd_opts.subcommand = Some(option.name);
+
+                    for opt in option.options {
+                        match_option(opt, cmd_opts);
+                    }
+                }
+                ApplicationCommandOptionType::SubCommandGroup => {
+                    cmd_opts.subcommand_group = Some(option.name);
+
+                    for opt in option.options {
+                        match_option(opt, cmd_opts);
+                    }
+                }
+                ApplicationCommandOptionType::String => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::String(option.value.unwrap().as_str().unwrap().to_string()),
+                    );
+                }
+                ApplicationCommandOptionType::Integer => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::Integer(option.value.map(|m| m.as_i64()).flatten().unwrap()),
+                    );
+                }
+                ApplicationCommandOptionType::Boolean => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::Boolean(option.value.map(|m| m.as_bool()).flatten().unwrap()),
+                    );
+                }
+                ApplicationCommandOptionType::User => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::User(UserId(
+                            option
+                                .value
+                                .map(|m| m.as_str().map(|s| s.parse::<u64>().ok()))
+                                .flatten()
+                                .flatten()
+                                .unwrap(),
+                        )),
+                    );
+                }
+                ApplicationCommandOptionType::Channel => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::Channel(ChannelId(
+                            option
+                                .value
+                                .map(|m| m.as_str().map(|s| s.parse::<u64>().ok()))
+                                .flatten()
+                                .flatten()
+                                .unwrap(),
+                        )),
+                    );
+                }
+                ApplicationCommandOptionType::Role => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::Role(RoleId(
+                            option
+                                .value
+                                .map(|m| m.as_str().map(|s| s.parse::<u64>().ok()))
+                                .flatten()
+                                .flatten()
+                                .unwrap(),
+                        )),
+                    );
+                }
+                ApplicationCommandOptionType::Mentionable => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::Mentionable(
+                            option.value.map(|m| m.as_u64()).flatten().unwrap(),
+                        ),
+                    );
+                }
+                ApplicationCommandOptionType::Number => {
+                    cmd_opts.options.insert(
+                        option.name,
+                        OptionValue::Number(option.value.map(|m| m.as_f64()).flatten().unwrap()),
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        for option in &interaction.data.options {
+            match_option(option.clone(), self)
+        }
     }
 }

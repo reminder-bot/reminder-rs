@@ -1,9 +1,6 @@
 use chrono_tz::Tz;
 use log::error;
-use serenity::{
-    http::CacheHttp,
-    model::{id::UserId, user::User},
-};
+use poise::serenity::{http::CacheHttp, model::id::UserId};
 use sqlx::MySqlPool;
 
 use crate::consts::LOCAL_TIMEZONE;
@@ -11,7 +8,6 @@ use crate::consts::LOCAL_TIMEZONE;
 pub struct UserData {
     pub id: u32,
     pub user: u64,
-    pub name: String,
     pub dm_channel: u32,
     pub timezone: String,
 }
@@ -40,20 +36,20 @@ SELECT timezone FROM users WHERE user = ?
         .unwrap()
     }
 
-    pub async fn from_user(
-        user: &User,
+    pub async fn from_user<U: Into<UserId>>(
+        user: U,
         ctx: impl CacheHttp,
         pool: &MySqlPool,
     ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
-        let user_id = user.id.as_u64().to_owned();
+        let user_id = user.into();
 
         match sqlx::query_as_unchecked!(
             Self,
             "
-SELECT id, user, name, dm_channel, IF(timezone IS NULL, ?, timezone) AS timezone FROM users WHERE user = ?
+SELECT id, user, dm_channel, IF(timezone IS NULL, ?, timezone) AS timezone FROM users WHERE user = ?
             ",
             *LOCAL_TIMEZONE,
-            user_id
+            user_id.0
         )
         .fetch_one(pool)
         .await
@@ -61,27 +57,24 @@ SELECT id, user, name, dm_channel, IF(timezone IS NULL, ?, timezone) AS timezone
             Ok(c) => Ok(c),
 
             Err(sqlx::Error::RowNotFound) => {
-                let dm_channel = user.create_dm_channel(ctx).await?;
-                let dm_id = dm_channel.id.as_u64().to_owned();
-
+                let dm_channel = user_id.create_dm_channel(ctx).await?;
                 let pool_c = pool.clone();
 
                 sqlx::query!(
                     "
 INSERT IGNORE INTO channels (channel) VALUES (?)
                     ",
-                    dm_id
+                    dm_channel.id.0
                 )
                 .execute(&pool_c)
                 .await?;
 
                 sqlx::query!(
                     "
-INSERT INTO users (user, name, dm_channel, timezone) VALUES (?, ?, (SELECT id FROM channels WHERE channel = ?), ?)
+INSERT INTO users (user, dm_channel, timezone) VALUES (?, (SELECT id FROM channels WHERE channel = ?), ?)
                     ",
-                    user_id,
-                    user.name,
-                    dm_id,
+                    user_id.0,
+                    dm_channel.id.0,
                     *LOCAL_TIMEZONE
                 )
                 .execute(&pool_c)
@@ -90,9 +83,9 @@ INSERT INTO users (user, name, dm_channel, timezone) VALUES (?, ?, (SELECT id FR
                 Ok(sqlx::query_as_unchecked!(
                     Self,
                     "
-SELECT id, user, name, dm_channel, timezone FROM users WHERE user = ?
+SELECT id, user, dm_channel, timezone FROM users WHERE user = ?
                     ",
-                    user_id
+                    user_id.0
                 )
                 .fetch_one(pool)
                 .await?)
@@ -109,9 +102,8 @@ SELECT id, user, name, dm_channel, timezone FROM users WHERE user = ?
     pub async fn commit_changes(&self, pool: &MySqlPool) {
         sqlx::query!(
             "
-UPDATE users SET name = ?, timezone = ? WHERE id = ?
+UPDATE users SET timezone = ? WHERE id = ?
             ",
-            self.name,
             self.timezone,
             self.id
         )

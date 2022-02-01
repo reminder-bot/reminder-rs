@@ -1,54 +1,64 @@
 use chrono::offset::Utc;
 use chrono_tz::{Tz, TZ_VARIANTS};
 use levenshtein::levenshtein;
-use regex_command_attr::command;
-use serenity::client::Context;
+use poise::CreateReply;
 
 use crate::{
-    component_models::pager::{MacroPager, Pager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
-    framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
-    hooks::{CHECK_GUILD_PERMISSIONS_HOOK, GUILD_ONLY_HOOK},
+    hooks::guild_only,
     models::{command_macro::CommandMacro, CtxData},
-    PopularTimezones, RecordingMacros, RegexFramework, SQLPool,
+    Context, Error,
 };
 
-#[command("timezone")]
-#[description("Select your timezone")]
-#[arg(
-    name = "timezone",
-    description = "Timezone to use from this list: https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee",
-    kind = "String",
-    required = false
-)]
-async fn timezone(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
-    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-    let mut user_data = ctx.user_data(invoke.author_id()).await.unwrap();
+async fn timezone_autocomplete(ctx: Context<'_>, partial: String) -> Vec<String> {
+    if partial.is_empty() {
+        ctx.data().popular_timezones.iter().map(|t| t.to_string()).collect::<Vec<String>>()
+    } else {
+        TZ_VARIANTS
+            .iter()
+            .filter(|tz| {
+                partial.contains(&tz.to_string())
+                    || tz.to_string().contains(&partial)
+                    || levenshtein(&tz.to_string(), &partial) < 4
+            })
+            .take(25)
+            .map(|t| t.to_string())
+            .collect::<Vec<String>>()
+    }
+}
+
+/// Select your timezone
+#[poise::command(slash_command)]
+pub async fn timezone(
+    ctx: Context<'_>,
+    #[description = "Timezone to use from this list: https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee"]
+    #[autocomplete = "timezone_autocomplete"]
+    timezone: Option<String>,
+) -> Result<(), Error> {
+    let mut user_data = ctx.author_data().await.unwrap();
 
     let footer_text = format!("Current timezone: {}", user_data.timezone);
 
-    if let Some(OptionValue::String(timezone)) = args.get("timezone") {
+    if let Some(timezone) = timezone {
         match timezone.parse::<Tz>() {
             Ok(tz) => {
                 user_data.timezone = timezone.clone();
-                user_data.commit_changes(&pool).await;
+                user_data.commit_changes(&ctx.data().database).await;
 
                 let now = Utc::now().with_timezone(&tz);
 
-                let _ = invoke
-                    .respond(
-                        ctx.http.clone(),
-                        CreateGenericResponse::new().embed(|e| {
-                            e.title("Timezone Set")
-                                .description(format!(
-                                    "Timezone has been set to **{}**. Your current time should be `{}`",
-                                    timezone,
-                                    now.format("%H:%M").to_string()
-                                ))
-                                .color(*THEME_COLOR)
-                        }),
-                    )
-                    .await;
+                ctx.send(|m| {
+                    m.embed(|e| {
+                        e.title("Timezone Set")
+                            .description(format!(
+                                "Timezone has been set to **{}**. Your current time should be `{}`",
+                                timezone,
+                                now.format("%H:%M").to_string()
+                            ))
+                            .color(*THEME_COLOR)
+                    })
+                })
+                .await?;
             }
 
             Err(_) => {
@@ -56,8 +66,8 @@ async fn timezone(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOption
                     .iter()
                     .filter(|tz| {
                         timezone.contains(&tz.to_string())
-                            || tz.to_string().contains(timezone)
-                            || levenshtein(&tz.to_string(), timezone) < 4
+                            || tz.to_string().contains(&timezone)
+                            || levenshtein(&tz.to_string(), &timezone) < 4
                     })
                     .take(25)
                     .map(|t| t.to_owned())
@@ -74,25 +84,21 @@ async fn timezone(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOption
                     )
                 });
 
-                let _ = invoke
-                    .respond(
-                        ctx.http.clone(),
-                        CreateGenericResponse::new().embed(|e| {
-                            e.title("Timezone Not Recognized")
-                                .description("Possibly you meant one of the following timezones, otherwise click [here](https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee):")
-                                .color(*THEME_COLOR)
-                                .fields(fields)
-                                .footer(|f| f.text(footer_text))
-                                .url("https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee")
-                        }),
-                    )
-                    .await;
+                ctx.send(|m| {
+                    m.embed(|e| {
+                        e.title("Timezone Not Recognized")
+                            .description("Possibly you meant one of the following timezones, otherwise click [here](https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee):")
+                            .color(*THEME_COLOR)
+                            .fields(fields)
+                            .footer(|f| f.text(footer_text))
+                            .url("https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee")
+                    })
+                })
+                .await?;
             }
         }
     } else {
-        let popular_timezones = ctx.data.read().await.get::<PopularTimezones>().cloned().unwrap();
-
-        let popular_timezones_iter = popular_timezones.iter().map(|t| {
+        let popular_timezones_iter = ctx.data().popular_timezones.iter().map(|t| {
             (
                 t.to_string(),
                 format!("🕗 `{}`", Utc::now().with_timezone(t).format("%H:%M").to_string()),
@@ -100,276 +106,274 @@ async fn timezone(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOption
             )
         });
 
-        let _ = invoke
-            .respond(
-                ctx.http.clone(),
-                CreateGenericResponse::new().embed(|e| {
-                    e.title("Timezone Usage")
-                        .description(
-                            "**Usage:**
+        ctx.send(|m| {
+            m.embed(|e| {
+                e.title("Timezone Usage")
+                    .description(
+                        "**Usage:**
 `/timezone Name`
 
 **Example:**
 `/timezone Europe/London`
 
 You may want to use one of the popular timezones below, otherwise click [here](https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee):",
-                        )
-                        .color(*THEME_COLOR)
-                        .fields(popular_timezones_iter)
-                        .footer(|f| f.text(footer_text))
-                        .url("https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee")
-                }),
-            )
-            .await;
+                    )
+                    .color(*THEME_COLOR)
+                    .fields(popular_timezones_iter)
+                    .footer(|f| f.text(footer_text))
+                    .url("https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee")
+            })
+        })
+        .await?;
     }
+
+    Ok(())
 }
 
-#[command("macro")]
-#[description("Record and replay command sequences")]
-#[subcommand("record")]
-#[description("Start recording up to 5 commands to replay")]
-#[arg(name = "name", description = "Name for the new macro", kind = "String", required = true)]
-#[arg(
-    name = "description",
-    description = "Description for the new macro",
-    kind = "String",
-    required = false
-)]
-#[subcommand("finish")]
-#[description("Finish current recording")]
-#[subcommand("list")]
-#[description("List recorded macros")]
-#[subcommand("run")]
-#[description("Run a recorded macro")]
-#[arg(name = "name", description = "Name of the macro to run", kind = "String", required = true)]
-#[subcommand("delete")]
-#[description("Delete a recorded macro")]
-#[arg(name = "name", description = "Name of the macro to delete", kind = "String", required = true)]
-#[supports_dm(false)]
-#[hook(GUILD_ONLY_HOOK)]
-#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn macro_cmd(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
-    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+async fn macro_name_autocomplete(ctx: Context<'_>, partial: String) -> Vec<String> {
+    sqlx::query!(
+        "
+SELECT name
+FROM macro
+WHERE
+    guild_id = (SELECT id FROM guilds WHERE guild = ?)
+    AND name LIKE CONCAT(?, '%')",
+        ctx.guild_id().unwrap().0,
+        partial,
+    )
+    .fetch_all(&ctx.data().database)
+    .await
+    .unwrap_or(vec![])
+    .iter()
+    .map(|s| s.name.clone())
+    .collect()
+}
 
-    match args.subcommand.clone().unwrap().as_str() {
-        "record" => {
-            let guild_id = invoke.guild_id().unwrap();
+/// Record and replay command sequences
+#[poise::command(slash_command, rename = "macro", check = "guild_only")]
+pub async fn macro_base(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
 
-            let name = args.get("name").unwrap().to_string();
+/// Start recording up to 5 commands to replay
+#[poise::command(slash_command, rename = "record", check = "guild_only")]
+pub async fn record_macro(
+    ctx: Context<'_>,
+    #[description = "Name for the new macro"] name: String,
+    #[description = "Description for the new macro"] description: Option<String>,
+) -> Result<(), Error> {
+    let guild_id = ctx.guild_id().unwrap();
 
-            let row = sqlx::query!(
-                "SELECT 1 as _e FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?",
-                guild_id.0,
-                name
-            )
-            .fetch_one(&pool)
-            .await;
+    let row = sqlx::query!(
+        "
+SELECT 1 as _e FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?",
+        guild_id.0,
+        name
+    )
+    .fetch_one(&ctx.data().database)
+    .await;
 
-            if row.is_ok() {
-                let _ = invoke
-                    .respond(
-                        &ctx,
-                        CreateGenericResponse::new().ephemeral().embed(|e| {
-                            e
-                            .title("Unique Name Required")
-                            .description("A macro already exists under this name. Please select a unique name for your macro.")
-                            .color(*THEME_COLOR)
-                        }),
+    if row.is_ok() {
+        ctx.send(|m| {
+            m.ephemeral(true).embed(|e| {
+                e.title("Unique Name Required")
+                    .description(
+                        "A macro already exists under this name.
+Please select a unique name for your macro.",
                     )
-                    .await;
+                    .color(*THEME_COLOR)
+            })
+        })
+        .await?;
+    } else {
+        let okay = {
+            let mut lock = ctx.data().recording_macros.write().await;
+
+            if lock.contains_key(&(guild_id, ctx.author().id)) {
+                false
             } else {
-                let macro_buffer = ctx.data.read().await.get::<RecordingMacros>().cloned().unwrap();
+                lock.insert(
+                    (guild_id, ctx.author().id),
+                    CommandMacro { guild_id, name, description, commands: vec![] },
+                );
+                true
+            }
+        };
 
-                let okay = {
-                    let mut lock = macro_buffer.write().await;
-
-                    if lock.contains_key(&(guild_id, invoke.author_id())) {
-                        false
-                    } else {
-                        lock.insert(
-                            (guild_id, invoke.author_id()),
-                            CommandMacro {
-                                guild_id,
-                                name,
-                                description: args.get("description").map(|d| d.to_string()),
-                                commands: vec![],
-                            },
-                        );
-                        true
-                    }
-                };
-
-                if okay {
-                    let _ = invoke
-                        .respond(
-                            &ctx,
-                            CreateGenericResponse::new().ephemeral().embed(|e| {
-                                e
-                                .title("Macro Recording Started")
-                                .description(
-"Run up to 5 commands, or type `/macro finish` to stop at any point.
-Any commands ran as part of recording will be inconsequential")
-                                .color(*THEME_COLOR)
-                            }),
+        if okay {
+            ctx.send(|m| {
+                m.ephemeral(true).embed(|e| {
+                    e.title("Macro Recording Started")
+                        .description(
+                            "Run up to 5 commands, or type `/macro finish` to stop at any point.
+Any commands ran as part of recording will be inconsequential",
                         )
-                        .await;
-                } else {
-                    let _ = invoke
-                        .respond(
-                            &ctx,
-                            CreateGenericResponse::new().ephemeral().embed(|e| {
-                                e.title("Macro Already Recording")
-                                    .description(
-                                        "You are already recording a macro in this server.
+                        .color(*THEME_COLOR)
+                })
+            })
+            .await?;
+        } else {
+            ctx.send(|m| {
+                m.ephemeral(true).embed(|e| {
+                    e.title("Macro Already Recording")
+                        .description(
+                            "You are already recording a macro in this server.
 Please use `/macro finish` to end this recording before starting another.",
-                                    )
-                                    .color(*THEME_COLOR)
-                            }),
                         )
-                        .await;
-                }
-            }
+                        .color(*THEME_COLOR)
+                })
+            })
+            .await?;
         }
-        "finish" => {
-            let key = (invoke.guild_id().unwrap(), invoke.author_id());
-            let macro_buffer = ctx.data.read().await.get::<RecordingMacros>().cloned().unwrap();
-
-            {
-                let lock = macro_buffer.read().await;
-                let contained = lock.get(&key);
-
-                if contained.map_or(true, |cmacro| cmacro.commands.is_empty()) {
-                    let _ = invoke
-                        .respond(
-                            &ctx,
-                            CreateGenericResponse::new().embed(|e| {
-                                e.title("No Macro Recorded")
-                                    .description("Use `/macro record` to start recording a macro")
-                                    .color(*THEME_COLOR)
-                            }),
-                        )
-                        .await;
-                } else {
-                    let command_macro = contained.unwrap();
-                    let json = serde_json::to_string(&command_macro.commands).unwrap();
-
-                    sqlx::query!(
-                        "INSERT INTO macro (guild_id, name, description, commands) VALUES ((SELECT id FROM guilds WHERE guild = ?), ?, ?, ?)",
-                        command_macro.guild_id.0,
-                        command_macro.name,
-                        command_macro.description,
-                        json
-                    )
-                        .execute(&pool)
-                        .await
-                        .unwrap();
-
-                    let _ = invoke
-                        .respond(
-                            &ctx,
-                            CreateGenericResponse::new().embed(|e| {
-                                e.title("Macro Recorded")
-                                    .description("Use `/macro run` to execute the macro")
-                                    .color(*THEME_COLOR)
-                            }),
-                        )
-                        .await;
-                }
-            }
-
-            {
-                let mut lock = macro_buffer.write().await;
-                lock.remove(&key);
-            }
-        }
-        "list" => {
-            let macros = CommandMacro::from_guild(ctx, invoke.guild_id().unwrap()).await;
-
-            let resp = show_macro_page(&macros, 0);
-
-            invoke.respond(&ctx, resp).await.unwrap();
-        }
-        "run" => {
-            let macro_name = args.get("name").unwrap().to_string();
-
-            match sqlx::query!(
-                "SELECT commands FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?",
-                invoke.guild_id().unwrap().0,
-                macro_name
-            )
-            .fetch_one(&pool)
-            .await
-            {
-                Ok(row) => {
-                    invoke.defer(&ctx).await;
-
-                    let commands: Vec<CommandOptions> =
-                        serde_json::from_str(&row.commands).unwrap();
-                    let framework = ctx.data.read().await.get::<RegexFramework>().cloned().unwrap();
-
-                    for command in commands {
-                        framework.run_command_from_options(ctx, invoke, command).await;
-                    }
-                }
-
-                Err(sqlx::Error::RowNotFound) => {
-                    let _ = invoke
-                        .respond(
-                            &ctx,
-                            CreateGenericResponse::new()
-                                .content(format!("Macro \"{}\" not found", macro_name)),
-                        )
-                        .await;
-                }
-
-                Err(e) => {
-                    panic!("{}", e);
-                }
-            }
-        }
-        "delete" => {
-            let macro_name = args.get("name").unwrap().to_string();
-
-            match sqlx::query!(
-                "SELECT id FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?",
-                invoke.guild_id().unwrap().0,
-                macro_name
-            )
-            .fetch_one(&pool)
-            .await
-            {
-                Ok(row) => {
-                    sqlx::query!("DELETE FROM macro WHERE id = ?", row.id)
-                        .execute(&pool)
-                        .await
-                        .unwrap();
-
-                    let _ = invoke
-                        .respond(
-                            &ctx,
-                            CreateGenericResponse::new()
-                                .content(format!("Macro \"{}\" deleted", macro_name)),
-                        )
-                        .await;
-                }
-
-                Err(sqlx::Error::RowNotFound) => {
-                    let _ = invoke
-                        .respond(
-                            &ctx,
-                            CreateGenericResponse::new()
-                                .content(format!("Macro \"{}\" not found", macro_name)),
-                        )
-                        .await;
-                }
-
-                Err(e) => {
-                    panic!("{}", e);
-                }
-            }
-        }
-        _ => {}
     }
+
+    Ok(())
+}
+
+/// Finish current macro recording
+#[poise::command(
+    slash_command,
+    rename = "finish",
+    check = "guild_only",
+    identifying_name = "macro_finish"
+)]
+pub async fn finish_macro(ctx: Context<'_>) -> Result<(), Error> {
+    let key = (ctx.guild_id().unwrap(), ctx.author().id);
+
+    {
+        let lock = ctx.data().recording_macros.read().await;
+        let contained = lock.get(&key);
+
+        if contained.map_or(true, |cmacro| cmacro.commands.is_empty()) {
+            ctx.send(|m| {
+                m.embed(|e| {
+                    e.title("No Macro Recorded")
+                        .description("Use `/macro record` to start recording a macro")
+                        .color(*THEME_COLOR)
+                })
+            })
+            .await?;
+        } else {
+            let command_macro = contained.unwrap();
+            let json = serde_json::to_string(&command_macro.commands).unwrap();
+
+            sqlx::query!(
+                "INSERT INTO macro (guild_id, name, description, commands) VALUES ((SELECT id FROM guilds WHERE guild = ?), ?, ?, ?)",
+                command_macro.guild_id.0,
+                command_macro.name,
+                command_macro.description,
+                json
+            )
+                .execute(&ctx.data().database)
+                .await
+                .unwrap();
+
+            ctx.send(|m| {
+                m.embed(|e| {
+                    e.title("Macro Recorded")
+                        .description("Use `/macro run` to execute the macro")
+                        .color(*THEME_COLOR)
+                })
+            })
+            .await?;
+        }
+    }
+
+    {
+        let mut lock = ctx.data().recording_macros.write().await;
+        lock.remove(&key);
+    }
+
+    Ok(())
+}
+
+/// List recorded macros
+#[poise::command(slash_command, rename = "list", check = "guild_only")]
+pub async fn list_macro(ctx: Context<'_>) -> Result<(), Error> {
+    let macros = CommandMacro::from_guild(&ctx.data().database, ctx.guild_id().unwrap()).await;
+
+    let resp = show_macro_page(&macros, 0);
+
+    ctx.send(|m| {
+        *m = resp;
+        m
+    })
+    .await?;
+
+    Ok(())
+}
+
+/// Run a recorded macro
+#[poise::command(slash_command, rename = "run", check = "guild_only")]
+pub async fn run_macro(
+    ctx: Context<'_>,
+    #[description = "Name of macro to run"]
+    #[autocomplete = "macro_name_autocomplete"]
+    name: String,
+) -> Result<(), Error> {
+    match sqlx::query!(
+        "
+SELECT commands FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?",
+        ctx.guild_id().unwrap().0,
+        name
+    )
+    .fetch_one(&ctx.data().database)
+    .await
+    {
+        Ok(row) => {
+            ctx.defer().await?;
+
+            // TODO TODO TODO!!!!!!!! RUN COMMAND FROM MACRO
+        }
+
+        Err(sqlx::Error::RowNotFound) => {
+            ctx.say(format!("Macro \"{}\" not found", name)).await?;
+        }
+
+        Err(e) => {
+            panic!("{}", e);
+        }
+    }
+
+    Ok(())
+}
+
+/// Delete a recorded macro
+#[poise::command(slash_command, rename = "delete", check = "guild_only")]
+pub async fn delete_macro(
+    ctx: Context<'_>,
+    #[description = "Name of macro to delete"]
+    #[autocomplete = "macro_name_autocomplete"]
+    name: String,
+) -> Result<(), Error> {
+    match sqlx::query!(
+        "
+SELECT id FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?",
+        ctx.guild_id().unwrap().0,
+        name
+    )
+    .fetch_one(&ctx.data().database)
+    .await
+    {
+        Ok(row) => {
+            sqlx::query!("DELETE FROM macro WHERE id = ?", row.id)
+                .execute(&ctx.data().database)
+                .await
+                .unwrap();
+
+            ctx.say(format!("Macro \"{}\" deleted", name)).await?;
+        }
+
+        Err(sqlx::Error::RowNotFound) => {
+            ctx.say(format!("Macro \"{}\" not found", name)).await?;
+        }
+
+        Err(e) => {
+            panic!("{}", e);
+        }
+    }
+
+    Ok(())
 }
 
 pub fn max_macro_page(macros: &[CommandMacro]) -> usize {
@@ -396,15 +400,30 @@ pub fn max_macro_page(macros: &[CommandMacro]) -> usize {
         })
 }
 
-pub fn show_macro_page(macros: &[CommandMacro], page: usize) -> CreateGenericResponse {
+pub fn show_macro_page(macros: &[CommandMacro], page: usize) -> CreateReply {
+    let mut reply = CreateReply::default();
+
+    reply.embed(|e| {
+        e.title("Macros")
+            .description("No Macros Set Up. Use `/macro record` to get started.")
+            .color(*THEME_COLOR)
+    });
+
+    reply
+
+    /*
     let pager = MacroPager::new(page);
 
     if macros.is_empty() {
-        return CreateGenericResponse::new().embed(|e| {
+        let mut reply = CreateReply::default();
+
+        reply.embed(|e| {
             e.title("Macros")
                 .description("No Macros Set Up. Use `/macro record` to get started.")
                 .color(*THEME_COLOR)
         });
+
+        return reply;
     }
 
     let pages = max_macro_page(macros);
@@ -447,7 +466,9 @@ pub fn show_macro_page(macros: &[CommandMacro], page: usize) -> CreateGenericRes
 
     let display = display_vec.join("\n");
 
-    CreateGenericResponse::new()
+    let mut reply = CreateReply::default();
+
+    reply
         .embed(|e| {
             e.title("Macros")
                 .description(display)
@@ -458,5 +479,8 @@ pub fn show_macro_page(macros: &[CommandMacro], page: usize) -> CreateGenericRes
             pager.create_button_row(pages, comp);
 
             comp
-        })
+        });
+
+    reply
+     */
 }

@@ -6,18 +6,15 @@ pub mod look_flags;
 
 use chrono::{NaiveDateTime, TimeZone};
 use chrono_tz::Tz;
-use serenity::{
-    client::Context,
-    model::id::{ChannelId, GuildId, UserId},
-};
-use sqlx::MySqlPool;
+use poise::serenity::model::id::{ChannelId, GuildId, UserId};
+use sqlx::{Executor, MySqlPool};
 
 use crate::{
     models::reminder::{
         helper::longhand_displacement,
         look_flags::{LookFlags, TimeDisplayType},
     },
-    SQLPool,
+    Context, Database,
 };
 
 #[derive(Debug, Clone)]
@@ -71,12 +68,10 @@ WHERE
     }
 
     pub async fn from_channel<C: Into<ChannelId>>(
-        ctx: &Context,
+        db_pool: impl Executor<'_, Database = Database>,
         channel_id: C,
         flags: &LookFlags,
     ) -> Vec<Self> {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
         let enabled = if flags.show_disabled { "0,1" } else { "1" };
         let channel_id = channel_id.into();
 
@@ -113,16 +108,21 @@ ORDER BY
             channel_id.as_u64(),
             enabled,
         )
-        .fetch_all(&pool)
+        .fetch_all(db_pool)
         .await
         .unwrap()
     }
 
-    pub async fn from_guild(ctx: &Context, guild_id: Option<GuildId>, user: UserId) -> Vec<Self> {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+    pub async fn from_guild(
+        ctx: &Context<'_>,
+        guild_id: Option<GuildId>,
+        user: UserId,
+    ) -> Vec<Self> {
+        // todo: see if this can be moved to just extract from the context
+        let pool = ctx.data().database.clone();
 
         if let Some(guild_id) = guild_id {
-            let guild_opt = guild_id.to_guild_cached(&ctx);
+            let guild_opt = guild_id.to_guild_cached(&ctx.discord());
 
             if let Some(guild) = guild_opt {
                 let channels = guild

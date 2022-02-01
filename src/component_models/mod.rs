@@ -3,9 +3,7 @@ pub(crate) mod pager;
 use std::io::Cursor;
 
 use chrono_tz::Tz;
-use rmp_serde::Serializer;
-use serde::{Deserialize, Serialize};
-use serenity::{
+use poise::serenity::{
     builder::CreateEmbed,
     client::Context,
     model::{
@@ -14,18 +12,14 @@ use serenity::{
         prelude::InteractionApplicationCommandCallbackDataFlags,
     },
 };
+use rmp_serde::Serializer;
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    commands::{
-        moderation_cmds::{max_macro_page, show_macro_page},
-        reminder_cmds::{max_delete_page, show_delete_page},
-        todo_cmds::{max_todo_page, show_todo_page},
-    },
+    self,
     component_models::pager::{DelPager, LookPager, MacroPager, Pager, TodoPager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
-    framework::CommandInvoke,
     models::{command_macro::CommandMacro, reminder::Reminder},
-    SQLPool,
 };
 
 #[derive(Deserialize, Serialize)]

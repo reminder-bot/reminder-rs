@@ -1,91 +1,77 @@
-use regex_command_attr::check;
-use serenity::{client::Context, model::channel::Channel};
+use poise::{serenity::model::channel::Channel, ApplicationCommandOrAutocompleteInteraction};
 
-use crate::{
-    framework::{CommandInvoke, CommandOptions, CreateGenericResponse, HookResult},
-    moderation_cmds, RecordingMacros,
-};
+use crate::{consts::MACRO_MAX_COMMANDS, models::command_macro::CommandOptions, Context, Error};
 
-#[check]
-pub async fn guild_only(
-    ctx: &Context,
-    invoke: &mut CommandInvoke,
-    _args: &CommandOptions,
-) -> HookResult {
-    if invoke.guild_id().is_some() {
-        HookResult::Continue
+pub async fn guild_only(ctx: Context<'_>) -> Result<bool, Error> {
+    if ctx.guild_id().is_some() {
+        Ok(true)
     } else {
-        let _ = invoke
-            .respond(
-                &ctx,
-                CreateGenericResponse::new().content("This command can only be used in servers"),
-            )
-            .await;
+        let _ = ctx.say("This command can only be used in servers").await;
 
-        HookResult::Halt
+        Ok(false)
     }
 }
 
-#[check]
-pub async fn macro_check(
-    ctx: &Context,
-    invoke: &mut CommandInvoke,
-    args: &CommandOptions,
-) -> HookResult {
-    if let Some(guild_id) = invoke.guild_id() {
-        if args.command != moderation_cmds::MACRO_CMD_COMMAND.names[0] {
-            let active_recordings =
-                ctx.data.read().await.get::<RecordingMacros>().cloned().unwrap();
-            let mut lock = active_recordings.write().await;
+async fn macro_check(ctx: Context<'_>) -> bool {
+    if let Context::Application(app_ctx) = ctx {
+        if let ApplicationCommandOrAutocompleteInteraction::ApplicationCommand(interaction) =
+            app_ctx.interaction
+        {
+            if let Some(guild_id) = ctx.guild_id() {
+                if ctx.command().identifying_name != "macro_finish" {
+                    let mut lock = ctx.data().recording_macros.write().await;
 
-            if let Some(command_macro) = lock.get_mut(&(guild_id, invoke.author_id())) {
-                if command_macro.commands.len() >= 5 {
-                    let _ = invoke
-                        .respond(
-                            &ctx,
-                            CreateGenericResponse::new().content("5 commands already recorded. Please use `/macro finish` to end recording."),
-                        )
-                        .await;
+                    if let Some(command_macro) = lock.get_mut(&(guild_id, ctx.author().id)) {
+                        if command_macro.commands.len() >= MACRO_MAX_COMMANDS {
+                            let _ = ctx.send(|m| {
+                                m.ephemeral(false).content(
+                                    "5 commands already recorded. Please use `/macro finish` to end recording.",
+                                )
+                            })
+                            .await;
+                        } else {
+                            let mut command_options = CommandOptions::new(&ctx.command().name);
+                            command_options.populate(&interaction);
+
+                            command_macro.commands.push(command_options);
+
+                            let _ = ctx
+                                .send(|m| m.ephemeral(false).content("Command recorded to macro"))
+                                .await;
+                        }
+
+                        false
+                    } else {
+                        true
+                    }
                 } else {
-                    command_macro.commands.push(args.clone());
-
-                    let _ = invoke
-                        .respond(
-                            &ctx,
-                            CreateGenericResponse::new().content("Command recorded to macro"),
-                        )
-                        .await;
+                    true
                 }
-
-                HookResult::Halt
             } else {
-                HookResult::Continue
+                true
             }
         } else {
-            HookResult::Continue
+            true
         }
     } else {
-        HookResult::Continue
+        true
     }
 }
 
-#[check]
-pub async fn check_self_permissions(
-    ctx: &Context,
-    invoke: &mut CommandInvoke,
-    _args: &CommandOptions,
-) -> HookResult {
-    if let Some(guild) = invoke.guild(&ctx) {
-        let user_id = ctx.cache.current_user_id();
+async fn check_self_permissions(ctx: Context<'_>) -> bool {
+    if let Some(guild) = ctx.guild() {
+        let user_id = ctx.discord().cache.current_user_id();
 
-        let manage_webhooks =
-            guild.member_permissions(&ctx, user_id).await.map_or(false, |p| p.manage_webhooks());
-        let (view_channel, send_messages, embed_links) = invoke
+        let manage_webhooks = guild
+            .member_permissions(&ctx.discord(), user_id)
+            .await
+            .map_or(false, |p| p.manage_webhooks());
+        let (view_channel, send_messages, embed_links) = ctx
             .channel_id()
-            .to_channel_cached(&ctx)
+            .to_channel_cached(&ctx.discord())
             .map(|c| {
                 if let Channel::Guild(channel) = c {
-                    channel.permissions_for_user(ctx, user_id).ok()
+                    channel.permissions_for_user(&ctx.discord(), user_id).ok()
                 } else {
                     None
                 }
@@ -96,12 +82,11 @@ pub async fn check_self_permissions(
             });
 
         if manage_webhooks && send_messages && embed_links {
-            HookResult::Continue
+            true
         } else {
-            let _ = invoke
-                .respond(
-                    &ctx,
-                    CreateGenericResponse::new().content(format!(
+            let _ = ctx
+                .send(|m| {
+                    m.content(format!(
                         "Please ensure the bot has the correct permissions:
 
 {}     **View Channel**
@@ -112,41 +97,17 @@ pub async fn check_self_permissions(
                         if send_messages { "✅" } else { "❌" },
                         if manage_webhooks { "✅" } else { "❌" },
                         if embed_links { "✅" } else { "❌" },
-                    )),
-                )
+                    ))
+                })
                 .await;
 
-            HookResult::Halt
+            false
         }
     } else {
-        HookResult::Continue
+        true
     }
 }
 
-#[check]
-pub async fn check_guild_permissions(
-    ctx: &Context,
-    invoke: &mut CommandInvoke,
-    _args: &CommandOptions,
-) -> HookResult {
-    if let Some(guild) = invoke.guild(&ctx) {
-        let permissions = guild.member_permissions(&ctx, invoke.author_id()).await.unwrap();
-
-        if !permissions.manage_guild() {
-            let _ = invoke
-                .respond(
-                    &ctx,
-                    CreateGenericResponse::new().content(
-                        "You must have the \"Manage Server\" permission to use this command",
-                    ),
-                )
-                .await;
-
-            HookResult::Halt
-        } else {
-            HookResult::Continue
-        }
-    } else {
-        HookResult::Continue
-    }
+pub async fn all_checks(ctx: Context<'_>) -> Result<bool, Error> {
+    Ok(macro_check(ctx).await && check_self_permissions(ctx).await)
 }
