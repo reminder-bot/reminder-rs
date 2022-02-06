@@ -1,4 +1,3 @@
-#![feature(int_roundings)]
 #[macro_use]
 extern crate lazy_static;
 
@@ -9,7 +8,6 @@ mod framework;
 mod hooks;
 mod interval_parser;
 mod models;
-mod sender;
 mod time_parser;
 
 use std::{
@@ -24,6 +22,7 @@ use std::{
 use chrono_tz::Tz;
 use dotenv::dotenv;
 use log::info;
+use postman::initialize;
 use serenity::{
     async_trait,
     client::Client,
@@ -39,15 +38,12 @@ use serenity::{
     utils::shard_id,
 };
 use sqlx::mysql::MySqlPool;
-use tokio::{
-    sync::RwLock,
-    time::{Duration, Instant},
-};
+use tokio::sync::RwLock;
 
 use crate::{
     commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
     component_models::ComponentDataModel,
-    consts::{CNC_GUILD, REMIND_INTERVAL, SUBSCRIPTION_ROLES, THEME_COLOR},
+    consts::{CNC_GUILD, SUBSCRIPTION_ROLES, THEME_COLOR},
     framework::RegexFramework,
     models::command_macro::CommandMacro,
 };
@@ -88,24 +84,10 @@ impl EventHandler for Handler {
 
         if !self.is_loop_running.load(Ordering::Relaxed) {
             let ctx = ctx_base.clone();
+            let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
 
             tokio::spawn(async move {
-                let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
-                loop {
-                    let sleep_until = Instant::now() + Duration::from_secs(*REMIND_INTERVAL);
-                    let reminders = sender::Reminder::fetch_reminders(&pool).await;
-
-                    if reminders.len() > 0 {
-                        info!("Preparing to send {} reminders.", reminders.len());
-
-                        for reminder in reminders {
-                            reminder.send(pool.clone(), ctx.clone()).await;
-                        }
-                    }
-
-                    tokio::time::sleep_until(sleep_until).await;
-                }
+                initialize(ctx, &pool).await;
             });
 
             self.is_loop_running.swap(true, Ordering::Relaxed);

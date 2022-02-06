@@ -1,5 +1,7 @@
+use crate::Database;
 use chrono::Duration;
 use chrono_tz::Tz;
+use lazy_static::lazy_static;
 use log::{error, info, warn};
 use num_integer::Integer;
 use regex::{Captures, Regex};
@@ -15,7 +17,7 @@ use serenity::{
 };
 use sqlx::{
     types::chrono::{NaiveDateTime, Utc},
-    MySqlPool,
+    Executor,
 };
 
 lazy_static! {
@@ -114,7 +116,10 @@ struct EmbedField {
 }
 
 impl Embed {
-    pub async fn from_id(pool: &MySqlPool, id: u32) -> Option<Self> {
+    pub async fn from_id(
+        pool: impl Executor<'_, Database = Database> + Copy,
+        id: u32,
+    ) -> Option<Self> {
         let mut inner = sqlx::query_as_unchecked!(
             EmbedInner,
             "
@@ -135,7 +140,7 @@ WHERE
             ",
             id
         )
-        .fetch_one(&pool.clone())
+        .fetch_one(pool)
         .await
         .unwrap();
 
@@ -265,7 +270,7 @@ pub struct Reminder {
 }
 
 impl Reminder {
-    pub async fn fetch_reminders(pool: &MySqlPool) -> Vec<Self> {
+    pub async fn fetch_reminders(pool: impl Executor<'_, Database = Database> + Copy) -> Vec<Self> {
         sqlx::query_as_unchecked!(
             Reminder,
             "
@@ -317,7 +322,7 @@ WHERE
         .collect::<Vec<Self>>()
     }
 
-    async fn reset_webhook(&self, pool: &MySqlPool) {
+    async fn reset_webhook(&self, pool: impl Executor<'_, Database = Database> + Copy) {
         let _ = sqlx::query!(
             "
 UPDATE channels SET webhook_id = NULL, webhook_token = NULL WHERE channel = ?
@@ -328,14 +333,15 @@ UPDATE channels SET webhook_id = NULL, webhook_token = NULL WHERE channel = ?
         .await;
     }
 
-    async fn refresh(&self, pool: &MySqlPool) {
+    async fn refresh(&self, pool: impl Executor<'_, Database = Database> + Copy) {
         if self.interval_seconds.is_some() || self.interval_months.is_some() {
             let now = Utc::now().naive_local();
             let mut updated_reminder_time = self.utc_time;
 
             if let Some(interval) = self.interval_months {
                 let row = sqlx::query!(
-                    "SELECT DATE_ADD(?, INTERVAL ? MONTH) AS new_time",
+                    // use the second date_add to force return value to datetime
+                    "SELECT DATE_ADD(DATE_ADD(?, INTERVAL ? MONTH), INTERVAL 0 SECOND) AS new_time",
                     updated_reminder_time,
                     interval
                 )
@@ -373,7 +379,7 @@ UPDATE reminders SET `utc_time` = ? WHERE `id` = ?
         }
     }
 
-    async fn force_delete(&self, pool: &MySqlPool) {
+    async fn force_delete(&self, pool: impl Executor<'_, Database = Database> + Copy) {
         sqlx::query!(
             "
 DELETE FROM reminders WHERE `id` = ?
@@ -389,7 +395,11 @@ DELETE FROM reminders WHERE `id` = ?
         let _ = http.as_ref().pin_message(self.channel_id, message_id.into(), None).await;
     }
 
-    pub async fn send(&self, pool: MySqlPool, cache_http: impl CacheHttp) {
+    pub async fn send(
+        &self,
+        pool: impl Executor<'_, Database = Database> + Copy,
+        cache_http: impl CacheHttp,
+    ) {
         async fn send_to_channel(
             cache_http: impl CacheHttp,
             reminder: &Reminder,
@@ -521,10 +531,10 @@ UPDATE `channels` SET paused = 0, paused_until = NULL WHERE `channel` = ?
                 ",
                 self.channel_id
             )
-            .execute(&pool.clone())
+            .execute(pool)
             .await;
 
-            let embed = Embed::from_id(&pool.clone(), self.id).await.map(|e| e.into());
+            let embed = Embed::from_id(pool, self.id).await.map(|e| e.into());
 
             let result = if let (Some(webhook_id), Some(webhook_token)) =
                 (self.webhook_id, &self.webhook_token)
@@ -537,7 +547,7 @@ UPDATE `channels` SET paused = 0, paused_until = NULL WHERE `channel` = ?
                 } else {
                     warn!("Webhook vanished: {:?}", webhook_res);
 
-                    self.reset_webhook(&pool.clone()).await;
+                    self.reset_webhook(pool).await;
                     send_to_channel(cache_http, &self, embed).await
                 }
             } else {
@@ -550,20 +560,20 @@ UPDATE `channels` SET paused = 0, paused_until = NULL WHERE `channel` = ?
                 if let Error::Http(error) = e {
                     if error.status_code() == Some(StatusCode::from_u16(404).unwrap()) {
                         error!("Seeing channel is deleted. Removing reminder");
-                        self.force_delete(&pool).await;
+                        self.force_delete(pool).await;
                     } else {
-                        self.refresh(&pool).await;
+                        self.refresh(pool).await;
                     }
                 } else {
-                    self.refresh(&pool).await;
+                    self.refresh(pool).await;
                 }
             } else {
-                self.refresh(&pool).await;
+                self.refresh(pool).await;
             }
         } else {
             info!("Reminder {} is paused", self.id);
 
-            self.refresh(&pool).await;
+            self.refresh(pool).await;
         }
     }
 }

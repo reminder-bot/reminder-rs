@@ -3,6 +3,7 @@ pub(crate) mod pager;
 use std::io::Cursor;
 
 use chrono_tz::Tz;
+use num_integer::Integer;
 use rmp_serde::Serializer;
 use serde::{Deserialize, Serialize};
 use serenity::{
@@ -78,7 +79,7 @@ impl ComponentDataModel {
                     .iter()
                     .map(|reminder| reminder.display(&flags, &pager.timezone))
                     .fold(0, |t, r| t + r.len())
-                    .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
+                    .div_ceil(&EMBED_DESCRIPTION_MAX_LENGTH);
 
                 let channel_name =
                     if let Some(Channel::Guild(channel)) = channel_id.to_channel_cached(&ctx) {
