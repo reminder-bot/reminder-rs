@@ -404,10 +404,15 @@
                     if (data.error) {
                         show_error(data.error);
                     } else {
-                        const $template = document.querySelector('template#personalReminder');
+                        console.log(data);
+
+                        const $template = document.querySelector('template#guildReminder');
 
                         for (let reminder of data) {
                             let newFrame = $template.content.cloneNode(true);
+
+                            // populate channels
+                            newFrame.querySelector('select.channel-selector');
 
                             for (let prop in reminder) {
                                 if (reminder.hasOwnProperty(prop) && reminder[prop] !== null) {
@@ -642,11 +647,7 @@
                                         }
                                     });
 
-                                fetch(`/dashboard/api/guild/${$anchor.dataset['guild']}/reminders`)
-                                    .then(response => response.json())
-                                    .then(data => {
-
-                                    })
+                                fetch_reminders($anchor.dataset['guild']);
 
                                 document.querySelectorAll('p.pageTitle').forEach((el) => {
                                     el.textContent = $anchor.dataset['name'] + ' Reminders';

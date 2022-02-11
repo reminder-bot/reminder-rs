@@ -111,7 +111,7 @@
         <div class="field">
             <div class="control">
                 <label class="label sr-only">Reminder Name</label>
-                <input class="input" type="text" placeholder="Reminder Name">
+                <input class="input" type="text" name="name" placeholder="Reminder Name">
             </div>
         </div>
 

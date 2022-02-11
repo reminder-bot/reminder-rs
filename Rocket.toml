@@ -1,12 +1,12 @@
 [default]
-address = "0.0.0.0"
+address = "127.0.0.1"
 port = 5000
 template_dir = "web/templates"
 
 [debug]
 secret_key = "tR8krio5FXTnnyIZNiJDXPondz0kI1v6X6BXZcBGIRY="
 
-[default.tls]
+[debug.tls]
 certs = "web/private/rsa_sha256_cert.pem"
 key = "web/private/rsa_sha256_key.pem"
 
