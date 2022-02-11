@@ -1,0 +1,10 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "404 File Not Found" %}
+
+    {% set show_contact = True %}
+
+    {% set page_title = "File Not Found" %}
+    {% set page_subtitle = "This page does not exist. Sorry." %}
+{% endblock %}

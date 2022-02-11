@@ -1,0 +1,21 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "Privacy Policy" %}
+
+    {% set page_title = "Privacy Policy" %}
+    {% set page_subtitle = "" %}
+    {% set page_emoji = "" %}
+{% endblock %}
+
+{% block content %}
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">Privacy Policy</h2>
+            <p class="is-size-5 pl-6">
+            </p>
+        </div>
+    </section>
+
+{% endblock %}

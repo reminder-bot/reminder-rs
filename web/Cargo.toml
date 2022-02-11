@@ -1,8 +1,17 @@
 [package]
-name = "web"
+name = "reminder_web"
 version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["jellywx <judesouthworth@pm.me>"]
+edition = "2018"
 
 [dependencies]
+rocket = { git = "https://github.com/SergioBenitez/Rocket", branch = "master", features = ["tls", "secrets", "json"] }
+rocket_dyn_templates = { git = "https://github.com/SergioBenitez/Rocket", branch = "master", features = ["tera"] }
+serenity = { git = "https://github.com/serenity-rs/serenity", branch = "next", default-features = false, features = ["builder", "cache", "client", "gateway", "http", "model", "utils", "rustls_backend"] }
+oauth2 = "4"
+log = "0.4"
+reqwest = "0.11"
+serde = { version = "1.0", features = ["derive"] }
+sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "macros", "mysql", "chrono"] }
+chrono = "0.4"
+chrono-tz = "0.5"

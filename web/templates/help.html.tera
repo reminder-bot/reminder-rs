@@ -1,0 +1,14 @@
+{% extends "base" %}
+
+{% set title = "Commands" %}
+{% set page_title = "Commands" %}
+
+{% block content %}
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">Information Commands</h2>
+        </div>
+    </section>
+
+{% endblock %}

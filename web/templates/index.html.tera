@@ -1,0 +1,65 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "Home" %}
+
+    {% set page_title = "Reminder Bot" %}
+    {% set page_subtitle = "Powerful Discord Reminders" %}
+    {% set page_emoji = "fa-hourglass-half" %}
+    {% set show_invite = true %}
+{% endblock %}
+
+{% block content %}
+
+    <div class="inset-content" >
+        <div class="tile is-ancestor">
+            <div class="tile is-parent">
+                <article class="tile is-child notification">
+                    <p class="title">Slash-command Ready <svg aria-hidden="false" width="28" height="28" viewBox="0 0 24 24"><path fill="#777" fill-rule="evenodd" clip-rule="evenodd" d="M5 3C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3H5ZM16.8995 8.41419L15.4853 6.99998L7 15.4853L8.41421 16.8995L16.8995 8.41419Z"></path></svg></p>
+                    <p class="subtitle">Set reminders easily and quickly from anywhere</p>
+                    <figure class="image">
+                        <img class="rounded-corners" src="/static/img/slash-commands.png" alt="Discord slash commands demonstration">
+                    </figure>
+                </article>
+            </div>
+            <div class="tile is-parent">
+                <article class="tile is-child notification">
+                    <p class="title">Advanced Options <span class="icon"><i class="fad fa-palette"></i></span></p>
+                    <p class="subtitle">Decorate your announcements with our web dashboard</p>
+                    <figure class="image">
+                        <img class="rounded-corners" src="/static/img/tournament-demo.png" alt="Discord slash commands demonstration">
+                    </figure>
+                </article>
+            </div>
+            <div class="tile is-parent is-vertical">
+                <article class="tile is-child notification">
+                    <p class="title">Unlimited Reminders <span class="icon"><i class="far fa-infinity"></i></span></p>
+                    <p class="subtitle">Never forget a thing</p>
+                </article>
+                <article class="tile is-child notification">
+                    <p class="title">Repeating Reminders <span class="icon"><i class="fas fa-repeat"></i></span></p>
+                    <p class="subtitle">Available to <a href="https://patreon.com/jellywx"><span class="patreon-color">Patreon <span class="icon"><i class="fab fa-patreon"></i></span></span></a> subscribers at <strong>$2/month</strong></p>
+                </article>
+            </div>
+        </div>
+    </div>
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container has-text-centered">
+                <p class="title">Ready to go?</p>
+                <p class="content">
+                    Add the bot to get started!
+                </p>
+            </div>
+        </div>
+        <div class="hero-foot has-text-centered">
+            <a class="button is-size-6 is-rounded is-success" href="https://invite.reminder-bot.com">
+                <p class="is-size-6">
+                    Add Now <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                </p>
+            </a>
+        </div>
+    </section>
+
+{% endblock %}

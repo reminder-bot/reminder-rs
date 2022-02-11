@@ -1,0 +1,10 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "401 Not Authorized" %}
+
+    {% set show_login = True %}
+
+    {% set page_title = "Not Authorized" %}
+    {% set page_subtitle = "You must be logged in to access this page, if it exists." %}
+{% endblock %}

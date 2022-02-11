@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+{% block init %}
+{% endblock %}
+<html lang="EN">
+<head>
+    <meta name="description" content="The most powerful Discord Reminders Bot">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="yandex-verification" content="bb77b8681eb64a90" />
+    <meta name="google-site-verification" content="7h7UVTeEe0AOzHiH3cFtsqMULYGN-zCZdMT_YCkW1Ho" />
+
+    <!-- favicon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon/favicon-16x16.png">
+    <link rel="manifest" href="/static/favicon/site.webmanifest">
+    <meta name="msapplication-TileColor" content="#da532c">
+    <meta name="theme-color" content="#ffffff">
+
+    <title>Reminder Bot | {{ title }}</title>
+
+    <!-- styles -->
+    <link rel="stylesheet" href="/static/css/bulma.min.css">
+    <link rel="stylesheet" href="/static/css/fa.css">
+    <link rel="stylesheet" href="/static/css/font.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+
+</head>
+<body>
+    {% if flashed_message %}
+        <div class="notification is-{{ flashed_grade }} flash-message is-active">
+            <span class="icon"><i class="far fa-exclamation-circle"></i></span> {{ flashed_message }}
+        </div>
+    {% endif %}
+
+    <nav class="navbar is-dark is-spaced is-size-4" role="navigation" aria-label="main navigation">
+        <div class="navbar-brand">
+            <a class="navbar-item" href="/">
+                <figure class="image">
+                    <img src="/static/img/logo_flat.jpg" alt="Reminder Bot Logo" class="is-rounded" style="width: auto;">
+                </figure>
+            </a>
+
+            <a role="button" class="navbar-burger is-right" aria-label="menu" aria-expanded="false" data-target="pageNavbar">
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+            </a>
+        </div>
+        <div class="navbar-menu">
+            <div class="navbar-start">
+                <a class="navbar-item">
+                    <i class="fas fa-plus"></i>
+                </a>
+                <a class="navbar-item">
+                    <i class="fab fa-github"></i>
+                </a>
+                <a class="navbar-item">
+                    <i class="fab fa-discord"></i>
+                </a>
+            </div>
+
+            <div class="navbar-end">
+                <div class="navbar-item">
+                    <a class="button is-rounded is-light" href="/dashboard">
+                        <p>
+                            Dashboard <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                        </p>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="navbar-menu is-hidden-desktop" id="pageNavbar">
+            <a class="navbar-item">
+                <i class="fas fa-plus"></i>
+            </a>
+            <a class="navbar-item">
+                <i class="fab fa-github"></i>
+            </a>
+            <a class="navbar-item">
+                <i class="fab fa-discord"></i>
+            </a>
+
+            <div class="navbar-item">
+                <a href="/dashboard">
+                    <p>
+                        Dashboard <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                    </p>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    {% if not hide_title_block %}
+        <section class="hero is-small is-dark">
+            <div class="hero-body">
+                <div class="">
+                    <h1 class="title is-1">{{ page_title }}</h1>
+                    <h2 class="subtitle is-3">{{ page_subtitle }}
+                        {% if page_emoji %}
+                            <span class="icon"><i class="fas {{ page_emoji }}"></i></span>
+                        {% endif %}
+                    </h2>
+                </div>
+            </div>
+
+            {% if show_invite %}
+                <div class="hero-foot has-text-centered">
+                    <a class="button is-size-4 is-rounded is-success" href="https://invite.reminder-bot.com">
+                        <p class="is-size-4">
+                            Add to your Server <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                        </p>
+                    </a>
+                </div>
+            {% elif show_contact %}
+                <div class="hero-foot has-text-centered">
+                    <a class="button is-size-4 is-rounded is-primary" href="https://discord.jellywx.com">
+                        <p class="is-size-4">
+                            Join Discord <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                        </p>
+                    </a>
+                </div>
+            {% elif show_login %}
+                <div class="hero-foot has-text-centered">
+                    <a class="button is-size-4 is-rounded is-light" href="/oauth/login">
+                        <p class="is-size-4">
+                            Login with Discord <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                        </p>
+                    </a>
+                </div>
+            {% endif %}
+        </section>
+
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 160">
+            <path transform="scale(1, 0.5)" fill="#98dc9a" fill-opacity="1" d="M0,288L80,266.7C160,245,320,203,480,202.7C640,203,800,245,960,218.7C1120,192,1280,96,1360,48L1440,0L1440,0L1360,0C1280,0,1120,0,960,0C800,0,640,0,480,0C320,0,160,0,80,0L0,0Z"></path>
+            <path transform="scale(1, 0.5)" fill="#363636" fill-opacity="1" d="M0,224L60,202.7C120,181,240,139,360,138.7C480,139,600,181,720,197.3C840,213,960,203,1080,176C1200,149,1320,107,1380,85.3L1440,64L1440,0L1380,0C1320,0,1200,0,1080,0C960,0,840,0,720,0C600,0,480,0,360,0C240,0,120,0,60,0L0,0Z">
+            </path>
+        </svg>
+    {% endif %}
+
+    {% block content %}
+    {% endblock %}
+
+    <br>
+    <footer class="footer">
+        <div class="content has-text-centered">
+            <p>
+                <strong>Reminder Bot</strong>, created by <a href="https://github.com/JellyWX"><strong>JellyWX</strong></a>
+                <br>
+                <a href="/cookies">Cookies</a> | <a href="/privacy">Privacy Policy</a> | <a href="/terms">Terms of Service</a>
+                <br>
+                <a href="https://patreon.com/jellywx"><strong>Patreon</strong></a> | <a href="https://discord.jellywx.com"><strong>Discord</strong></a> | <a href="https://github.com/JellyWX"><strong>GitHub</strong></a>
+                <br>
+                or, <a href="mailto:jude@jellywx.com">Email me</a>
+                <br>
+                <span class="icon"><i class="fab fa-monero"></i></span>
+                <strong>XMR</strong> 49oP6DzzEzdC6VkxE6hGoLSRw5awvEx5cGGXH327tck15LWk8SFgLUAjS2yZqssMWN3JPRraR68ApHi4GGSLtCDmLbF7euH
+            </p>
+        </div>
+    </footer>
+
+    <script>
+
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // Get all "navbar-burger" elements
+            const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+
+            // Check if there are any navbar burgers
+            if ($navbarBurgers.length > 0) {
+
+            // Add a click event on each of them
+            $navbarBurgers.forEach( el => {
+                el.addEventListener('click', () => {
+
+                    // Get the target from the "data-target" attribute
+                    const target = el.dataset.target;
+                    const $target = document.getElementById(target);
+
+                    // Toggle the "is-active" class on both the "navbar-burger" and the "navbar-menu"
+                    el.classList.toggle('is-active');
+                    $target.classList.toggle('is-active');
+
+                    });
+                });
+            }
+        });
+
+    </script>
+</body>
+</html>

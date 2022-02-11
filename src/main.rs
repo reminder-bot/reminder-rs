@@ -22,7 +22,6 @@ use std::{
 use chrono_tz::Tz;
 use dotenv::dotenv;
 use log::info;
-use postman::initialize;
 use serenity::{
     async_trait,
     client::Client,
@@ -83,11 +82,18 @@ impl EventHandler for Handler {
         info!("Preparing to send reminders");
 
         if !self.is_loop_running.load(Ordering::Relaxed) {
-            let ctx = ctx_base.clone();
-            let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+            let ctx1 = ctx_base.clone();
+            let ctx2 = ctx_base.clone();
+
+            let pool1 = ctx1.data.read().await.get::<SQLPool>().cloned().unwrap();
+            let pool2 = ctx2.data.read().await.get::<SQLPool>().cloned().unwrap();
 
             tokio::spawn(async move {
-                initialize(ctx, &pool).await;
+                postman::initialize(ctx1, &pool1).await;
+            });
+
+            tokio::spawn(async move {
+                reminder_web::initialize(ctx2, pool2).await.unwrap();
             });
 
             self.is_loop_running.swap(true, Ordering::Relaxed);

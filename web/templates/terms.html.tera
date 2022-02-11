@@ -1,0 +1,55 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "Terms of Service" %}
+
+    {% set page_title = "Terms of Service" %}
+    {% set page_subtitle = "" %}
+    {% set page_emoji = "" %}
+{% endblock %}
+
+{% block content %}
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">Outline</h2>
+            <p class="is-size-5 pl-6">
+                The Terms of Service apply whenever you use <strong>Reminder Bot</strong> and the
+                <strong>JellyWX's Home</strong> Discord server.
+                <br>
+                <br>
+                Violating the Terms of Service may result in receiving a permanent ban from the Discord server,
+                permanent restriction on your usage of Reminder Bot, or removal of some or all of your content on
+                Reminder Bot or the Discord server.
+                <br>
+                <br>
+                The Terms of Service may be updated at any time, and should be considered a guideline for appropriate
+                behaviour.
+            </p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">Reminder Bot</h2>
+            <ul class="is-size-5 pl-6">
+                <li>Reasonably disclose potential exploits or bugs to me by email or by Discord private message</li>
+                <li>Do not use the bot to harass other Discord users</li>
+                <li>Do not use the bot to send more than 30 messages during a 60 second period</li>
+            </ul>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">JellyWX's Home</h2>
+            <ul class="is-size-5 pl-6">
+                <li>Do not discuss politics, harass other users, or use language intended to upset other users</li>
+                <li>Do not send malicious links</li>
+                <li>Do not advertise</li>
+                <li>Do not send unwarranted direct messages</li>
+            </ul>
+        </div>
+    </section>
+
+{% endblock %}

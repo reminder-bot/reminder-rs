@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Reminder Bot | Redirecting...</title>
+</head>
+<body>
+    <a href="/{{ to }}">Press here if you aren't redirected</a>
+<script>
+    document.location = "/{{ to }}";
+</script>
+</body>
+</html>

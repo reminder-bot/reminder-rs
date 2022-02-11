@@ -1,0 +1,10 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "403 Forbidden" %}
+
+    {% set show_contact = True %}
+
+    {% set page_title = "Forbidden" %}
+    {% set page_subtitle = "You currently cannot access this page, if it exists. Sorry." %}
+{% endblock %}

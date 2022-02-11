@@ -1,0 +1,9 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "500 Internal Server Error" %}
+    {% set show_contact = True %}
+
+    {% set page_title = "An Error Has Occurred" %}
+    {% set page_subtitle = "A server error has occurred. Please contact me and I will try and resolve this" %}
+{% endblock %}

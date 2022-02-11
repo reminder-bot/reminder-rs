@@ -1,0 +1,61 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "Cookies" %}
+
+    {% set page_title = "Cookies" %}
+    {% set page_subtitle = "Data this website stores on your computer" %}
+    {% set page_emoji = "fa-gingerbread-man" %}
+{% endblock %}
+
+{% block content %}
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">User Data</h2>
+            <p class="is-size-5 pl-6">
+                This website uses some necessary cookies and session data to operate. None of this can be disabled, since
+                it is all necessary for the site to function. <strong>However,</strong> it is worth mentioning that all of
+                this data is <strong>first-party only</strong>, i.e we use no tracking scripts like Google Analytics, and
+                no adverts are served on this site.
+            </p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">Cookies</h2>
+            <p class="is-size-5 pl-6">
+                Cookies are data that are persistent between browser restarts. Cookies are read and written by the website
+                running on your computer, not by our server.
+                <br>
+                Cookies store information on your preferences, including if <strong>you prefer AM/PM or 24 hour
+                clock</strong>, if <strong>you have closed the cookie popup before</strong>, and <strong>what
+                order you have the servers in on the dashboard</strong>.
+            </p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">Session Storage</h2>
+            <p class="is-size-5 pl-6">
+                Session data are data that is stored just for the active browser session. Session storage is read and
+                written by our server and cannot be modified on your computer.
+                <br>
+                Session data stores an <strong>access token provided by Discord</strong>, used to retrieve information
+                about your account. Also stored is an <strong>internal ID for use with our API</strong>.
+            </p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">How Can We Trust You?</h2>
+            <p class="is-size-5 pl-6">
+                Feel free to audit this website. Go to our <a href="https://github.com/reminder-bot">GitHub</a> to get started, or just press <kbd>F12</kbd>
+            </p>
+        </div>
+    </section>
+
+{% endblock %}

@@ -1,0 +1,23 @@
+<div style="margin: 0 12px 12px 12px;">
+    <div class="create-reminder">
+        <p>
+            <strong>Message Designer</strong>
+        </p>
+        {% include "reminder_dashboard/personal_reminder" %}
+        <p style="font-size: 0.8rem;">
+            Most fields are optional. Use 'Preview Mode' to see how the reminder will appear in Discord.
+            Scaling is not exact.
+        </p>
+
+        <div class="field">
+            <p class="control">
+                <a class="button is-success">
+                    Create
+                </a>
+            </p>
+        </div>
+    </div>
+    <div id="personalReminders">
+
+    </div>
+</div>

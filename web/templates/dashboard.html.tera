@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="EN">
+<head>
+    <meta name="description" content="The most powerful Discord Reminders Bot">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="yandex-verification" content="bb77b8681eb64a90"/>
+    <meta name="google-site-verification" content="7h7UVTeEe0AOzHiH3cFtsqMULYGN-zCZdMT_YCkW1Ho"/>
+
+    <!-- favicon -->
+    <link rel="apple-touch-icon" sizes="180x180"
+          href="/static/favicon/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32"
+          href="/static/favicon/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16"
+          href="/static/favicon/favicon-16x16.png">
+    <link rel="manifest" href="/static/favicon/site.webmanifest">
+    <meta name="msapplication-TileColor" content="#da532c">
+    <meta name="theme-color" content="#ffffff">
+
+    <title>Reminder Bot | Dashboard</title>
+
+    <!-- styles -->
+    <link rel="stylesheet" href="/static/css/bulma.min.css">
+    <link rel="stylesheet" href="/static/css/fa.css">
+    <link rel="stylesheet" href="/static/css/font.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/dtsel.css">
+
+    <script src="/static/js/iro.js"></script>
+    <script src="/static/js/dtsel.js"></script>
+    <script src="/static/js/luxon.min.js"></script>
+
+</head>
+<body>
+<nav class="navbar is-spaced is-size-4 is-hidden-desktop dashboard-navbar" role="navigation"
+     aria-label="main navigation">
+    <div class="navbar-brand">
+        <a class="navbar-item" href="/">
+            <figure class="image">
+                <img src="/static/img/logo_flat.jpg" alt="Reminder Bot Logo">
+            </figure>
+        </a>
+
+        <p class="navbar-item pageTitle">
+        </p>
+
+        <a role="button" class="navbar-burger is-right" aria-label="menu" aria-expanded="false"
+           data-target="mobileSidebar">
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+        </a>
+    </div>
+</nav>
+
+<!-- dead image used to check which other images are dead -->
+<img style="display: none;" src="" id="dead">
+
+<div class="notification is-danger flash-message" id="errors">
+    <span class="icon"><i class="far fa-exclamation-circle"></i></span> <span class="error-message"></span>
+</div>
+
+<div class="modal" id="addImageModal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+        <header class="modal-card-head">
+            <label class="modal-card-title" for="urlInput">Enter Image URL</label>
+            <button class="delete close-modal" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body">
+            <input class="input" id="urlInput" placeholder="Image URL...">
+        </section>
+        <footer class="modal-card-foot">
+            <button class="button is-success">Save</button>
+            <button class="button close-modal">Cancel</button>
+        </footer>
+    </div>
+    <button class="modal-close is-large close-modal" aria-label="close"></button>
+</div>
+
+<div class="modal" id="pickColorModal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+        <header class="modal-card-head">
+            <label class="modal-card-title" for="colorInput">Select Color</label>
+            <button class="delete close-modal" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body">
+            <div style="display: flex; justify-content: center">
+                <div id="colorpicker"></div>
+            </div>
+            <input class="input" id="colorInput">
+        </section>
+        <footer class="modal-card-foot">
+            <button class="button is-success">Save</button>
+            <button class="button close-modal">Cancel</button>
+        </footer>
+    </div>
+    <button class="modal-close is-large close-modal" aria-label="close"></button>
+</div>
+
+<div class="modal" id="chooseTimezoneModal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+        <header class="modal-card-head">
+            <label class="modal-card-title" for="urlInput">Update Timezone</label>
+            <button class="delete close-modal" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body">
+            <p>
+                Your configured timezone is: <strong><span class="set-timezone">%browsertimezone%</span></strong> (<span class="set-time">HH:mm</span>)
+                <br>
+                <br>
+                Your browser timezone is: <strong><span class="browser-timezone">%browsertimezone%</span></strong> (<span class="browser-time">HH:mm</span>)
+                <br>
+                Your bot timezone is: <strong><span class="bot-timezone">%bottimezone</span></strong> (<span class="bot-time">HH:mm</span>)
+            </p>
+            <br>
+            <div class="has-text-centered">
+                <button class="button is-success close-modal" id="set-browser-timezone">Use Browser Timezone</button>
+                <button class="button is-link close-modal" id="set-bot-timezone">Use Bot Timezone</button>
+                <button class="button is-warning close-modal" id="update-bot-timezone">Set Bot Timezone</button>
+            </div>
+        </section>
+    </div>
+    <button class="modal-close is-large close-modal" aria-label="close"></button>
+</div>
+
+<div class="columns is-gapless dashboard-frame">
+    <div class="column is-2 is-sidebar-menu dashboard-sidebar is-hidden-touch" style="display: flex; flex-direction: column;">
+        <a href="/">
+            <div class="brand">
+                <img src="/static/img/logo_flat.jpg" alt="Reminder bot logo"
+                     class="dashboard-brand">
+            </div>
+        </a>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 160">
+            <g transform="scale(1, 0.5)">
+                <path fill="#8fb677" fill-opacity="1"
+                      d="M0,192L60,170.7C120,149,240,107,360,96C480,85,600,107,720,138.7C840,171,960,213,1080,197.3C1200,181,1320,107,1380,69.3L1440,32L1440,0L1380,0C1320,0,1200,0,1080,0C960,0,840,0,720,0C600,0,480,0,360,0C240,0,120,0,60,0L0,0Z"></path>
+            </g>
+        </svg>
+        <aside class="menu" style="display: flex; flex-direction: column; flex-grow: 1;">
+            <p class="menu-label">
+                Personal
+            </p>
+            <ul class="menu-list">
+                <li>
+                    <a class="switch-pane" data-pane="personal">
+                        <span class="icon"><i class="fas fa-map-pin"></i></span> @%username%
+                    </a>
+                </li>
+            </ul>
+            <p class="menu-label">
+                Servers
+            </p>
+            <ul class="menu-list guildList">
+
+            </ul>
+            <div class="aside-footer" style="margin-top: auto;">
+                <p class="menu-label">
+                    Settings
+                </p>
+                <ul class="menu-list">
+                    <li>
+                        <a class="show-modal" data-modal="chooseTimezoneModal">
+                            <span class="icon"><i class="fas fa-map-marked"></i></span> Timezone
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </aside>
+    </div>
+
+    <div class="dashboard-sidebar mobile-sidebar is-hidden-desktop" id="mobileSidebar">
+        <a href="/">
+            <div class="brand">
+                <img src="/static/img/logo_flat.jpg" alt="Reminder bot logo"
+                     class="dashboard-brand">
+            </div>
+        </a>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 160">
+            <g transform="scale(1, 0.5)">
+                <path fill="#8fb677" fill-opacity="1"
+                      d="M0,192L60,170.7C120,149,240,107,360,96C480,85,600,107,720,138.7C840,171,960,213,1080,197.3C1200,181,1320,107,1380,69.3L1440,32L1440,0L1380,0C1320,0,1200,0,1080,0C960,0,840,0,720,0C600,0,480,0,360,0C240,0,120,0,60,0L0,0Z"></path>
+            </g>
+        </svg>
+        <aside class="menu" style="display: flex; flex-direction: column; flex-grow: 1;">
+            <p class="menu-label">
+                Personal
+            </p>
+            <ul class="menu-list">
+                <li>
+                    <a class="switch-pane" data-pane="personal">
+                        <span class="icon"><i class="fas fa-map-pin"></i></span> @%username%
+                    </a>
+                </li>
+            </ul>
+            <p class="menu-label">
+                Servers
+            </p>
+            <ul class="menu-list guildList">
+
+            </ul>
+            <div class="aside-footer" style="margin-top: auto;">
+                <p class="menu-label">
+                    Settings
+                </p>
+                <ul class="menu-list">
+                    <li>
+                        <a class="show-modal" data-modal="chooseTimezoneModal">
+                            <span class="icon"><i class="fas fa-map-pin"></i></span> Timezone
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </aside>
+    </div>
+
+    <!-- main content -->
+    <div class="column is-main-content">
+        <p class="title pageTitle" style="margin-left: 12px;"></p>
+        <section id="welcome">
+            <div class="has-text-centered" style="height: 100%; padding-top: 30vh;">
+                <p class="title">Welcome!</p>
+                <p class="subtitle is-hidden-touch">Select an option from the side to get started</p>
+                <p class="subtitle is-hidden-desktop">Press the <span class="icon"><i class="fal fa-bars"></i></span> to get started</p>
+            </div>
+        </section>
+        <section id="personal" class="is-hidden">
+            {% include "reminder_dashboard/reminder_dashboard_personal" %}
+        </section>
+        <section id="guild" class="is-hidden">
+            {% include "reminder_dashboard/reminder_dashboard" %}
+        </section>
+    </div>
+    <!-- /main content -->
+</div>
+
+<footer class="footer">
+    <div class="content has-text-centered">
+        <p>
+            <strong>Reminder Bot</strong>, created by <a href="https://github.com/JellyWX"><strong>JellyWX</strong></a>
+            <br>
+            <a href="https://patreon.com/jellywx"><strong>Patreon</strong></a> | <a
+                href="https://discord.jellywx.com"><strong>Discord</strong></a> | <a
+                href="https://github.com/JellyWX"><strong>GitHub</strong></a>
+            <br>
+            or, <a href="mailto:jude@jellywx.com">Email me</a>
+        </p>
+    </div>
+</footer>
+
+<template id="embedFieldTemplate">
+    <div class="embed-field-box">
+        <label class="is-sr-only" for="embedFieldTitle">Field Title</label>
+        <textarea class="discord-field-title field-input message-input autoresize"
+                  placeholder="Field Title..." rows="1"
+                  maxlength="256" id="embedFieldTitle" name="embed_field_title[]"></textarea>
+
+        <label class="is-sr-only" for="embedFieldValue">Field Value</label>
+        <textarea
+                class="discord-field-value field-input message-input autoresize"
+                placeholder="Field Value..."
+                maxlength="1024" id="embedFieldValue" name="embed_field_value[]"
+                rows="1"></textarea>
+    </div>
+</template>
+
+<template id="guildListEntry">
+    <li>
+        <a class="switch-pane" data-pane="guild">
+            <span class="icon"><i class="fas fa-map-pin"></i></span> %guildname%
+        </a>
+    </li>
+</template>
+
+<template id="guildReminder">
+    {% include "reminder_dashboard/guild_reminder" %}
+</template>
+
+<template id="personalReminder">
+    {% include "reminder_dashboard/personal_reminder" %}
+</template>
+
+<script>
+
+    function resize_textareas() {
+        document.querySelectorAll('textarea.autoresize').forEach((element) => {
+            element.style.height = "";
+            element.style.height = element.scrollHeight + 3 + "px";
+
+            element.addEventListener('input', () => {
+                element.style.height = "";
+                element.style.height = element.scrollHeight + 3 + "px";
+            });
+        });
+    }
+
+    function switch_pane(selector) {
+        document.querySelectorAll('aside a').forEach((el) => {
+            el.classList.remove('is-active');
+        });
+        document.querySelectorAll('div.is-main-content > section').forEach((el) => {
+            el.classList.add('is-hidden');
+        });
+
+        document.getElementById(selector).classList.remove('is-hidden');
+
+        resize_textareas();
+    }
+
+    function update_select(sel) {
+        if (sel.selectedOptions[0].dataset['webhookAvatar']) {
+            sel
+                .closest('div.reminderContent')
+                .querySelector('img.discord-avatar')
+                .src = sel.selectedOptions[0].dataset['webhookAvatar'];
+        } else {
+            sel
+                .closest('div.reminderContent')
+                .querySelector('img.discord-avatar')
+                .src = '';
+        }
+        if (sel.selectedOptions[0].dataset['webhookName']) {
+            sel
+                .closest('div.reminderContent')
+                .querySelector('input.discord-username')
+                .value = sel.selectedOptions[0].dataset['webhookName'];
+        } else {
+            sel
+                .closest('div.reminderContent')
+                .querySelector('input.discord-username')
+                .value = '';
+        }
+    }
+
+    function reset_guild_pane() {
+        document.querySelectorAll('select.channel-selector option').forEach((opt) => opt.remove());
+    }
+
+    function fetch_roles(guild_id) {
+        fetch(`/dashboard/api/guild/${guild_id}/roles`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    show_error(data.error);
+                } else {
+                    for (let role of data) {
+                        // todo
+                    }
+                }
+            })
+    }
+
+    function fetch_reminders(guild_id) {
+        // fetch dm reminders instead
+        if (guild_id === undefined) {
+            const $reminderBox = document.querySelector('div#personalReminders');
+
+            // reset div contents
+            $reminderBox.innerHTML = '';
+
+            // fetch reminders
+            fetch('dashboard/api/user/reminders')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        show_error(data.error);
+                    } else {
+                        const $template = document.querySelector('template#personalReminder');
+
+                        for (let reminder of data) {
+                            let newFrame = $template.content.cloneNode(true);
+
+                            for (let prop in reminder) {
+                                if (reminder.hasOwnProperty(prop) && reminder[prop] !== null) {
+                                    let $input = newFrame.querySelector(`*[name="${prop}"]`);
+                                    let $image = newFrame.querySelector(`img.${prop}`);
+
+                                    if ($input !== null) {
+                                        $input.value = reminder[prop];
+                                    } else if ($image !== null) {
+                                        $image.src = reminder[prop];
+                                    }
+                                }
+                            }
+
+                            $reminderBox.append(newFrame);
+                        }
+                    }
+                });
+        } else {
+            const $reminderBox = document.querySelector('div#guildReminders');
+
+            // reset div contents
+            $reminderBox.innerHTML = '';
+
+            // fetch reminders
+            fetch(`dashboard/api/guild/${guild_id}/reminders`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        show_error(data.error);
+                    } else {
+                        const $template = document.querySelector('template#personalReminder');
+
+                        for (let reminder of data) {
+                            let newFrame = $template.content.cloneNode(true);
+
+                            for (let prop in reminder) {
+                                if (reminder.hasOwnProperty(prop) && reminder[prop] !== null) {
+                                    let $input = newFrame.querySelector(`*[name="${prop}"]`);
+                                    let $image = newFrame.querySelector(`img.${prop}`);
+
+                                    if ($input !== null) {
+                                        $input.value = reminder[prop];
+                                    } else if ($image !== null) {
+                                        $image.src = reminder[prop];
+                                    }
+                                }
+                            }
+
+                            $reminderBox.appendChild(newFrame);
+                        }
+                    }
+                });
+        }
+    }
+
+    function show_error(error) {
+        document.getElementById('errors').querySelector('span.error-message').textContent = error;
+        document.getElementById('errors').classList.add('is-active');
+
+        window.setTimeout(() => {
+            document.getElementById('errors').classList.remove('is-active');
+        }, 5000);
+    }
+
+    function update_times() {
+        document.querySelectorAll('span.set-timezone').forEach((element) => {
+            element.textContent = timezone;
+        });
+        document.querySelectorAll('span.set-time').forEach((element) => {
+            element.textContent = luxon.DateTime.now().setZone(timezone).toFormat('HH:mm');
+        });
+        document.querySelectorAll('span.browser-timezone').forEach((element) => {
+            element.textContent = browserTimezone;
+        });
+        document.querySelectorAll('span.browser-time').forEach((element) => {
+            element.textContent = luxon.DateTime.now().toFormat('HH:mm');
+        });
+        document.querySelectorAll('span.bot-timezone').forEach((element) => {
+            element.textContent = botTimezone;
+        });
+        document.querySelectorAll('span.bot-time').forEach((element) => {
+            element.textContent = luxon.DateTime.now().setZone(botTimezone).toFormat('HH:mm');
+        });
+    }
+
+    window.setInterval(() => {
+        update_times();
+    }, 30000)
+
+    let colorPicker = new iro.ColorPicker('#colorpicker');
+    let $discordFrame;
+    const $colorPickerModal = document.querySelector('div#pickColorModal');
+    const $colorPickerInput = $colorPickerModal.querySelector('input');
+
+    let timezone = luxon.DateTime.now().zone.name;
+    const browserTimezone = luxon.DateTime.now().zone.name;
+    let botTimezone = 'UTC';
+
+    document.getElementById('set-bot-timezone').addEventListener('click', () => {
+        timezone = botTimezone;
+        update_times();
+    });
+    document.getElementById('set-browser-timezone').addEventListener('click', () => {
+        timezone = browserTimezone;
+        update_times();
+    });
+    document.getElementById('update-bot-timezone').addEventListener('click', () => {
+        timezone = browserTimezone;
+        fetch('/dashboard/api/user', {
+            method: 'PATCH',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({timezone: timezone})
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    show_error(data.error)
+                } else {
+                    botTimezone = browserTimezone;
+                    update_times();
+                }
+            });
+    });
+
+    $colorPickerInput.value = colorPicker.color.hexString;
+
+    $colorPickerInput.addEventListener('input', () => {
+        if (/^#[0-9a-fA-F]{6}$/.test($colorPickerInput.value) === true) {
+            colorPicker.color.hexString = $colorPickerInput.value;
+        }
+    });
+
+    colorPicker.on('color:change', function (color) {
+        $colorPickerInput.value = color.hexString;
+    });
+
+    document.querySelectorAll('.discord-embed').forEach((element) => {
+        element.addEventListener('click', (e) => {
+            if (e.offsetX < parseInt(window.getComputedStyle(element).borderLeftWidth)) {
+                $discordFrame = element;
+                $colorPickerModal.classList.toggle('is-active');
+                colorPicker.color.rgbString = window.getComputedStyle($discordFrame).borderLeftColor;
+            }
+        })
+    });
+
+    document.querySelectorAll('.set-color').forEach((element) => {
+        element.addEventListener('click', (e) => {
+            e.preventDefault();
+
+            $discordFrame = element.closest('div.reminderContent').querySelector('div.discord-embed');
+            $colorPickerModal.classList.toggle('is-active');
+            colorPicker.color.rgbString = window.getComputedStyle($discordFrame).borderLeftColor;
+        })
+    });
+
+    $colorPickerModal.querySelector('button.is-success').addEventListener('click', () => {
+        $discordFrame.style.borderLeftColor = colorPicker.color.rgbString;
+
+        $colorPickerModal.classList.remove('is-active')
+    });
+
+    document.querySelectorAll('a.show-modal').forEach((element) => {
+        element.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById(element.dataset['modal']).classList.toggle('is-active');
+        })
+    })
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.navbar-burger').forEach(el => {
+            el.addEventListener('click', () => {
+                const target = el.dataset.target;
+                const $target = document.getElementById(target);
+
+                el.classList.toggle('is-active');
+                $target.classList.toggle('is-active');
+            });
+        });
+
+        fetch('/dashboard/api/user')
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    show_error(data.error);
+                } else {
+                    document.querySelectorAll('a.switch-pane').forEach((element) => {
+                        element.innerHTML = element.innerHTML.replace('%username%', data.name);
+
+                        element.addEventListener('click', (e) => {
+                            e.preventDefault();
+
+                            switch_pane(element.dataset['pane']);
+
+                            element.classList.add('is-active');
+
+                            resize_textareas();
+
+                            document.querySelectorAll('p.pageTitle').forEach((el) => {
+                                el.textContent = 'Your Reminders';
+                            });
+                        });
+                    });
+
+                    if (data.timezone !== null) {
+                        botTimezone = data.timezone;
+                    }
+
+                    update_times();
+                }
+            });
+
+        fetch('/dashboard/api/user/guilds')
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    show_error(data.error);
+                } else {
+                    const $template = document.getElementById('guildListEntry');
+
+                    for (let guild of data) {
+                        document.querySelectorAll('.guildList').forEach((element) => {
+                            const $clone = $template.content.cloneNode(true);
+                            const $anchor = $clone.querySelector('a');
+
+                            $anchor.innerHTML = $clone.querySelector('a').innerHTML.replace('%guildname%', guild.name);
+                            $anchor.dataset['guild'] = guild.id;
+                            $anchor.dataset['name'] = guild.name;
+
+                            $anchor.addEventListener('click', (e) => {
+                                e.preventDefault();
+
+                                switch_pane($anchor.dataset['pane']);
+
+                                reset_guild_pane();
+
+                                fetch_roles($anchor.dataset['guild']);
+
+                                fetch(`/dashboard/api/guild/${$anchor.dataset['guild']}/channels`)
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        if (data.error) {
+                                            show_error(data.error);
+                                        } else {
+                                            document.querySelectorAll('select.channel-selector').forEach((el) => {
+                                                for (let channel of data) {
+                                                    let newOption = document.createElement('option');
+
+                                                    newOption.value = channel.id;
+                                                    newOption.textContent = channel.name;
+                                                    if (channel.webhook_avatar !== null) {
+                                                        newOption.dataset['webhookAvatar'] = channel.webhook_avatar;
+                                                    }
+                                                    if (channel.webhook_name !== null) {
+                                                        newOption.dataset['webhookName'] = channel.webhook_name;
+                                                    }
+
+                                                    el.appendChild(newOption);
+                                                }
+
+                                                update_select(el);
+                                            });
+                                        }
+                                    });
+
+                                fetch(`/dashboard/api/guild/${$anchor.dataset['guild']}/reminders`)
+                                    .then(response => response.json())
+                                    .then(data => {
+
+                                    })
+
+                                document.querySelectorAll('p.pageTitle').forEach((el) => {
+                                    el.textContent = $anchor.dataset['name'] + ' Reminders';
+                                });
+                                document.querySelectorAll('select.channel-selector').forEach((el) => {
+                                    el.addEventListener('change', (e) => {
+                                        update_select(e.target);
+                                    })
+                                });
+                                $anchor.classList.add('is-active');
+                                resize_textareas();
+                            });
+
+                            element.append($clone);
+                        });
+                    }
+                }
+            });
+    });
+
+    document.querySelectorAll('textarea.autoresize').forEach((element) => {
+        element.addEventListener('input', () => {
+            element.style.height = "";
+            element.style.height = element.scrollHeight + 3 + "px";
+        });
+    });
+
+    let $img;
+    const $urlModal = document.querySelector('div#addImageModal');
+    const $urlInput = $urlModal.querySelector('input');
+
+    $urlModal.querySelector('button.is-success').addEventListener('click', () => {
+        $img.src = $urlInput.value;
+
+        $urlInput.value = '';
+        $urlModal.classList.remove('is-active')
+    });
+
+    document.querySelectorAll('button.close-modal').forEach((element) => {
+        element.addEventListener('click', () => {
+            let $modal = element.closest('div.modal');
+
+            $urlInput.value = '';
+
+            $modal.classList.remove('is-active')
+        });
+    });
+
+    document.querySelectorAll('.customizable').forEach((element) => {
+        element.querySelector('a').addEventListener('click', (e) => {
+            e.preventDefault();
+
+            $img = element.querySelector('img');
+
+            $urlModal.classList.toggle('is-active')
+        });
+    });
+
+    document.querySelectorAll('a.icon-toggle').forEach((element) => {
+        element.addEventListener('click', (e) => {
+            e.preventDefault();
+
+            element.classList.toggle('is-active');
+        })
+    });
+
+    let $showButton = document.querySelector('button#showReminderCreator');
+
+    $showButton.addEventListener('click', () => {
+        $showButton.querySelector('span.icon i').classList.toggle('fa-chevron-right');
+        $showButton.querySelector('span.icon i').classList.toggle('fa-chevron-down');
+        document.querySelector('div#reminderCreator').classList.toggle('is-hidden');
+    });
+
+    document.querySelectorAll('.discord-field-title').forEach((element) => {
+        const $template = document.querySelector('template#embedFieldTemplate');
+        const $complement = element.parentElement.querySelector('.discord-field-value');
+
+        // when the user clicks out of the field title and if the field title/value are empty, remove the field
+        element.addEventListener('blur', () => {
+            if (element.value === '' && $complement.value === '' && element.parentElement.nextElementSibling !== null) {
+                element.parentElement.remove();
+            }
+        });
+
+        $complement.addEventListener('blur', () => {
+            if (element.value === '' && $complement.value === '' && element.parentElement.nextElementSibling !== null) {
+                element.parentElement.remove();
+            }
+        });
+
+        // when the user inputs into the end field, create a new field after it
+        element.addEventListener('input', () => {
+            if (element.value !== '' && $complement.value !== '' && element.parentElement.nextElementSibling === null) {
+                const $clone = $template.content.cloneNode(true);
+                element.parentElement.parentElement.append($clone);
+            }
+        });
+
+        $complement.addEventListener('input', () => {
+            if (element.value !== '' && $complement.value !== '' && element.parentElement.nextElementSibling === null) {
+                const $clone = $template.content.cloneNode(true);
+                element.parentElement.parentElement.append($clone);
+            }
+        });
+    });
+
+    document.addEventListener('DOMNodeInserted', () => {
+        document.querySelectorAll('div.mobile-sidebar a').forEach((element) => {
+            element.addEventListener('click', (e) => {
+                document.getElementById('mobileSidebar').classList.remove('is-active');
+                document.querySelectorAll('.navbar-burger').forEach((el) => {
+                    el.classList.remove('is-active');
+                });
+            });
+        });
+
+        document.querySelectorAll('.discord-field-title').forEach((element) => {
+            const $template = document.querySelector('template#embedFieldTemplate');
+            const $complement = element.parentElement.querySelector('.discord-field-value');
+
+            // when the user clicks out of the field title and if the field title/value are empty, remove the field
+            element.addEventListener('blur', () => {
+                if (element.value === '' && $complement.value === '' && element.parentElement.nextElementSibling !== null) {
+                    element.parentElement.remove();
+                }
+            });
+
+            $complement.addEventListener('blur', () => {
+                if (element.value === '' && $complement.value === '' && element.parentElement.nextElementSibling !== null) {
+                    element.parentElement.remove();
+                }
+            });
+
+            // when the user inputs into the end field, create a new field after it
+            element.addEventListener('input', () => {
+                if (element.value !== '' && $complement.value !== '' && element.parentElement.nextElementSibling === null) {
+                    const $clone = $template.content.cloneNode(true);
+                    element.parentElement.parentElement.append($clone);
+                }
+            });
+
+            $complement.addEventListener('input', () => {
+                if (element.value !== '' && $complement.value !== '' && element.parentElement.nextElementSibling === null) {
+                    const $clone = $template.content.cloneNode(true);
+                    element.parentElement.parentElement.append($clone);
+                }
+            });
+        });
+
+        resize_textareas();
+    });
+
+</script>
+</body>
+</html>
