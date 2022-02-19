@@ -1,5 +1,5 @@
 use chrono::NaiveDateTime;
-use serenity::model::channel::Channel;
+use poise::serenity::model::channel::Channel;
 use sqlx::MySqlPool;
 
 pub struct ChannelData {

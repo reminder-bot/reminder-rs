@@ -1,33 +1,25 @@
-use serenity::{client::Context, model::id::GuildId};
+use poise::serenity::{
+    client::Context,
+    model::{
+        id::GuildId, interactions::application_command::ApplicationCommandInteractionDataOption,
+    },
+};
+use serde::Serialize;
 
-use crate::{framework::CommandOptions, SQLPool};
+#[derive(Serialize)]
+pub struct RecordedCommand<U, E> {
+    #[serde(skip)]
+    action: for<'a> fn(
+        poise::ApplicationContext<'a, U, E>,
+        &'a [ApplicationCommandInteractionDataOption],
+    ) -> poise::BoxFuture<'a, Result<(), poise::FrameworkError<'a, U, E>>>,
+    command_name: String,
+    options: Vec<ApplicationCommandInteractionDataOption>,
+}
 
-pub struct CommandMacro {
+pub struct CommandMacro<U, E> {
     pub guild_id: GuildId,
     pub name: String,
     pub description: Option<String>,
-    pub commands: Vec<CommandOptions>,
-}
-
-impl CommandMacro {
-    pub async fn from_guild(ctx: &Context, guild_id: impl Into<GuildId>) -> Vec<Self> {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-        let guild_id = guild_id.into();
-
-        sqlx::query!(
-            "SELECT * FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?)",
-            guild_id.0
-        )
-        .fetch_all(&pool)
-        .await
-        .unwrap()
-        .iter()
-        .map(|row| Self {
-            guild_id,
-            name: row.name.clone(),
-            description: row.description.clone(),
-            commands: serde_json::from_str(&row.commands).unwrap(),
-        })
-        .collect::<Vec<Self>>()
-    }
+    pub commands: Vec<RecordedCommand<U, E>>,
 }

@@ -6,11 +6,12 @@ pub const SELECT_MAX_ENTRIES: usize = 25;
 pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
 
 const THEME_COLOR_FALLBACK: u32 = 0x8fb677;
+pub const MACRO_MAX_COMMANDS: usize = 5;
 
 use std::{collections::HashSet, env, iter::FromIterator};
 
+use poise::serenity::model::prelude::AttachmentType;
 use regex::Regex;
-use serenity::model::prelude::AttachmentType;
 
 lazy_static! {
     pub static ref DEFAULT_AVATAR: AttachmentType<'static> = (

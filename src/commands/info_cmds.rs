@@ -1,16 +1,11 @@
 use chrono::offset::Utc;
-use regex_command_attr::command;
-use serenity::{builder::CreateEmbedFooter, client::Context};
+use poise::serenity::builder::CreateEmbedFooter;
 
-use crate::{
-    framework::{CommandInvoke, CreateGenericResponse},
-    models::CtxData,
-    THEME_COLOR,
-};
+use crate::{models::CtxData, Context, Error, THEME_COLOR};
 
-fn footer(ctx: &Context) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut CreateEmbedFooter {
-    let shard_count = ctx.cache.shard_count();
-    let shard = ctx.shard_id;
+fn footer(ctx: Context<'_>) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut CreateEmbedFooter {
+    let shard_count = ctx.discord().cache.shard_count();
+    let shard = ctx.discord().shard_id;
 
     move |f| {
         f.text(format!(
@@ -22,15 +17,14 @@ fn footer(ctx: &Context) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut CreateEm
     }
 }
 
-#[command]
-#[description("Get an overview of the bot commands")]
-async fn help(ctx: &Context, invoke: &mut CommandInvoke) {
+/// Get an overview of bot commands
+#[poise::command(slash_command)]
+pub async fn help(ctx: Context<'_>) -> Result<(), Error> {
     let footer = footer(ctx);
 
-    let _ = invoke
-        .respond(
-            &ctx,
-            CreateGenericResponse::new().embed(|e| {
+    let _ = ctx
+        .send(|m| {
+            m.embed(|e| {
                 e.title("Help")
                     .color(*THEME_COLOR)
                     .description(
@@ -60,21 +54,21 @@ __Advanced Commands__
                     ",
                     )
                     .footer(footer)
-            }),
-        )
+            })
+        })
         .await;
+
+    Ok(())
 }
 
-#[command]
-#[aliases("invite")]
-#[description("Get information about the bot")]
-async fn info(ctx: &Context, invoke: &mut CommandInvoke) {
+/// Get information about the bot
+#[poise::command(slash_command)]
+pub async fn info(ctx: Context<'_>) -> Result<(), Error> {
     let footer = footer(ctx);
 
-    let _ = invoke
-        .respond(
-            ctx.http.clone(),
-            CreateGenericResponse::new().embed(|e| {
+    let _ = ctx
+        .send(|m| {
+            m.embed(|e| {
                 e.title("Info")
                     .description(format!(
                         "Help: `/help`
@@ -89,21 +83,19 @@ Use our dashboard: https://reminder-bot.com/",
                     ))
                     .footer(footer)
                     .color(*THEME_COLOR)
-            }),
-        )
+            })
+        })
         .await;
+
+    Ok(())
 }
 
-#[command]
-#[description("Details on supporting the bot and Patreon benefits")]
-#[group("Info")]
-async fn donate(ctx: &Context, invoke: &mut CommandInvoke) {
+/// Details on supporting the bot and Patreon benefits
+#[poise::command(slash_command)]
+pub async fn donate(ctx: Context<'_>) -> Result<(), Error> {
     let footer = footer(ctx);
 
-    let _ = invoke
-        .respond(
-            ctx.http.clone(),
-            CreateGenericResponse::new().embed(|e| {
+    let _ = ctx.send(|m| m.embed(|e| {
                 e.title("Donate")
                     .description("Thinking of adding a monthly contribution? Click below for my Patreon and official bot server :)
 
@@ -125,38 +117,41 @@ Just $2 USD/month!
             }),
         )
         .await;
+
+    Ok(())
 }
 
-#[command]
-#[description("Get the link to the online dashboard")]
-#[group("Info")]
-async fn dashboard(ctx: &Context, invoke: &mut CommandInvoke) {
+/// Get the link to the online dashboard
+#[poise::command(slash_command)]
+pub async fn dashboard(ctx: Context<'_>) -> Result<(), Error> {
     let footer = footer(ctx);
 
-    let _ = invoke
-        .respond(
-            ctx.http.clone(),
-            CreateGenericResponse::new().embed(|e| {
+    let _ = ctx
+        .send(|m| {
+            m.embed(|e| {
                 e.title("Dashboard")
                     .description("**https://reminder-bot.com/dashboard**")
                     .footer(footer)
                     .color(*THEME_COLOR)
-            }),
-        )
+            })
+        })
         .await;
+
+    Ok(())
 }
 
-#[command]
-#[description("View the current time in your selected timezone")]
-#[group("Info")]
-async fn clock(ctx: &Context, invoke: &mut CommandInvoke) {
-    let ud = ctx.user_data(&invoke.author_id()).await.unwrap();
-    let now = Utc::now().with_timezone(&ud.timezone());
+/// View the current time in a user's selected timezone
+#[poise::command(slash_command)]
+pub async fn clock(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.defer_ephemeral().await?;
 
-    let _ = invoke
-        .respond(
-            ctx.http.clone(),
-            CreateGenericResponse::new().content(format!("Current time: {}", now.format("%H:%M"))),
-        )
-        .await;
+    let tz = ctx.timezone().await;
+    let now = Utc::now().with_timezone(&tz);
+
+    ctx.send(|m| {
+        m.ephemeral(true).content(format!("Time in **{}**: `{}`", tz, now.format("%H:%M")))
+    })
+    .await?;
+
+    Ok(())
 }

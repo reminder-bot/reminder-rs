@@ -1,6 +1,6 @@
+use poise::serenity::model::id::ChannelId;
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
-use serenity::model::id::ChannelId;
 
 #[derive(Serialize_repr, Deserialize_repr, Copy, Clone, Debug)]
 #[repr(u8)]

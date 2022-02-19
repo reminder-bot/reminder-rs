@@ -5,8 +5,8 @@ authors = ["jellywx <judesouthworth@pm.me>"]
 edition = "2018"
 
 [dependencies]
+poise = { git = "https://github.com/kangalioo/poise", branch = "master" }
 dotenv = "0.15"
-humantime = "2.1"
 tokio = { version = "1", features = ["process", "full"] }
 reqwest = "0.11"
 regex = "1.4"
@@ -33,20 +33,3 @@ path = "postman"
 
 [dependencies.reminder_web]
 path = "web"
-
-[dependencies.serenity]
-git = "https://github.com/serenity-rs/serenity"
-branch = "next"
-default-features = false
-features = [
-    "builder",
-    "client",
-    "cache",
-    "gateway",
-    "http",
-    "model",
-    "utils",
-    "rustls_backend",
-    "collector",
-    "unstable_discord_api"
-]
