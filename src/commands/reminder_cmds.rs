@@ -9,7 +9,6 @@ use chrono_tz::Tz;
 use num_integer::Integer;
 use poise::{
     serenity::{builder::CreateEmbed, model::channel::Channel},
-    serenity_prelude::ActionRole::Create,
     CreateReply,
 };
 
@@ -32,7 +31,6 @@ use crate::{
             Reminder,
         },
         timer::Timer,
-        user_data::UserData,
         CtxData,
     },
     time_parser::natural_parser,
@@ -212,7 +210,7 @@ pub async fn look(
             None
         };
 
-    let reminders = Reminder::from_channel(&ctx, channel_id, &flags).await;
+    let reminders = Reminder::from_channel(&ctx.data().database, channel_id, &flags).await;
 
     if reminders.is_empty() {
         let _ = ctx.say("No reminders on specified channel").await;
@@ -266,7 +264,9 @@ pub async fn look(
 pub async fn delete(ctx: Context<'_>) -> Result<(), Error> {
     let timezone = ctx.timezone().await;
 
-    let reminders = Reminder::from_guild(&ctx, ctx.guild_id(), ctx.author().id).await;
+    let reminders =
+        Reminder::from_guild(&ctx.discord(), &ctx.data().database, ctx.guild_id(), ctx.author().id)
+            .await;
 
     let resp = show_delete_page(&reminders, 0, timezone);
 

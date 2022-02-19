@@ -1,4 +1,3 @@
-use crate::Database;
 use chrono::Duration;
 use chrono_tz::Tz;
 use lazy_static::lazy_static;
@@ -19,6 +18,8 @@ use sqlx::{
     types::chrono::{NaiveDateTime, Utc},
     Executor,
 };
+
+use crate::Database;
 
 lazy_static! {
     pub static ref TIMEFROM_REGEX: Regex =

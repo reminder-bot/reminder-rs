@@ -1,7 +1,10 @@
-use poise::serenity::{
-    builder::CreateApplicationCommands,
-    http::CacheHttp,
-    model::id::{GuildId, UserId},
+use poise::{
+    serenity::{
+        builder::CreateApplicationCommands,
+        http::CacheHttp,
+        model::id::{GuildId, UserId},
+    },
+    serenity_prelude as serenity,
 };
 
 use crate::{
@@ -63,5 +66,42 @@ pub async fn check_guild_subscription(
         check_subscription(&cache_http, owner).await
     } else {
         false
+    }
+}
+
+/// Sends the message, specified via [`crate::CreateReply`], to the interaction initial response
+/// endpoint
+pub fn send_as_initial_response(
+    data: poise::CreateReply<'_>,
+    f: &mut serenity::CreateInteractionResponseData,
+) {
+    let poise::CreateReply {
+        content,
+        embeds,
+        attachments: _, // serenity doesn't support attachments in initial response yet
+        components,
+        ephemeral,
+        allowed_mentions,
+        reference_message: _, // can't reply to a message in interactions
+    } = data;
+
+    if let Some(content) = content {
+        f.content(content);
+    }
+    f.embeds(embeds);
+    if let Some(allowed_mentions) = allowed_mentions {
+        f.allowed_mentions(|f| {
+            *f = allowed_mentions.clone();
+            f
+        });
+    }
+    if let Some(components) = components {
+        f.components(|f| {
+            f.0 = components.0;
+            f
+        });
+    }
+    if ephemeral {
+        f.flags(serenity::InteractionApplicationCommandCallbackDataFlags::EPHEMERAL);
     }
 }

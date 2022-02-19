@@ -1,9 +1,11 @@
 use chrono::offset::Utc;
-use poise::serenity::builder::CreateEmbedFooter;
+use poise::{serenity_prelude as serenity, serenity_prelude::Mentionable};
 
 use crate::{models::CtxData, Context, Error, THEME_COLOR};
 
-fn footer(ctx: Context<'_>) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut CreateEmbedFooter {
+fn footer(
+    ctx: Context<'_>,
+) -> impl FnOnce(&mut serenity::CreateEmbedFooter) -> &mut serenity::CreateEmbedFooter {
     let shard_count = ctx.discord().cache.shard_count();
     let shard = ctx.discord().shard_id;
 
@@ -22,13 +24,12 @@ fn footer(ctx: Context<'_>) -> impl FnOnce(&mut CreateEmbedFooter) -> &mut Creat
 pub async fn help(ctx: Context<'_>) -> Result<(), Error> {
     let footer = footer(ctx);
 
-    let _ = ctx
-        .send(|m| {
-            m.embed(|e| {
-                e.title("Help")
-                    .color(*THEME_COLOR)
-                    .description(
-                        "__Info Commands__
+    ctx.send(|m| {
+        m.ephemeral(true).embed(|e| {
+            e.title("Help")
+                .color(*THEME_COLOR)
+                .description(
+                    "__Info Commands__
 `/help` `/info` `/donate` `/dashboard` `/clock`
 *run these commands with no options*
 
@@ -52,11 +53,11 @@ __Setup Commands__
 __Advanced Commands__
 `/macro` - Record and replay command sequences
                     ",
-                    )
-                    .footer(footer)
-            })
+                )
+                .footer(footer)
         })
-        .await;
+    })
+    .await?;
 
     Ok(())
 }
@@ -68,7 +69,7 @@ pub async fn info(ctx: Context<'_>) -> Result<(), Error> {
 
     let _ = ctx
         .send(|m| {
-            m.embed(|e| {
+            m.ephemeral(true).embed(|e| {
                 e.title("Info")
                     .description(format!(
                         "Help: `/help`
@@ -95,9 +96,10 @@ Use our dashboard: https://reminder-bot.com/",
 pub async fn donate(ctx: Context<'_>) -> Result<(), Error> {
     let footer = footer(ctx);
 
-    let _ = ctx.send(|m| m.embed(|e| {
-                e.title("Donate")
-                    .description("Thinking of adding a monthly contribution? Click below for my Patreon and official bot server :)
+    ctx.send(|m| m.embed(|e| {
+        e.title("Donate")
+            .description("Thinking of adding a monthly contribution?
+Click below for my Patreon and official bot server :)
 
 **https://www.patreon.com/jellywx/**
 **https://discord.jellywx.com/**
@@ -112,11 +114,11 @@ With your new rank, you'll be able to:
 Just $2 USD/month!
 
 *Please note, you must be in the JellyWX Discord server to receive Patreon features*")
-                    .footer(footer)
-                    .color(*THEME_COLOR)
-            }),
-        )
-        .await;
+                .footer(footer)
+                .color(*THEME_COLOR)
+        }),
+    )
+    .await?;
 
     Ok(())
 }
@@ -126,21 +128,20 @@ Just $2 USD/month!
 pub async fn dashboard(ctx: Context<'_>) -> Result<(), Error> {
     let footer = footer(ctx);
 
-    let _ = ctx
-        .send(|m| {
-            m.embed(|e| {
-                e.title("Dashboard")
-                    .description("**https://reminder-bot.com/dashboard**")
-                    .footer(footer)
-                    .color(*THEME_COLOR)
-            })
+    ctx.send(|m| {
+        m.ephemeral(true).embed(|e| {
+            e.title("Dashboard")
+                .description("**https://reminder-bot.com/dashboard**")
+                .footer(footer)
+                .color(*THEME_COLOR)
         })
-        .await;
+    })
+    .await?;
 
     Ok(())
 }
 
-/// View the current time in a user's selected timezone
+/// View the current time in your selected timezone
 #[poise::command(slash_command)]
 pub async fn clock(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
@@ -150,6 +151,28 @@ pub async fn clock(ctx: Context<'_>) -> Result<(), Error> {
 
     ctx.send(|m| {
         m.ephemeral(true).content(format!("Time in **{}**: `{}`", tz, now.format("%H:%M")))
+    })
+    .await?;
+
+    Ok(())
+}
+
+/// View the current time in a user's selected timezone
+#[poise::command(context_menu_command = "View Local Time")]
+pub async fn clock_context_menu(ctx: Context<'_>, user: serenity::User) -> Result<(), Error> {
+    ctx.defer_ephemeral().await?;
+
+    let user_data = ctx.user_data(user.id).await?;
+    let tz = user_data.timezone();
+
+    let now = Utc::now().with_timezone(&tz);
+
+    ctx.send(|m| {
+        m.ephemeral(true).content(format!(
+            "Time in {}'s timezone: `{}`",
+            user.mention(),
+            now.format("%H:%M")
+        ))
     })
     .await?;
 

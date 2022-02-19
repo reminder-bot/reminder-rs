@@ -5,6 +5,7 @@ use std::io::Cursor;
 use chrono_tz::Tz;
 use poise::serenity::{
     builder::CreateEmbed,
+    client::Context,
     model::{
         channel::Channel,
         interactions::{message_component::MessageComponentInteraction, InteractionResponseType},
@@ -22,8 +23,9 @@ use crate::{
     },
     component_models::pager::{DelPager, LookPager, MacroPager, Pager, TodoPager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
-    models::{reminder::Reminder, CtxData},
-    Context, Data,
+    models::reminder::Reminder,
+    utils::send_as_initial_response,
+    Data,
 };
 
 #[derive(Deserialize, Serialize)]
@@ -53,12 +55,12 @@ impl ComponentDataModel {
         rmp_serde::from_read(cur).unwrap()
     }
 
-    pub async fn act(&self, ctx: Context<'_>, component: &MessageComponentInteraction) {
+    pub async fn act(&self, ctx: &Context, data: &Data, component: &MessageComponentInteraction) {
         match self {
             ComponentDataModel::LookPager(pager) => {
                 let flags = pager.flags;
 
-                let channel_opt = component.channel_id.to_channel_cached(&ctx.discord());
+                let channel_opt = component.channel_id.to_channel_cached(&ctx);
 
                 let channel_id = if let Some(Channel::Guild(channel)) = channel_opt {
                     if Some(channel.guild_id) == component.guild_id {
@@ -70,7 +72,7 @@ impl ComponentDataModel {
                     component.channel_id
                 };
 
-                let reminders = Reminder::from_channel(&ctx, channel_id, &flags).await;
+                let reminders = Reminder::from_channel(&data.database, channel_id, &flags).await;
 
                 let pages = reminders
                     .iter()
@@ -78,13 +80,12 @@ impl ComponentDataModel {
                     .fold(0, |t, r| t + r.len())
                     .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
 
-                let channel_name = if let Some(Channel::Guild(channel)) =
-                    channel_id.to_channel_cached(&ctx.discord())
-                {
-                    Some(channel.name)
-                } else {
-                    None
-                };
+                let channel_name =
+                    if let Some(Channel::Guild(channel)) = channel_id.to_channel_cached(&ctx) {
+                        Some(channel.name)
+                    } else {
+                        None
+                    };
 
                 let next_page = pager.next_page(pages);
 
@@ -118,7 +119,7 @@ impl ComponentDataModel {
                     .color(*THEME_COLOR);
 
                 let _ = component
-                    .create_interaction_response(&ctx.discord(), |r| {
+                    .create_interaction_response(&ctx, |r| {
                         r.kind(InteractionResponseType::UpdateMessage).interaction_response_data(
                             |response| {
                                 response.embeds(vec![embed]).components(|comp| {
@@ -132,17 +133,26 @@ impl ComponentDataModel {
                     .await;
             }
             ComponentDataModel::DelPager(pager) => {
-                let reminders =
-                    Reminder::from_guild(&ctx, component.guild_id, component.user.id).await;
+                let reminders = Reminder::from_guild(
+                    &ctx,
+                    &data.database,
+                    component.guild_id,
+                    component.user.id,
+                )
+                .await;
 
                 let max_pages = max_delete_page(&reminders, &pager.timezone);
 
                 let resp = show_delete_page(&reminders, pager.next_page(max_pages), pager.timezone);
 
-                let _ = ctx
-                    .send(|r| {
-                        *r = resp;
-                        r
+                let _ = component
+                    .create_interaction_response(&ctx, |f| {
+                        f.kind(InteractionResponseType::UpdateMessage).interaction_response_data(
+                            |d| {
+                                send_as_initial_response(resp, d);
+                                d
+                            },
+                        )
                     })
                     .await;
             }
@@ -150,19 +160,28 @@ impl ComponentDataModel {
                 let selected_id = component.data.values.join(",");
 
                 sqlx::query!("DELETE FROM reminders WHERE FIND_IN_SET(id, ?)", selected_id)
-                    .execute(&ctx.data().database)
+                    .execute(&data.database)
                     .await
                     .unwrap();
 
-                let reminders =
-                    Reminder::from_guild(&ctx, component.guild_id, component.user.id).await;
+                let reminders = Reminder::from_guild(
+                    &ctx,
+                    &data.database,
+                    component.guild_id,
+                    component.user.id,
+                )
+                .await;
 
                 let resp = show_delete_page(&reminders, selector.page, selector.timezone);
 
-                let _ = ctx
-                    .send(|r| {
-                        *r = resp;
-                        r
+                let _ = component
+                    .create_interaction_response(&ctx, |f| {
+                        f.kind(InteractionResponseType::UpdateMessage).interaction_response_data(
+                            |d| {
+                                send_as_initial_response(resp, d);
+                                d
+                            },
+                        )
                     })
                     .await;
             }
@@ -175,7 +194,7 @@ INNER JOIN users ON todos.user_id = users.id
 WHERE users.user = ?",
                             uid,
                         )
-                        .fetch_all(&ctx.data().database)
+                        .fetch_all(&data.database)
                         .await
                         .unwrap()
                         .iter()
@@ -188,7 +207,7 @@ INNER JOIN channels ON todos.channel_id = channels.id
 WHERE channels.channel = ?",
                             cid,
                         )
-                        .fetch_all(&ctx.data().database)
+                        .fetch_all(&data.database)
                         .await
                         .unwrap()
                         .iter()
@@ -201,7 +220,7 @@ INNER JOIN guilds ON todos.guild_id = guilds.id
 WHERE guilds.guild = ?",
                             pager.guild_id,
                         )
-                        .fetch_all(&ctx.data().database)
+                        .fetch_all(&data.database)
                         .await
                         .unwrap()
                         .iter()
@@ -219,15 +238,18 @@ WHERE guilds.guild = ?",
                         pager.guild_id,
                     );
 
-                    let _ = ctx
-                        .send(|r| {
-                            *r = resp;
-                            r
+                    let _ = component
+                        .create_interaction_response(&ctx, |f| {
+                            f.kind(InteractionResponseType::UpdateMessage)
+                                .interaction_response_data(|d| {
+                                    send_as_initial_response(resp, d);
+                                    d
+                                })
                         })
                         .await;
                 } else {
                     let _ = component
-                        .create_interaction_response(&ctx.discord(), |r| {
+                        .create_interaction_response(&ctx, |r| {
                             r.kind(InteractionResponseType::ChannelMessageWithSource)
                                 .interaction_response_data(|d| {
                                     d.flags(
@@ -244,7 +266,7 @@ WHERE guilds.guild = ?",
                     let selected_id = component.data.values.join(",");
 
                     sqlx::query!("DELETE FROM todos WHERE FIND_IN_SET(id, ?)", selected_id)
-                        .execute(&ctx.data().database)
+                        .execute(&data.database)
                         .await
                         .unwrap();
 
@@ -255,7 +277,7 @@ WHERE guilds.guild = ?",
                     selector.channel_id,
                     selector.guild_id,
                 )
-                .fetch_all(&ctx.data().database)
+                .fetch_all(&data.database)
                 .await
                 .unwrap()
                 .iter()
@@ -270,15 +292,18 @@ WHERE guilds.guild = ?",
                         selector.guild_id,
                     );
 
-                    let _ = ctx
-                        .send(|r| {
-                            *r = resp;
-                            r
+                    let _ = component
+                        .create_interaction_response(&ctx, |f| {
+                            f.kind(InteractionResponseType::UpdateMessage)
+                                .interaction_response_data(|d| {
+                                    send_as_initial_response(resp, d);
+                                    d
+                                })
                         })
                         .await;
                 } else {
                     let _ = component
-                        .create_interaction_response(&ctx.discord(), |r| {
+                        .create_interaction_response(&ctx, |r| {
                             r.kind(InteractionResponseType::ChannelMessageWithSource)
                                 .interaction_response_data(|d| {
                                     d.flags(
@@ -291,17 +316,21 @@ WHERE guilds.guild = ?",
                 }
             }
             ComponentDataModel::MacroPager(pager) => {
-                let macros = ctx.command_macros().await.unwrap();
+                let macros = data.command_macros(component.guild_id.unwrap()).await.unwrap();
 
                 let max_page = max_macro_page(&macros);
                 let page = pager.next_page(max_page);
 
                 let resp = show_macro_page(&macros, page);
 
-                let _ = ctx
-                    .send(|r| {
-                        *r = resp;
-                        r
+                let _ = component
+                    .create_interaction_response(&ctx, |f| {
+                        f.kind(InteractionResponseType::UpdateMessage).interaction_response_data(
+                            |d| {
+                                send_as_initial_response(resp, d);
+                                d
+                            },
+                        )
                     })
                     .await;
             }

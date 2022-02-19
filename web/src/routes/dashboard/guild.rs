@@ -1,14 +1,13 @@
-use rocket::State;
-
-use crate::consts::DISCORD_CDN;
+use rocket::{
+    serde::json::{json, Json, Value as JsonValue},
+    State,
+};
 use serde::Serialize;
+use serenity::{client::Context, model::id::GuildId};
 use sqlx::{MySql, Pool};
 
 use super::Reminder;
-use rocket::serde::json::{json, Json, Value as JsonValue};
-use serenity::client::Context;
-use serenity::http::CacheHttp;
-use serenity::model::id::GuildId;
+use crate::consts::DISCORD_CDN;
 
 #[derive(Serialize)]
 struct ChannelInfo {

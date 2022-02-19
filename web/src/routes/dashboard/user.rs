@@ -1,22 +1,24 @@
-use rocket::serde::json::{json, Json, Value as JsonValue};
-use rocket::{http::CookieJar, State};
-
-use reqwest::Client;
-
-use serde::{Deserialize, Serialize};
-use serenity::model::{
-    id::{GuildId, RoleId},
-    permissions::Permissions,
-};
-use sqlx::{MySql, Pool};
 use std::env;
 
-use super::Reminder;
-use crate::consts::DISCORD_API;
-use crate::routes::dashboard::DeleteReminder;
 use chrono_tz::Tz;
-use serenity::client::Context;
-use serenity::model::id::UserId;
+use reqwest::Client;
+use rocket::{
+    http::CookieJar,
+    serde::json::{json, Json, Value as JsonValue},
+    State,
+};
+use serde::{Deserialize, Serialize};
+use serenity::{
+    client::Context,
+    model::{
+        id::{GuildId, RoleId, UserId},
+        permissions::Permissions,
+    },
+};
+use sqlx::{MySql, Pool};
+
+use super::Reminder;
+use crate::{consts::DISCORD_API, routes::dashboard::DeleteReminder};
 
 #[derive(Serialize)]
 struct UserInfo {
@@ -166,7 +168,7 @@ pub async fn get_user_guilds(cookies: &CookieJar<'_>, reqwest_client: &State<Cli
 #[post("/api/user/reminders", data = "<reminder>")]
 pub async fn create_reminder(
     reminder: Json<Reminder>,
-    ctx: &State<Context>,
+    _ctx: &State<Context>,
     pool: &State<Pool<MySql>>,
 ) -> JsonValue {
     match sqlx::query!(

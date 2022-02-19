@@ -4,17 +4,15 @@ extern crate rocket;
 mod consts;
 mod routes;
 
-use rocket::fs::{relative, FileServer};
-use std::collections::HashMap;
+use std::{collections::HashMap, env};
 
-use oauth2::basic::BasicClient;
-use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
-
-use crate::consts::{DISCORD_OAUTH_AUTHORIZE, DISCORD_OAUTH_TOKEN};
+use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
+use rocket::fs::FileServer;
 use rocket_dyn_templates::Template;
 use serenity::client::Context;
 use sqlx::{MySql, Pool};
-use std::env;
+
+use crate::consts::{DISCORD_OAUTH_AUTHORIZE, DISCORD_OAUTH_TOKEN};
 
 type Database = MySql;
 

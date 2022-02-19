@@ -59,6 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             info_cmds::info(),
             info_cmds::donate(),
             info_cmds::clock(),
+            info_cmds::clock_context_menu(),
             info_cmds::dashboard(),
             moderation_cmds::timezone(),
             poise::Command {

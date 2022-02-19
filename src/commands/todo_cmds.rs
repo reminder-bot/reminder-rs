@@ -6,6 +6,7 @@ use crate::{
         ComponentDataModel, TodoSelector,
     },
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, SELECT_MAX_ENTRIES, THEME_COLOR},
+    hooks::guild_only,
     Context, Error,
 };
 
@@ -16,7 +17,7 @@ pub async fn todo_base(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Manage the server todo list
-#[poise::command(slash_command, rename = "server")]
+#[poise::command(slash_command, rename = "server", check = "guild_only")]
 pub async fn todo_guild_base(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
@@ -70,7 +71,7 @@ WHERE guilds.guild = ?",
 }
 
 /// Manage the channel todo list
-#[poise::command(slash_command, rename = "channel")]
+#[poise::command(slash_command, rename = "channel", check = "guild_only")]
 pub async fn todo_channel_base(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }

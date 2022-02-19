@@ -1,21 +1,12 @@
-use std::{
-    collections::HashMap,
-    env,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::{collections::HashMap, env, sync::atomic::Ordering};
 
 use log::{info, warn};
 use poise::{
     serenity::{model::interactions::Interaction, utils::shard_id},
     serenity_prelude as serenity,
-    serenity_prelude::{
-        ApplicationCommandInteraction, ApplicationCommandInteractionData, ApplicationCommandType,
-        InteractionType,
-    },
-    ApplicationCommandOrAutocompleteInteraction, ApplicationContext, Command,
 };
 
-use crate::{component_models::ComponentDataModel, Context, Data, Error};
+use crate::{component_models::ComponentDataModel, Data, Error};
 
 pub async fn listener(
     ctx: &serenity::Context,
@@ -56,15 +47,10 @@ pub async fn listener(
             }
         }
         poise::Event::ChannelDelete { channel } => {
-            sqlx::query!(
-                "
-DELETE FROM channels WHERE channel = ?
-                ",
-                channel.id.as_u64()
-            )
-            .execute(&data.database)
-            .await
-            .unwrap();
+            sqlx::query!("DELETE FROM channels WHERE channel = ?", channel.id.as_u64())
+                .execute(&data.database)
+                .await
+                .unwrap();
         }
         poise::Event::GuildCreate { guild, is_new } => {
             if *is_new {
@@ -122,7 +108,7 @@ DELETE FROM channels WHERE channel = ?
             Interaction::MessageComponent(component) => {
                 let component_model = ComponentDataModel::from_custom_id(&component.data.custom_id);
 
-                // component_model.act(ctx, component).await;
+                component_model.act(ctx, data, component).await;
             }
             _ => {}
         },

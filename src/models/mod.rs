@@ -9,7 +9,7 @@ use poise::serenity::{async_trait, model::id::UserId};
 
 use crate::{
     models::{channel_data::ChannelData, user_data::UserData},
-    CommandMacro, Context, Data, Error,
+    CommandMacro, Context, Data, Error, GuildId,
 };
 
 #[async_trait]
@@ -49,13 +49,20 @@ impl CtxData for Context<'_> {
     }
 
     async fn command_macros(&self) -> Result<Vec<CommandMacro<Data, Error>>, Error> {
-        let guild_id = self.guild_id().unwrap();
+        self.data().command_macros(self.guild_id().unwrap()).await
+    }
+}
 
+impl Data {
+    pub(crate) async fn command_macros(
+        &self,
+        guild_id: GuildId,
+    ) -> Result<Vec<CommandMacro<Data, Error>>, Error> {
         let rows = sqlx::query!(
             "SELECT name, description FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?)",
             guild_id.0
         )
-        .fetch_all(&self.data().database)
+        .fetch_all(&self.database)
         .await?.iter().map(|row| CommandMacro {
             guild_id,
             name: row.name.clone(),

@@ -6,12 +6,15 @@ pub mod look_flags;
 
 use chrono::{NaiveDateTime, TimeZone};
 use chrono_tz::Tz;
-use poise::serenity::model::id::{ChannelId, GuildId, UserId};
+use poise::{
+    serenity::model::id::{ChannelId, GuildId, UserId},
+    serenity_prelude::Cache,
+};
 use sqlx::Executor;
 
 use crate::{
     models::reminder::look_flags::{LookFlags, TimeDisplayType},
-    Context, Data, Database,
+    Database,
 };
 
 #[derive(Debug, Clone)]
@@ -70,7 +73,7 @@ WHERE
     }
 
     pub async fn from_channel<C: Into<ChannelId>>(
-        ctx: &Context<'_>,
+        pool: impl Executor<'_, Database = Database>,
         channel_id: C,
         flags: &LookFlags,
     ) -> Vec<Self> {
@@ -111,18 +114,19 @@ ORDER BY
             channel_id.as_u64(),
             enabled,
         )
-        .fetch_all(&ctx.data().database)
+        .fetch_all(pool)
         .await
         .unwrap()
     }
 
     pub async fn from_guild(
-        ctx: &Context<'_>,
+        cache: impl AsRef<Cache>,
+        pool: impl Executor<'_, Database = Database>,
         guild_id: Option<GuildId>,
         user: UserId,
     ) -> Vec<Self> {
         if let Some(guild_id) = guild_id {
-            let guild_opt = guild_id.to_guild_cached(&ctx.discord());
+            let guild_opt = guild_id.to_guild_cached(cache);
 
             if let Some(guild) = guild_opt {
                 let channels = guild
@@ -163,7 +167,7 @@ WHERE
                 ",
                     channels
                 )
-                .fetch_all(&ctx.data().database)
+                .fetch_all(pool)
                 .await
             } else {
                 sqlx::query_as_unchecked!(
@@ -196,7 +200,7 @@ WHERE
                 ",
                     guild_id.as_u64()
                 )
-                .fetch_all(&ctx.data().database)
+                .fetch_all(pool)
                 .await
             }
         } else {
@@ -230,7 +234,7 @@ WHERE
             ",
                 user.as_u64()
             )
-            .fetch_all(&ctx.data().database)
+            .fetch_all(pool)
             .await
         }
         .unwrap()
