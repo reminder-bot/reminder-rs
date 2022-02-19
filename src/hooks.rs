@@ -1,6 +1,6 @@
 use poise::{serenity::model::channel::Channel, ApplicationCommandOrAutocompleteInteraction};
 
-use crate::{consts::MACRO_MAX_COMMANDS, Context, Error};
+use crate::{consts::MACRO_MAX_COMMANDS, models::command_macro::RecordedCommand, Context, Error};
 
 pub async fn guild_only(ctx: Context<'_>) -> Result<bool, Error> {
     if ctx.guild_id().is_some() {
@@ -25,12 +25,18 @@ async fn macro_check(ctx: Context<'_>) -> bool {
                         if command_macro.commands.len() >= MACRO_MAX_COMMANDS {
                             let _ = ctx.send(|m| {
                                 m.ephemeral(true).content(
-                                    "5 commands already recorded. Please use `/macro finish` to end recording.",
+                                    format!("{} commands already recorded. Please use `/macro finish` to end recording.", MACRO_MAX_COMMANDS),
                                 )
                             })
                             .await;
                         } else {
-                            // TODO TODO TODO write command to macro
+                            let recorded = RecordedCommand {
+                                action: None,
+                                command_name: ctx.command().identifying_name.clone(),
+                                options: Vec::from(app_ctx.args),
+                            };
+
+                            command_macro.commands.push(recorded);
 
                             let _ = ctx
                                 .send(|m| m.ephemeral(true).content("Command recorded to macro"))

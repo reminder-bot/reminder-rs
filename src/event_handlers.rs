@@ -1,11 +1,27 @@
-use std::{collections::HashMap, env, sync::atomic::Ordering};
+use std::{
+    collections::HashMap,
+    env,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use log::{info, warn};
-use poise::serenity::{client::Context, model::interactions::Interaction, utils::shard_id};
+use poise::{
+    serenity::{model::interactions::Interaction, utils::shard_id},
+    serenity_prelude as serenity,
+    serenity_prelude::{
+        ApplicationCommandInteraction, ApplicationCommandInteractionData, ApplicationCommandType,
+        InteractionType,
+    },
+    ApplicationCommandOrAutocompleteInteraction, ApplicationContext, Command,
+};
 
-use crate::{Data, Error};
+use crate::{component_models::ComponentDataModel, Context, Data, Error};
 
-pub async fn listener(ctx: &Context, event: &poise::Event<'_>, data: &Data) -> Result<(), Error> {
+pub async fn listener(
+    ctx: &serenity::Context,
+    event: &poise::Event<'_>,
+    data: &Data,
+) -> Result<(), Error> {
     match event {
         poise::Event::CacheReady { .. } => {
             info!("Cache Ready!");
@@ -97,15 +113,16 @@ DELETE FROM channels WHERE channel = ?
                 }
             }
         }
-        poise::Event::GuildDelete { incomplete, full } => {
+        poise::Event::GuildDelete { incomplete, .. } => {
             let _ = sqlx::query!("DELETE FROM guilds WHERE guild = ?", incomplete.id.0)
                 .execute(&data.database)
                 .await;
         }
         poise::Event::InteractionCreate { interaction } => match interaction {
             Interaction::MessageComponent(component) => {
-                //let component_model = ComponentDataModel::from_custom_id(&component.data.custom_id);
-                //component_model.act(&ctx, component).await;
+                let component_model = ComponentDataModel::from_custom_id(&component.data.custom_id);
+
+                // component_model.act(ctx, component).await;
             }
             _ => {}
         },

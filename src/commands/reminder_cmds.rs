@@ -7,17 +7,21 @@ use std::{
 use chrono::NaiveDateTime;
 use chrono_tz::Tz;
 use num_integer::Integer;
-use regex_command_attr::command;
-use serenity::{builder::CreateEmbed, client::Context, model::channel::Channel};
+use poise::{
+    serenity::{builder::CreateEmbed, model::channel::Channel},
+    serenity_prelude::ActionRole::Create,
+    CreateReply,
+};
 
 use crate::{
     component_models::{
         pager::{DelPager, LookPager, Pager},
         ComponentDataModel, DelSelector,
     },
-    consts::{EMBED_DESCRIPTION_MAX_LENGTH, REGEX_CHANNEL_USER, SELECT_MAX_ENTRIES, THEME_COLOR},
-    framework::{CommandInvoke, CommandOptions, CreateGenericResponse, OptionValue},
-    hooks::CHECK_GUILD_PERMISSIONS_HOOK,
+    consts::{
+        EMBED_DESCRIPTION_MAX_LENGTH, HOUR, MINUTE, REGEX_CHANNEL_USER, SELECT_MAX_ENTRIES,
+        THEME_COLOR,
+    },
     interval_parser::parse_duration,
     models::{
         reminder::{
@@ -33,29 +37,22 @@ use crate::{
     },
     time_parser::natural_parser,
     utils::{check_guild_subscription, check_subscription},
-    SQLPool,
+    Context, Error,
 };
 
-#[command("pause")]
-#[description("Pause all reminders on the current channel until a certain time or indefinitely")]
-#[arg(
-    name = "until",
-    description = "When to pause until (hint: try 'next Wednesday', or '10 minutes')",
-    kind = "String",
-    required = false
-)]
-#[supports_dm(false)]
-#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn pause(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
-    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+/// Pause all reminders on the current channel until a certain time or indefinitely
+#[poise::command(slash_command)]
+pub async fn pause(
+    ctx: Context<'_>,
+    #[description = "When to pause until"] until: Option<String>,
+) -> Result<(), Error> {
+    let timezone = ctx.timezone().await;
 
-    let timezone = UserData::timezone_of(&invoke.author_id(), &pool).await;
+    let mut channel = ctx.channel_data().await.unwrap();
 
-    let mut channel = ctx.channel_data(invoke.channel_id()).await.unwrap();
-
-    match args.get("until") {
-        Some(OptionValue::String(until)) => {
-            let parsed = natural_parser(until, &timezone.to_string()).await;
+    match until {
+        Some(until) => {
+            let parsed = natural_parser(&until, &timezone.to_string()).await;
 
             if let Some(timestamp) = parsed {
                 let dt = NaiveDateTime::from_timestamp(timestamp, 0);
@@ -63,92 +60,53 @@ async fn pause(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) 
                 channel.paused = true;
                 channel.paused_until = Some(dt);
 
-                channel.commit_changes(&pool).await;
+                channel.commit_changes(&ctx.data().database).await;
 
-                let _ = invoke
-                    .respond(
-                        ctx.http.clone(),
-                        CreateGenericResponse::new().content(format!(
-                            "Reminders in this channel have been silenced until **<t:{}:D>**",
-                            timestamp
-                        )),
-                    )
-                    .await;
+                ctx.say(format!(
+                    "Reminders in this channel have been silenced until **<t:{}:D>**",
+                    timestamp
+                ))
+                .await?;
             } else {
-                let _ = invoke
-                    .respond(
-                        ctx.http.clone(),
-                        CreateGenericResponse::new()
-                            .content("Time could not be processed. Please write the time as clearly as possible"),
-                    )
-                    .await;
+                ctx.say(
+                    "Time could not be processed. Please write the time as clearly as possible",
+                )
+                .await?;
             }
         }
         _ => {
             channel.paused = !channel.paused;
             channel.paused_until = None;
 
-            channel.commit_changes(&pool).await;
+            channel.commit_changes(&ctx.data().database).await;
 
             if channel.paused {
-                let _ = invoke
-                    .respond(
-                        ctx.http.clone(),
-                        CreateGenericResponse::new()
-                            .content("Reminders in this channel have been silenced indefinitely"),
-                    )
-                    .await;
+                ctx.say("Reminders in this channel have been silenced indefinitely").await?;
             } else {
-                let _ = invoke
-                    .respond(
-                        ctx.http.clone(),
-                        CreateGenericResponse::new()
-                            .content("Reminders in this channel have been unsilenced"),
-                    )
-                    .await;
+                ctx.say("Reminders in this channel have been unsilenced").await?;
             }
         }
     }
+
+    Ok(())
 }
 
-#[command("offset")]
-#[description("Move all reminders in the current server by a certain amount of time. Times get added together")]
-#[arg(
-    name = "hours",
-    description = "Number of hours to offset by",
-    kind = "Integer",
-    required = false
-)]
-#[arg(
-    name = "minutes",
-    description = "Number of minutes to offset by",
-    kind = "Integer",
-    required = false
-)]
-#[arg(
-    name = "seconds",
-    description = "Number of seconds to offset by",
-    kind = "Integer",
-    required = false
-)]
-#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn offset(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
-    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
-    let combined_time = args.get("hours").map_or(0, |h| h.as_i64().unwrap() * 3600)
-        + args.get("minutes").map_or(0, |m| m.as_i64().unwrap() * 60)
-        + args.get("seconds").map_or(0, |s| s.as_i64().unwrap());
+/// Move all reminders in the current server by a certain amount of time. Times get added together
+#[poise::command(slash_command)]
+pub async fn offset(
+    ctx: Context<'_>,
+    #[description = "Number of hours to offset by"] hours: Option<isize>,
+    #[description = "Number of minutes to offset by"] minutes: Option<isize>,
+    #[description = "Number of seconds to offset by"] seconds: Option<isize>,
+) -> Result<(), Error> {
+    let combined_time = hours.map_or(0, |h| h * HOUR as isize)
+        + minutes.map_or(0, |m| m * MINUTE as isize)
+        + seconds.map_or(0, |s| s);
 
     if combined_time == 0 {
-        let _ = invoke
-            .respond(
-                ctx.http.clone(),
-                CreateGenericResponse::new()
-                    .content("Please specify one of `hours`, `minutes` or `seconds`"),
-            )
-            .await;
+        ctx.say("Please specify one of `hours`, `minutes` or `seconds`").await?;
     } else {
-        if let Some(guild) = invoke.guild(ctx.cache.clone()) {
+        if let Some(guild) = ctx.guild() {
             let channels = guild
                 .channels
                 .iter()
@@ -167,110 +125,67 @@ INNER JOIN
     `channels` ON `channels`.id = reminders.channel_id
 SET reminders.`utc_time` = DATE_ADD(reminders.`utc_time`, INTERVAL ? SECOND)
 WHERE FIND_IN_SET(channels.`channel`, ?)",
-                combined_time,
+                combined_time as i64,
                 channels
             )
-            .execute(&pool)
+            .execute(&ctx.data().database)
             .await
             .unwrap();
         } else {
             sqlx::query!(
                 "UPDATE reminders INNER JOIN `channels` ON `channels`.id = reminders.channel_id SET reminders.`utc_time` = reminders.`utc_time` + ? WHERE channels.`channel` = ?",
-                combined_time,
-                invoke.channel_id().0
+                combined_time as i64,
+                ctx.channel_id().0
             )
-            .execute(&pool)
+            .execute(&ctx.data().database)
             .await
             .unwrap();
         }
 
-        let _ = invoke
-            .respond(
-                ctx.http.clone(),
-                CreateGenericResponse::new()
-                    .content(format!("All reminders offset by {} seconds", combined_time)),
-            )
-            .await;
+        ctx.say(format!("All reminders offset by {} seconds", combined_time)).await?;
     }
+
+    Ok(())
 }
 
-#[command("nudge")]
-#[description("Nudge all future reminders on this channel by a certain amount (don't use for DST! See `/offset`)")]
-#[arg(
-    name = "minutes",
-    description = "Number of minutes to nudge new reminders by",
-    kind = "Integer",
-    required = false
-)]
-#[arg(
-    name = "seconds",
-    description = "Number of seconds to nudge new reminders by",
-    kind = "Integer",
-    required = false
-)]
-#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn nudge(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
-    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+/// Nudge all future reminders on this channel by a certain amount (don't use for DST! See `/offset`)
+#[poise::command(slash_command)]
+pub async fn nudge(
+    ctx: Context<'_>,
+    #[description = "Number of minutes to nudge new reminders by"] minutes: Option<isize>,
+    #[description = "Number of seconds to nudge new reminders by"] seconds: Option<isize>,
+) -> Result<(), Error> {
+    let combined_time = minutes.map_or(0, |m| m * MINUTE as isize) + seconds.map_or(0, |s| s);
 
-    let combined_time = args.get("minutes").map_or(0, |m| m.as_i64().unwrap() * 60)
-        + args.get("seconds").map_or(0, |s| s.as_i64().unwrap());
-
-    if combined_time < i16::MIN as i64 || combined_time > i16::MAX as i64 {
-        let _ = invoke
-            .respond(
-                ctx.http.clone(),
-                CreateGenericResponse::new().content("Nudge times must be less than 500 minutes"),
-            )
-            .await;
+    if combined_time < i16::MIN as isize || combined_time > i16::MAX as isize {
+        ctx.say("Nudge times must be less than 500 minutes").await?;
     } else {
-        let mut channel_data = ctx.channel_data(invoke.channel_id()).await.unwrap();
+        let mut channel_data = ctx.channel_data().await.unwrap();
 
         channel_data.nudge = combined_time as i16;
-        channel_data.commit_changes(&pool).await;
+        channel_data.commit_changes(&ctx.data().database).await;
 
-        let _ = invoke
-            .respond(
-                ctx.http.clone(),
-                CreateGenericResponse::new().content(format!(
-                    "Future reminders will be nudged by {} seconds",
-                    combined_time
-                )),
-            )
-            .await;
+        ctx.say(format!("Future reminders will be nudged by {} seconds", combined_time)).await?;
     }
+
+    Ok(())
 }
 
-#[command("look")]
-#[description("View reminders on a specific channel")]
-#[arg(
-    name = "channel",
-    description = "The channel to view reminders on",
-    kind = "Channel",
-    required = false
-)]
-#[arg(
-    name = "disabled",
-    description = "Whether to show disabled reminders or not",
-    kind = "Boolean",
-    required = false
-)]
-#[arg(
-    name = "relative",
-    description = "Whether to display times as relative or exact times",
-    kind = "Boolean",
-    required = false
-)]
-#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn look(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
-    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
-    let timezone = UserData::timezone_of(&invoke.author_id(), &pool).await;
+/// View reminders on a specific channel
+#[poise::command(slash_command)]
+pub async fn look(
+    ctx: Context<'_>,
+    #[description = "Channel to view reminders on"] channel: Option<Channel>,
+    #[description = "Whether to show disabled reminders or not"] disabled: Option<bool>,
+    #[description = "Whether to display times as relative or exact times"] relative: Option<bool>,
+) -> Result<(), Error> {
+    let timezone = ctx.timezone().await;
 
     let flags = LookFlags {
-        show_disabled: args.get("disabled").map(|i| i.as_bool()).flatten().unwrap_or(true),
-        channel_id: args.get("channel").map(|i| i.as_channel_id()).flatten(),
-        time_display: args.get("relative").map_or(TimeDisplayType::Relative, |b| {
-            if b.as_bool() == Some(true) {
+        show_disabled: disabled.unwrap_or(true),
+        channel_id: channel.map(|c| c.id()),
+        time_display: relative.map_or(TimeDisplayType::Relative, |b| {
+            if b {
                 TimeDisplayType::Relative
             } else {
                 TimeDisplayType::Absolute
@@ -278,33 +193,29 @@ async fn look(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
         }),
     };
 
-    let channel_opt = invoke.channel_id().to_channel_cached(&ctx);
+    let channel_opt = ctx.channel_id().to_channel_cached(&ctx.discord());
 
     let channel_id = if let Some(Channel::Guild(channel)) = channel_opt {
-        if Some(channel.guild_id) == invoke.guild_id() {
-            flags.channel_id.unwrap_or_else(|| invoke.channel_id())
+        if Some(channel.guild_id) == ctx.guild_id() {
+            flags.channel_id.unwrap_or_else(|| ctx.channel_id())
         } else {
-            invoke.channel_id()
+            ctx.channel_id()
         }
     } else {
-        invoke.channel_id()
+        ctx.channel_id()
     };
 
-    let channel_name = if let Some(Channel::Guild(channel)) = channel_id.to_channel_cached(&ctx) {
-        Some(channel.name)
-    } else {
-        None
-    };
+    let channel_name =
+        if let Some(Channel::Guild(channel)) = channel_id.to_channel_cached(&ctx.discord()) {
+            Some(channel.name)
+        } else {
+            None
+        };
 
-    let reminders = Reminder::from_channel(ctx, channel_id, &flags).await;
+    let reminders = Reminder::from_channel(&ctx, channel_id, &flags).await;
 
     if reminders.is_empty() {
-        let _ = invoke
-            .respond(
-                ctx.http.clone(),
-                CreateGenericResponse::new().content("No reminders on specified channel"),
-            )
-            .await;
+        let _ = ctx.say("No reminders on specified channel").await;
     } else {
         let mut char_count = 0;
 
@@ -327,41 +238,45 @@ async fn look(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
 
         let pager = LookPager::new(flags, timezone);
 
-        invoke
-            .respond(
-                ctx.http.clone(),
-                CreateGenericResponse::new()
-                    .embed(|e| {
-                        e.title(format!(
-                            "Reminders{}",
-                            channel_name.map_or(String::new(), |n| format!(" on #{}", n))
-                        ))
-                        .description(display)
-                        .footer(|f| f.text(format!("Page {} of {}", 1, pages)))
-                        .color(*THEME_COLOR)
-                    })
-                    .components(|comp| {
-                        pager.create_button_row(pages, comp);
+        ctx.send(|r| {
+            r.ephemeral(true)
+                .embed(|e| {
+                    e.title(format!(
+                        "Reminders{}",
+                        channel_name.map_or(String::new(), |n| format!(" on #{}", n))
+                    ))
+                    .description(display)
+                    .footer(|f| f.text(format!("Page {} of {}", 1, pages)))
+                    .color(*THEME_COLOR)
+                })
+                .components(|comp| {
+                    pager.create_button_row(pages, comp);
 
-                        comp
-                    }),
-            )
-            .await
-            .unwrap();
+                    comp
+                })
+        })
+        .await?;
     }
+
+    Ok(())
 }
 
-#[command("del")]
-#[description("Delete reminders")]
-#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn delete(ctx: &Context, invoke: &mut CommandInvoke, _args: CommandOptions) {
-    let timezone = ctx.timezone(invoke.author_id()).await;
+/// Delete reminders
+#[poise::command(slash_command, rename = "del")]
+pub async fn delete(ctx: Context<'_>) -> Result<(), Error> {
+    let timezone = ctx.timezone().await;
 
-    let reminders = Reminder::from_guild(ctx, invoke.guild_id(), invoke.author_id()).await;
+    let reminders = Reminder::from_guild(&ctx, ctx.guild_id(), ctx.author().id).await;
 
     let resp = show_delete_page(&reminders, 0, timezone);
 
-    let _ = invoke.respond(&ctx, resp).await;
+    ctx.send(|r| {
+        *r = resp;
+        r
+    })
+    .await?;
+
+    Ok(())
 }
 
 pub fn max_delete_page(reminders: &[Reminder], timezone: &Tz) -> usize {
@@ -386,20 +301,20 @@ pub fn max_delete_page(reminders: &[Reminder], timezone: &Tz) -> usize {
         })
 }
 
-pub fn show_delete_page(
-    reminders: &[Reminder],
-    page: usize,
-    timezone: Tz,
-) -> CreateGenericResponse {
+pub fn show_delete_page(reminders: &[Reminder], page: usize, timezone: Tz) -> CreateReply {
     let pager = DelPager::new(page, timezone);
 
     if reminders.is_empty() {
-        return CreateGenericResponse::new()
+        let mut reply = CreateReply::default();
+
+        reply
             .embed(|e| e.title("Delete Reminders").description("No Reminders").color(*THEME_COLOR))
             .components(|comp| {
                 pager.create_button_row(0, comp);
                 comp
             });
+
+        return reply;
     }
 
     let pages = max_delete_page(reminders, &timezone);
@@ -448,7 +363,9 @@ pub fn show_delete_page(
 
     let del_selector = ComponentDataModel::DelSelector(DelSelector { page, timezone });
 
-    CreateGenericResponse::new()
+    let mut reply = CreateReply::default();
+
+    reply
         .embed(|e| {
             e.title("Delete Reminders")
                 .description(display)
@@ -486,290 +403,206 @@ pub fn show_delete_page(
                     })
                 })
             })
+        });
+
+    reply
+}
+
+fn time_difference(start_time: NaiveDateTime) -> String {
+    let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+    let now = NaiveDateTime::from_timestamp(unix_time, 0);
+
+    let delta = (now - start_time).num_seconds();
+
+    let (minutes, seconds) = delta.div_rem(&60);
+    let (hours, minutes) = minutes.div_rem(&60);
+    let (days, hours) = hours.div_rem(&24);
+
+    format!("{} days, {:02}:{:02}:{:02}", days, hours, minutes, seconds)
+}
+
+/// Manage timers
+#[poise::command(slash_command, rename = "timer")]
+pub async fn timer_base(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// List the timers in this server or DM channel
+#[poise::command(slash_command, rename = "list")]
+pub async fn list_timer(ctx: Context<'_>) -> Result<(), Error> {
+    let owner = ctx.guild_id().map(|g| g.0).unwrap_or_else(|| ctx.author().id.0);
+
+    let timers = Timer::from_owner(owner, &ctx.data().database).await;
+
+    if !timers.is_empty() {
+        ctx.send(|m| {
+            m.embed(|e| {
+                e.fields(timers.iter().map(|timer| {
+                    (&timer.name, format!("⌚ `{}`", time_difference(timer.start_time)), false)
+                }))
+                .color(*THEME_COLOR)
+            })
         })
+        .await?;
+    } else {
+        ctx.say("No timers currently. Use `/timer start` to create a new timer").await?;
+    }
+
+    Ok(())
 }
 
-#[command("timer")]
-#[description("Manage timers")]
-#[subcommand("list")]
-#[description("List the timers in this server or DM channel")]
-#[subcommand("start")]
-#[description("Start a new timer from now")]
-#[arg(name = "name", description = "Name for the new timer", kind = "String", required = true)]
-#[subcommand("delete")]
-#[description("Delete a timer")]
-#[arg(name = "name", description = "Name of the timer to delete", kind = "String", required = true)]
-#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn timer(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
-    fn time_difference(start_time: NaiveDateTime) -> String {
-        let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
-        let now = NaiveDateTime::from_timestamp(unix_time, 0);
+/// Start a new timer from now
+#[poise::command(slash_command, rename = "start")]
+pub async fn start_timer(
+    ctx: Context<'_>,
+    #[description = "Name for the new timer"] name: String,
+) -> Result<(), Error> {
+    let owner = ctx.guild_id().map(|g| g.0).unwrap_or_else(|| ctx.author().id.0);
 
-        let delta = (now - start_time).num_seconds();
+    let count = Timer::count_from_owner(owner, &ctx.data().database).await;
 
-        let (minutes, seconds) = delta.div_rem(&60);
-        let (hours, minutes) = minutes.div_rem(&60);
-        let (days, hours) = hours.div_rem(&24);
+    if count >= 25 {
+        ctx.say("You already have 25 timers. Please delete some timers before creating a new one")
+            .await?;
+    } else {
+        if name.len() <= 32 {
+            Timer::create(&name, owner, &ctx.data().database).await;
 
-        format!("{} days, {:02}:{:02}:{:02}", days, hours, minutes, seconds)
+            ctx.say("Created a new timer").await?;
+        } else {
+            ctx.say(format!(
+                "Please name your timer something shorted (max. 32 characters, you used {})",
+                name.len()
+            ))
+            .await?;
+        }
     }
 
-    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
-    let owner = invoke.guild_id().map(|g| g.0).unwrap_or_else(|| invoke.author_id().0);
-
-    match args.subcommand.clone().unwrap().as_str() {
-        "start" => {
-            let count = Timer::count_from_owner(owner, &pool).await;
-
-            if count >= 25 {
-                let _ = invoke
-                    .respond(
-                        ctx.http.clone(),
-                        CreateGenericResponse::new()
-                            .content("You already have 25 timers. Please delete some timers before creating a new one"),
-                    )
-                    .await;
-            } else {
-                let name = args.get("name").unwrap().to_string();
-
-                if name.len() <= 32 {
-                    Timer::create(&name, owner, &pool).await;
-
-                    let _ = invoke
-                        .respond(
-                            ctx.http.clone(),
-                            CreateGenericResponse::new().content("Created a new timer"),
-                        )
-                        .await;
-                } else {
-                    let _ = invoke
-                        .respond(
-                            ctx.http.clone(),
-                            CreateGenericResponse::new()
-                                .content(format!("Please name your timer something shorted (max. 32 characters, you used {})", name.len())),
-                        )
-                        .await;
-                }
-            }
-        }
-        "delete" => {
-            let name = args.get("name").unwrap().to_string();
-
-            let exists = sqlx::query!(
-                "
-SELECT 1 as _r FROM timers WHERE owner = ? AND name = ?
-                    ",
-                owner,
-                name
-            )
-            .fetch_one(&pool)
-            .await;
-
-            if exists.is_ok() {
-                sqlx::query!(
-                    "
-DELETE FROM timers WHERE owner = ? AND name = ?
-                        ",
-                    owner,
-                    name
-                )
-                .execute(&pool)
-                .await
-                .unwrap();
-
-                let _ = invoke
-                    .respond(
-                        ctx.http.clone(),
-                        CreateGenericResponse::new().content("Deleted a timer"),
-                    )
-                    .await;
-            } else {
-                let _ = invoke
-                    .respond(
-                        ctx.http.clone(),
-                        CreateGenericResponse::new().content("Could not find a timer by that name"),
-                    )
-                    .await;
-            }
-        }
-        "list" => {
-            let timers = Timer::from_owner(owner, &pool).await;
-
-            if !timers.is_empty() {
-                let _ = invoke
-                    .respond(
-                        ctx.http.clone(),
-                        CreateGenericResponse::new().embed(|e| {
-                            e.fields(timers.iter().map(|timer| {
-                                (
-                                    &timer.name,
-                                    format!("⌚ `{}`", time_difference(timer.start_time)),
-                                    false,
-                                )
-                            }))
-                            .color(*THEME_COLOR)
-                        }),
-                    )
-                    .await;
-            } else {
-                let _ = invoke
-                    .respond(
-                        ctx.http.clone(),
-                        CreateGenericResponse::new().content(
-                            "No timers currently. Use `/timer start` to create a new timer",
-                        ),
-                    )
-                    .await;
-            }
-        }
-        _ => {}
-    }
+    Ok(())
 }
 
-#[command("remind")]
-#[description("Create a new reminder")]
-#[arg(
-    name = "time",
-    description = "A description of the time to set the reminder for",
-    kind = "String",
-    required = true
-)]
-#[arg(
-    name = "content",
-    description = "The message content to send",
-    kind = "String",
-    required = true
-)]
-#[arg(
-    name = "channels",
-    description = "Channel or user mentions to set the reminder for",
-    kind = "String",
-    required = false
-)]
-#[arg(
-    name = "interval",
-    description = "(Patreon only) Time to wait before repeating the reminder. Leave blank for one-shot reminder",
-    kind = "String",
-    required = false
-)]
-#[arg(
-    name = "expires",
-    description = "(Patreon only) For repeating reminders, the time at which the reminder will stop sending",
-    kind = "String",
-    required = false
-)]
-#[arg(
-    name = "tts",
-    description = "Set the TTS flag on the reminder message (like the /tts command)",
-    kind = "Boolean",
-    required = false
-)]
-#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn remind(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
-    if args.get("interval").is_none() && args.get("expires").is_some() {
-        let _ = invoke
-            .respond(
-                &ctx,
-                CreateGenericResponse::new().content("`expires` can only be used with `interval`"),
-            )
+/// Delete a timer
+#[poise::command(slash_command, rename = "delete")]
+pub async fn delete_timer(
+    ctx: Context<'_>,
+    #[description = "Name of timer to delete"] name: String,
+) -> Result<(), Error> {
+    let owner = ctx.guild_id().map(|g| g.0).unwrap_or_else(|| ctx.author().id.0);
+
+    let exists =
+        sqlx::query!("SELECT 1 as _r FROM timers WHERE owner = ? AND name = ?", owner, name)
+            .fetch_one(&ctx.data().database)
             .await;
 
-        return;
+    if exists.is_ok() {
+        sqlx::query!("DELETE FROM timers WHERE owner = ? AND name = ?", owner, name)
+            .execute(&ctx.data().database)
+            .await
+            .unwrap();
+
+        ctx.say("Deleted a timer").await?;
+    } else {
+        ctx.say("Could not find a timer by that name").await?;
     }
 
-    invoke.defer(&ctx).await;
+    Ok(())
+}
 
-    let user_data = ctx.user_data(invoke.author_id()).await.unwrap();
-    let timezone = user_data.timezone();
+/// Create a new reminder
+#[poise::command(slash_command)]
+pub(crate) async fn remind(
+    ctx: Context<'_>,
+    #[description = "A description of the time to set the reminder for"] time: String,
+    #[description = "The message content to send"] content: String,
+    #[description = "Channel or user mentions to set the reminder for"] channels: Option<String>,
+    #[description = "(Patreon only) Time to wait before repeating the reminder. Leave blank for one-shot reminder"]
+    interval: Option<String>,
+    #[description = "(Patreon only) For repeating reminders, the time at which the reminder will stop sending"]
+    expires: Option<String>,
+    #[description = "Set the TTS flag on the reminder message, similar to the /tts command"]
+    tts: Option<bool>,
+) -> Result<(), Error> {
+    if interval.is_none() && expires.is_some() {
+        ctx.say("`expires` can only be used with `interval`").await?;
 
-    let time = {
-        let time_str = args.get("time").unwrap().to_string();
+        return Ok(());
+    }
 
-        natural_parser(&time_str, &timezone.to_string()).await
-    };
+    ctx.defer().await?;
+
+    let user_data = ctx.author_data().await.unwrap();
+    let timezone = ctx.timezone().await;
+
+    let time = natural_parser(&time, &timezone.to_string()).await;
 
     match time {
         Some(time) => {
             let content = {
-                let content = args.get("content").unwrap().to_string();
-                let tts = args.get("tts").map_or(false, |arg| arg.as_bool().unwrap_or(false));
+                let tts = tts.unwrap_or(false);
 
                 Content { content, tts, attachment: None, attachment_name: None }
             };
 
             let scopes = {
-                let list = args
-                    .get("channels")
-                    .map(|arg| parse_mention_list(&arg.to_string()))
-                    .unwrap_or_default();
+                let list =
+                    channels.map(|arg| parse_mention_list(&arg.to_string())).unwrap_or_default();
 
                 if list.is_empty() {
-                    if invoke.guild_id().is_some() {
-                        vec![ReminderScope::Channel(invoke.channel_id().0)]
+                    if ctx.guild_id().is_some() {
+                        vec![ReminderScope::Channel(ctx.channel_id().0)]
                     } else {
-                        vec![ReminderScope::User(invoke.author_id().0)]
+                        vec![ReminderScope::User(ctx.author().id.0)]
                     }
                 } else {
                     list
                 }
             };
 
-            let (interval, expires) = if let Some(repeat) = args.get("interval") {
-                if check_subscription(&ctx, invoke.author_id()).await
-                    || (invoke.guild_id().is_some()
-                        && check_guild_subscription(&ctx, invoke.guild_id().unwrap()).await)
+            let (processed_interval, processed_expires) = if let Some(repeat) = &interval {
+                if check_subscription(&ctx.discord(), ctx.author().id).await
+                    || (ctx.guild_id().is_some()
+                        && check_guild_subscription(&ctx.discord(), ctx.guild_id().unwrap()).await)
                 {
                     (
-                        parse_duration(&repeat.to_string())
+                        parse_duration(repeat)
                             .or_else(|_| parse_duration(&format!("1 {}", repeat.to_string())))
                             .ok(),
                         {
-                            if let Some(arg) = args.get("expires") {
-                                natural_parser(&arg.to_string(), &timezone.to_string()).await
+                            if let Some(arg) = &expires {
+                                natural_parser(arg, &timezone.to_string()).await
                             } else {
                                 None
                             }
                         },
                     )
                 } else {
-                    let _ = invoke
-                        .respond(&ctx, CreateGenericResponse::new()
-                            .content("`repeat` is only available to Patreon subscribers or self-hosted users")
-                        ).await;
+                    ctx.say(
+                        "`repeat` is only available to Patreon subscribers or self-hosted users",
+                    )
+                    .await?;
 
-                    return;
+                    return Ok(());
                 }
             } else {
                 (None, None)
             };
 
-            if interval.is_none() && args.get("interval").is_some() {
-                let _ = invoke
-                    .respond(
-                        &ctx,
-                        CreateGenericResponse::new().content(
-                            "Repeat interval could not be processed. Try and format the repetition similar to `1 hour` or `4 days`",
-                        ),
-                    )
-                    .await;
-            } else if expires.is_none() && args.get("expires").is_some() {
-                let _ = invoke
-                    .respond(
-                        &ctx,
-                        CreateGenericResponse::new().content(
-                            "Expiry time failed to process. Please make it as clear as possible",
-                        ),
-                    )
-                    .await;
+            if processed_interval.is_none() && interval.is_some() {
+                ctx.say(
+                    "Repeat interval could not be processed. Try similar to `1 hour` or `4 days`",
+                )
+                .await?;
+            } else if processed_expires.is_none() && expires.is_some() {
+                ctx.say("Expiry time failed to process. Please make it as clear as possible")
+                    .await?;
             } else {
-                let mut builder = MultiReminderBuilder::new(ctx, invoke.guild_id())
+                let mut builder = MultiReminderBuilder::new(&ctx, ctx.guild_id())
                     .author(user_data)
                     .content(content)
                     .time(time)
                     .timezone(timezone)
-                    .expires(expires)
-                    .interval(interval);
+                    .expires(processed_expires)
+                    .interval(processed_interval);
 
                 builder.set_scopes(scopes);
 
@@ -777,23 +610,21 @@ async fn remind(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions)
 
                 let embed = create_response(successes, errors, time);
 
-                let _ = invoke
-                    .respond(
-                        &ctx,
-                        CreateGenericResponse::new().embed(|c| {
-                            *c = embed;
-                            c
-                        }),
-                    )
-                    .await;
+                ctx.send(|m| {
+                    m.embed(|c| {
+                        *c = embed;
+                        c
+                    })
+                })
+                .await?;
             }
         }
         None => {
-            let _ = invoke
-                .respond(&ctx, CreateGenericResponse::new().content("Time could not be processed"))
-                .await;
+            ctx.say("Time could not be processed").await?;
         }
     }
+
+    Ok(())
 }
 
 fn create_response(

@@ -1,20 +1,29 @@
-use poise::serenity::{
-    client::Context,
-    model::{
-        id::GuildId, interactions::application_command::ApplicationCommandInteractionDataOption,
-    },
+use poise::serenity::model::{
+    id::GuildId, interactions::application_command::ApplicationCommandInteractionDataOption,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize)]
+use crate::{Context, Data, Error};
+
+fn default_none<U, E>() -> Option<
+    for<'a> fn(
+        poise::ApplicationContext<'a, U, E>,
+    ) -> poise::BoxFuture<'a, Result<(), poise::FrameworkError<'a, U, E>>>,
+> {
+    None
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct RecordedCommand<U, E> {
     #[serde(skip)]
-    action: for<'a> fn(
-        poise::ApplicationContext<'a, U, E>,
-        &'a [ApplicationCommandInteractionDataOption],
-    ) -> poise::BoxFuture<'a, Result<(), poise::FrameworkError<'a, U, E>>>,
-    command_name: String,
-    options: Vec<ApplicationCommandInteractionDataOption>,
+    #[serde(default = "default_none::<U, E>")]
+    pub action: Option<
+        for<'a> fn(
+            poise::ApplicationContext<'a, U, E>,
+        ) -> poise::BoxFuture<'a, Result<(), poise::FrameworkError<'a, U, E>>>,
+    >,
+    pub command_name: String,
+    pub options: Vec<ApplicationCommandInteractionDataOption>,
 }
 
 pub struct CommandMacro<U, E> {
@@ -22,4 +31,43 @@ pub struct CommandMacro<U, E> {
     pub name: String,
     pub description: Option<String>,
     pub commands: Vec<RecordedCommand<U, E>>,
+}
+
+pub async fn guild_command_macro(
+    ctx: &Context<'_>,
+    name: &str,
+) -> Option<CommandMacro<Data, Error>> {
+    let row = sqlx::query!(
+        "
+SELECT * FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?
+        ",
+        ctx.guild_id().unwrap().0,
+        name
+    )
+    .fetch_one(&ctx.data().database)
+    .await
+    .ok()?;
+
+    let mut commands: Vec<RecordedCommand<Data, Error>> =
+        serde_json::from_str(&row.commands).unwrap();
+
+    for recorded_command in &mut commands {
+        let command = &ctx
+            .framework()
+            .options()
+            .commands
+            .iter()
+            .find(|c| c.identifying_name == recorded_command.command_name);
+
+        recorded_command.action = command.map(|c| c.slash_action).flatten().clone();
+    }
+
+    let command_macro = CommandMacro {
+        guild_id: ctx.guild_id().unwrap(),
+        name: row.name,
+        description: row.description,
+        commands,
+    };
+
+    Some(command_macro)
 }

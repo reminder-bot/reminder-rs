@@ -4,9 +4,13 @@ use levenshtein::levenshtein;
 use poise::CreateReply;
 
 use crate::{
+    component_models::pager::{MacroPager, Pager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
     hooks::guild_only,
-    models::{command_macro::CommandMacro, CtxData},
+    models::{
+        command_macro::{guild_command_macro, CommandMacro},
+        CtxData,
+    },
     Context, Data, Error,
 };
 
@@ -286,8 +290,7 @@ pub async fn finish_macro(ctx: Context<'_>) -> Result<(), Error> {
 /// List recorded macros
 #[poise::command(slash_command, rename = "list", check = "guild_only")]
 pub async fn list_macro(ctx: Context<'_>) -> Result<(), Error> {
-    // let macros = CommandMacro::from_guild(&ctx.data().database, ctx.guild_id().unwrap()).await;
-    let macros: Vec<CommandMacro<Data, Error>> = vec![];
+    let macros = ctx.command_macros().await?;
 
     let resp = show_macro_page(&macros, 0);
 
@@ -303,32 +306,31 @@ pub async fn list_macro(ctx: Context<'_>) -> Result<(), Error> {
 /// Run a recorded macro
 #[poise::command(slash_command, rename = "run", check = "guild_only")]
 pub async fn run_macro(
-    ctx: Context<'_>,
+    ctx: poise::ApplicationContext<'_, Data, Error>,
     #[description = "Name of macro to run"]
     #[autocomplete = "macro_name_autocomplete"]
     name: String,
 ) -> Result<(), Error> {
-    match sqlx::query!(
-        "
-SELECT commands FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?",
-        ctx.guild_id().unwrap().0,
-        name
-    )
-    .fetch_one(&ctx.data().database)
-    .await
-    {
-        Ok(row) => {
-            ctx.defer().await?;
+    match guild_command_macro(&Context::Application(ctx), &name).await {
+        Some(command_macro) => {
+            ctx.defer_response(false).await?;
 
-            // TODO TODO TODO!!!!!!!! RUN COMMAND FROM MACRO
+            for command in command_macro.commands {
+                if let Some(action) = command.action {
+                    (action)(poise::ApplicationContext { args: &command.options, ..ctx })
+                        .await
+                        .ok()
+                        .unwrap();
+                } else {
+                    Context::Application(ctx)
+                        .say(format!("Command \"{}\" failed to execute", command.command_name))
+                        .await?;
+                }
+            }
         }
 
-        Err(sqlx::Error::RowNotFound) => {
-            ctx.say(format!("Macro \"{}\" not found", name)).await?;
-        }
-
-        Err(e) => {
-            panic!("{}", e);
+        None => {
+            Context::Application(ctx).say(format!("Macro \"{}\" not found", name)).await?;
         }
     }
 
@@ -398,17 +400,6 @@ pub fn max_macro_page<U, E>(macros: &[CommandMacro<U, E>]) -> usize {
 }
 
 pub fn show_macro_page<U, E>(macros: &[CommandMacro<U, E>], page: usize) -> CreateReply {
-    let mut reply = CreateReply::default();
-
-    reply.embed(|e| {
-        e.title("Macros")
-            .description("No Macros Set Up. Use `/macro record` to get started.")
-            .color(*THEME_COLOR)
-    });
-
-    reply
-
-    /*
     let pager = MacroPager::new(page);
 
     if macros.is_empty() {
@@ -479,5 +470,4 @@ pub fn show_macro_page<U, E>(macros: &[CommandMacro<U, E>], page: usize) -> Crea
         });
 
     reply
-     */
 }

@@ -3,7 +3,7 @@
 extern crate lazy_static;
 
 mod commands;
-// mod component_models;
+mod component_models;
 mod consts;
 mod event_handlers;
 mod hooks;
@@ -24,7 +24,7 @@ use sqlx::{MySql, Pool};
 use tokio::sync::RwLock;
 
 use crate::{
-    commands::{info_cmds, moderation_cmds},
+    commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
     consts::THEME_COLOR,
     event_handlers::listener,
     hooks::all_checks,
@@ -70,6 +70,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     moderation_cmds::run_macro(),
                 ],
                 ..moderation_cmds::macro_base()
+            },
+            reminder_cmds::pause(),
+            reminder_cmds::offset(),
+            reminder_cmds::nudge(),
+            reminder_cmds::look(),
+            reminder_cmds::delete(),
+            poise::Command {
+                subcommands: vec![
+                    reminder_cmds::list_timer(),
+                    reminder_cmds::start_timer(),
+                    reminder_cmds::delete_timer(),
+                ],
+                ..reminder_cmds::timer_base()
+            },
+            reminder_cmds::remind(),
+            poise::Command {
+                subcommands: vec![
+                    poise::Command {
+                        subcommands: vec![
+                            todo_cmds::todo_guild_add(),
+                            todo_cmds::todo_guild_view(),
+                        ],
+                        ..todo_cmds::todo_guild_base()
+                    },
+                    poise::Command {
+                        subcommands: vec![
+                            todo_cmds::todo_channel_add(),
+                            todo_cmds::todo_channel_view(),
+                        ],
+                        ..todo_cmds::todo_channel_base()
+                    },
+                    poise::Command {
+                        subcommands: vec![todo_cmds::todo_user_add(), todo_cmds::todo_user_view()],
+                        ..todo_cmds::todo_user_base()
+                    },
+                ],
+                ..todo_cmds::todo_base()
             },
         ],
         allowed_mentions: None,

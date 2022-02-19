@@ -3,17 +3,16 @@ pub(crate) mod pager;
 use std::io::Cursor;
 
 use chrono_tz::Tz;
-use rmp_serde::Serializer;
-use serde::{Deserialize, Serialize};
-use serenity::{
+use poise::serenity::{
     builder::CreateEmbed,
-    client::Context,
     model::{
         channel::Channel,
         interactions::{message_component::MessageComponentInteraction, InteractionResponseType},
         prelude::InteractionApplicationCommandCallbackDataFlags,
     },
 };
+use rmp_serde::Serializer;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     commands::{
@@ -23,9 +22,8 @@ use crate::{
     },
     component_models::pager::{DelPager, LookPager, MacroPager, Pager, TodoPager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
-    framework::CommandInvoke,
-    models::{command_macro::CommandMacro, reminder::Reminder},
-    SQLPool,
+    models::{reminder::Reminder, CtxData},
+    Context, Data,
 };
 
 #[derive(Deserialize, Serialize)]
@@ -55,12 +53,12 @@ impl ComponentDataModel {
         rmp_serde::from_read(cur).unwrap()
     }
 
-    pub async fn act(&self, ctx: &Context, component: MessageComponentInteraction) {
+    pub async fn act(&self, ctx: Context<'_>, component: &MessageComponentInteraction) {
         match self {
             ComponentDataModel::LookPager(pager) => {
                 let flags = pager.flags;
 
-                let channel_opt = component.channel_id.to_channel_cached(&ctx);
+                let channel_opt = component.channel_id.to_channel_cached(&ctx.discord());
 
                 let channel_id = if let Some(Channel::Guild(channel)) = channel_opt {
                     if Some(channel.guild_id) == component.guild_id {
@@ -72,7 +70,7 @@ impl ComponentDataModel {
                     component.channel_id
                 };
 
-                let reminders = Reminder::from_channel(ctx, channel_id, &flags).await;
+                let reminders = Reminder::from_channel(&ctx, channel_id, &flags).await;
 
                 let pages = reminders
                     .iter()
@@ -80,12 +78,13 @@ impl ComponentDataModel {
                     .fold(0, |t, r| t + r.len())
                     .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
 
-                let channel_name =
-                    if let Some(Channel::Guild(channel)) = channel_id.to_channel_cached(&ctx) {
-                        Some(channel.name)
-                    } else {
-                        None
-                    };
+                let channel_name = if let Some(Channel::Guild(channel)) =
+                    channel_id.to_channel_cached(&ctx.discord())
+                {
+                    Some(channel.name)
+                } else {
+                    None
+                };
 
                 let next_page = pager.next_page(pages);
 
@@ -119,7 +118,7 @@ impl ComponentDataModel {
                     .color(*THEME_COLOR);
 
                 let _ = component
-                    .create_interaction_response(&ctx, |r| {
+                    .create_interaction_response(&ctx.discord(), |r| {
                         r.kind(InteractionResponseType::UpdateMessage).interaction_response_data(
                             |response| {
                                 response.embeds(vec![embed]).components(|comp| {
@@ -134,44 +133,49 @@ impl ComponentDataModel {
             }
             ComponentDataModel::DelPager(pager) => {
                 let reminders =
-                    Reminder::from_guild(ctx, component.guild_id, component.user.id).await;
+                    Reminder::from_guild(&ctx, component.guild_id, component.user.id).await;
 
                 let max_pages = max_delete_page(&reminders, &pager.timezone);
 
                 let resp = show_delete_page(&reminders, pager.next_page(max_pages), pager.timezone);
 
-                let mut invoke = CommandInvoke::component(component);
-                let _ = invoke.respond(&ctx, resp).await;
+                let _ = ctx
+                    .send(|r| {
+                        *r = resp;
+                        r
+                    })
+                    .await;
             }
             ComponentDataModel::DelSelector(selector) => {
-                let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
                 let selected_id = component.data.values.join(",");
 
                 sqlx::query!("DELETE FROM reminders WHERE FIND_IN_SET(id, ?)", selected_id)
-                    .execute(&pool)
+                    .execute(&ctx.data().database)
                     .await
                     .unwrap();
 
                 let reminders =
-                    Reminder::from_guild(ctx, component.guild_id, component.user.id).await;
+                    Reminder::from_guild(&ctx, component.guild_id, component.user.id).await;
 
                 let resp = show_delete_page(&reminders, selector.page, selector.timezone);
 
-                let mut invoke = CommandInvoke::component(component);
-                let _ = invoke.respond(&ctx, resp).await;
+                let _ = ctx
+                    .send(|r| {
+                        *r = resp;
+                        r
+                    })
+                    .await;
             }
             ComponentDataModel::TodoPager(pager) => {
                 if Some(component.user.id.0) == pager.user_id || pager.user_id.is_none() {
-                    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
                     let values = if let Some(uid) = pager.user_id {
                         sqlx::query!(
                             "SELECT todos.id, value FROM todos
-    INNER JOIN users ON todos.user_id = users.id
-    WHERE users.user = ?",
+INNER JOIN users ON todos.user_id = users.id
+WHERE users.user = ?",
                             uid,
                         )
-                        .fetch_all(&pool)
+                        .fetch_all(&ctx.data().database)
                         .await
                         .unwrap()
                         .iter()
@@ -180,11 +184,11 @@ impl ComponentDataModel {
                     } else if let Some(cid) = pager.channel_id {
                         sqlx::query!(
                             "SELECT todos.id, value FROM todos
-    INNER JOIN channels ON todos.channel_id = channels.id
-    WHERE channels.channel = ?",
+INNER JOIN channels ON todos.channel_id = channels.id
+WHERE channels.channel = ?",
                             cid,
                         )
-                        .fetch_all(&pool)
+                        .fetch_all(&ctx.data().database)
                         .await
                         .unwrap()
                         .iter()
@@ -193,11 +197,11 @@ impl ComponentDataModel {
                     } else {
                         sqlx::query!(
                             "SELECT todos.id, value FROM todos
-    INNER JOIN guilds ON todos.guild_id = guilds.id
-    WHERE guilds.guild = ?",
+INNER JOIN guilds ON todos.guild_id = guilds.id
+WHERE guilds.guild = ?",
                             pager.guild_id,
                         )
-                        .fetch_all(&pool)
+                        .fetch_all(&ctx.data().database)
                         .await
                         .unwrap()
                         .iter()
@@ -215,11 +219,15 @@ impl ComponentDataModel {
                         pager.guild_id,
                     );
 
-                    let mut invoke = CommandInvoke::component(component);
-                    let _ = invoke.respond(&ctx, resp).await;
+                    let _ = ctx
+                        .send(|r| {
+                            *r = resp;
+                            r
+                        })
+                        .await;
                 } else {
                     let _ = component
-                        .create_interaction_response(&ctx, |r| {
+                        .create_interaction_response(&ctx.discord(), |r| {
                             r.kind(InteractionResponseType::ChannelMessageWithSource)
                                 .interaction_response_data(|d| {
                                     d.flags(
@@ -233,11 +241,10 @@ impl ComponentDataModel {
             }
             ComponentDataModel::TodoSelector(selector) => {
                 if Some(component.user.id.0) == selector.user_id || selector.user_id.is_none() {
-                    let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
                     let selected_id = component.data.values.join(",");
 
                     sqlx::query!("DELETE FROM todos WHERE FIND_IN_SET(id, ?)", selected_id)
-                        .execute(&pool)
+                        .execute(&ctx.data().database)
                         .await
                         .unwrap();
 
@@ -248,7 +255,7 @@ impl ComponentDataModel {
                     selector.channel_id,
                     selector.guild_id,
                 )
-                .fetch_all(&pool)
+                .fetch_all(&ctx.data().database)
                 .await
                 .unwrap()
                 .iter()
@@ -263,11 +270,15 @@ impl ComponentDataModel {
                         selector.guild_id,
                     );
 
-                    let mut invoke = CommandInvoke::component(component);
-                    let _ = invoke.respond(&ctx, resp).await;
+                    let _ = ctx
+                        .send(|r| {
+                            *r = resp;
+                            r
+                        })
+                        .await;
                 } else {
                     let _ = component
-                        .create_interaction_response(&ctx, |r| {
+                        .create_interaction_response(&ctx.discord(), |r| {
                             r.kind(InteractionResponseType::ChannelMessageWithSource)
                                 .interaction_response_data(|d| {
                                     d.flags(
@@ -280,15 +291,19 @@ impl ComponentDataModel {
                 }
             }
             ComponentDataModel::MacroPager(pager) => {
-                let mut invoke = CommandInvoke::component(component);
-
-                let macros = CommandMacro::from_guild(ctx, invoke.guild_id().unwrap()).await;
+                let macros = ctx.command_macros().await.unwrap();
 
                 let max_page = max_macro_page(&macros);
                 let page = pager.next_page(max_page);
 
                 let resp = show_macro_page(&macros, page);
-                let _ = invoke.respond(&ctx, resp).await;
+
+                let _ = ctx
+                    .send(|r| {
+                        *r = resp;
+                        r
+                    })
+                    .await;
             }
         }
     }

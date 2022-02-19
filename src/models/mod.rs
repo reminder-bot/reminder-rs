@@ -9,21 +9,20 @@ use poise::serenity::{async_trait, model::id::UserId};
 
 use crate::{
     models::{channel_data::ChannelData, user_data::UserData},
-    Context,
+    CommandMacro, Context, Data, Error,
 };
 
 #[async_trait]
 pub trait CtxData {
-    async fn user_data<U: Into<UserId> + Send>(
-        &self,
-        user_id: U,
-    ) -> Result<UserData, Box<dyn std::error::Error + Sync + Send>>;
+    async fn user_data<U: Into<UserId> + Send>(&self, user_id: U) -> Result<UserData, Error>;
 
-    async fn author_data(&self) -> Result<UserData, Box<dyn std::error::Error + Sync + Send>>;
+    async fn author_data(&self) -> Result<UserData, Error>;
 
     async fn timezone(&self) -> Tz;
 
-    async fn channel_data(&self) -> Result<ChannelData, Box<dyn std::error::Error + Sync + Send>>;
+    async fn channel_data(&self) -> Result<ChannelData, Error>;
+
+    async fn command_macros(&self) -> Result<Vec<CommandMacro<Data, Error>>, Error>;
 }
 
 #[async_trait]
@@ -47,5 +46,23 @@ impl CtxData for Context<'_> {
         let channel = self.channel_id().to_channel_cached(&self.discord()).unwrap();
 
         ChannelData::from_channel(&channel, &self.data().database).await
+    }
+
+    async fn command_macros(&self) -> Result<Vec<CommandMacro<Data, Error>>, Error> {
+        let guild_id = self.guild_id().unwrap();
+
+        let rows = sqlx::query!(
+            "SELECT name, description FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?)",
+            guild_id.0
+        )
+        .fetch_all(&self.data().database)
+        .await?.iter().map(|row| CommandMacro {
+            guild_id,
+            name: row.name.clone(),
+            description: row.description.clone(),
+            commands: vec![]
+        }).collect();
+
+        Ok(rows)
     }
 }

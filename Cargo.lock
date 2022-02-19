@@ -2101,16 +2101,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 
 [[package]]
-name = "regex_command_attr"
-version = "0.3.6"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
- "uuid",
-]
-
-[[package]]
 name = "reminder_rs"
 version = "1.6.0-beta3"
 dependencies = [
@@ -2127,7 +2117,6 @@ dependencies = [
  "postman",
  "rand 0.7.3",
  "regex",
- "regex_command_attr",
  "reminder_web",
  "reqwest",
  "rmp-serde",
@@ -3339,15 +3328,6 @@ name = "utf-8"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
-
-[[package]]
-name = "uuid"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
-dependencies = [
- "getrandom 0.2.4",
-]
 
 [[package]]
 name = "valuable"
