@@ -30,14 +30,10 @@ __Other Variables__
 * `LOCAL_TIMEZONE` - default `UTC`, necessary for calculations in the natural language processor
 * `SUBSCRIPTION_ROLES` - default `None`, accepts a list of Discord role IDs that are given to subscribed users
 * `CNC_GUILD` - default `None`, accepts a single Discord guild ID for the server that the subscription roles belong to
-* `IGNORE_BOTS` - default `1`, if `1`, Reminder Bot will ignore all other bots
 * `PYTHON_LOCATION` - default `venv/bin/python3`. Can be changed if your Python executable is located somewhere else
 * `THEME_COLOR` - default `8fb677`. Specifies the hex value of the color to use on info message embeds 
-* `SHARD_COUNT` - default `None`, accepts the number of shards that are being ran
-* `SHARD_RANGE` - default `None`, if `SHARD_COUNT` is specified, specifies what range of shards to start on this process 
 * `DM_ENABLED` - default `1`, if `1`, Reminder Bot will respond to direct messages
 
 ### Todo List
 
 * Convert aliases to macros
-* Help command

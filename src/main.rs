@@ -1,40 +1,35 @@
+#![feature(int_roundings)]
 #[macro_use]
 extern crate lazy_static;
 
 mod commands;
 mod component_models;
 mod consts;
+mod event_handlers;
 mod framework;
 mod hooks;
 mod interval_parser;
 mod models;
 mod time_parser;
+mod utils;
 
 use std::{
     collections::HashMap,
     env,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::{atomic::AtomicBool, Arc},
 };
 
 use chrono_tz::Tz;
 use dotenv::dotenv;
-use log::{info, warn};
+use log::info;
 use serenity::{
-    async_trait,
     client::Client,
-    http::{client::Http, CacheHttp},
+    http::client::Http,
     model::{
-        channel::GuildChannel,
-        gateway::{Activity, GatewayIntents, Ready},
-        guild::{Guild, UnavailableGuild},
+        gateway::GatewayIntents,
         id::{GuildId, UserId},
-        interactions::Interaction,
     },
-    prelude::{Context, EventHandler, TypeMapKey},
-    utils::shard_id,
+    prelude::TypeMapKey,
 };
 use sqlx::mysql::MySqlPool;
 use tokio::sync::RwLock;
@@ -42,7 +37,7 @@ use tokio::sync::RwLock;
 use crate::{
     commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
     component_models::ComponentDataModel,
-    consts::{CNC_GUILD, SUBSCRIPTION_ROLES, THEME_COLOR},
+    consts::THEME_COLOR,
     framework::RegexFramework,
     models::command_macro::CommandMacro,
 };
@@ -73,150 +68,6 @@ impl TypeMapKey for RecordingMacros {
 
 struct Handler {
     is_loop_running: AtomicBool,
-}
-
-#[async_trait]
-impl EventHandler for Handler {
-    async fn cache_ready(&self, ctx_base: Context, _guilds: Vec<GuildId>) {
-        info!("Cache Ready!");
-        info!("Preparing to send reminders");
-
-        if !self.is_loop_running.load(Ordering::Relaxed) {
-            let ctx1 = ctx_base.clone();
-            let ctx2 = ctx_base.clone();
-
-            let pool1 = ctx1.data.read().await.get::<SQLPool>().cloned().unwrap();
-            let pool2 = ctx2.data.read().await.get::<SQLPool>().cloned().unwrap();
-
-            let run_settings = env::var("DONTRUN").unwrap_or_else(|_| "".to_string());
-
-            if !run_settings.contains("postman") {
-                tokio::spawn(async move {
-                    postman::initialize(ctx1, &pool1).await;
-                });
-            } else {
-                warn!("Not running postman")
-            }
-
-            if !run_settings.contains("web") {
-                tokio::spawn(async move {
-                    reminder_web::initialize(ctx2, pool2).await.unwrap();
-                });
-            } else {
-                warn!("Not running web")
-            }
-
-            self.is_loop_running.swap(true, Ordering::Relaxed);
-        }
-    }
-
-    async fn channel_delete(&self, ctx: Context, channel: &GuildChannel) {
-        let pool = ctx
-            .data
-            .read()
-            .await
-            .get::<SQLPool>()
-            .cloned()
-            .expect("Could not get SQLPool from data");
-
-        sqlx::query!(
-            "
-DELETE FROM channels WHERE channel = ?
-            ",
-            channel.id.as_u64()
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-    }
-
-    async fn guild_create(&self, ctx: Context, guild: Guild, is_new: bool) {
-        if is_new {
-            let guild_id = guild.id.as_u64().to_owned();
-
-            {
-                let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
-                let _ = sqlx::query!("INSERT INTO guilds (guild) VALUES (?)", guild_id)
-                    .execute(&pool)
-                    .await;
-            }
-
-            if let Ok(token) = env::var("DISCORDBOTS_TOKEN") {
-                let shard_count = ctx.cache.shard_count();
-                let current_shard_id = shard_id(guild_id, shard_count);
-
-                let guild_count = ctx
-                    .cache
-                    .guilds()
-                    .iter()
-                    .filter(|g| shard_id(g.as_u64().to_owned(), shard_count) == current_shard_id)
-                    .count() as u64;
-
-                let mut hm = HashMap::new();
-                hm.insert("server_count", guild_count);
-                hm.insert("shard_id", current_shard_id);
-                hm.insert("shard_count", shard_count);
-
-                let client = ctx
-                    .data
-                    .read()
-                    .await
-                    .get::<ReqwestClient>()
-                    .cloned()
-                    .expect("Could not get ReqwestClient from data");
-
-                let response = client
-                    .post(
-                        format!(
-                            "https://top.gg/api/bots/{}/stats",
-                            ctx.cache.current_user_id().as_u64()
-                        )
-                        .as_str(),
-                    )
-                    .header("Authorization", token)
-                    .json(&hm)
-                    .send()
-                    .await;
-
-                if let Err(res) = response {
-                    println!("DiscordBots Response: {:?}", res);
-                }
-            }
-        }
-    }
-
-    async fn guild_delete(&self, ctx: Context, incomplete: UnavailableGuild, _full: Option<Guild>) {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-        let _ = sqlx::query!("DELETE FROM guilds WHERE guild = ?", incomplete.id.0)
-            .execute(&pool)
-            .await;
-    }
-
-    async fn ready(&self, ctx: Context, _: Ready) {
-        ctx.set_activity(Activity::watching("for /remind")).await;
-    }
-
-    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        match interaction {
-            Interaction::ApplicationCommand(application_command) => {
-                let framework = ctx
-                    .data
-                    .read()
-                    .await
-                    .get::<RegexFramework>()
-                    .cloned()
-                    .expect("RegexFramework not found in context");
-
-                framework.execute(ctx, application_command).await;
-            }
-            Interaction::MessageComponent(component) => {
-                let component_model = ComponentDataModel::from_custom_id(&component.data.custom_id);
-                component_model.act(&ctx, component).await;
-            }
-            _ => {}
-        }
-    }
 }
 
 #[tokio::main]
@@ -301,65 +152,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     framework_arc.build_slash(&client.cache_and_http.http).await;
 
-    if let Ok((Some(lower), Some(upper))) = env::var("SHARD_RANGE").map(|sr| {
-        let mut split =
-            sr.split(',').map(|val| val.parse::<u64>().expect("SHARD_RANGE not an integer"));
+    info!("Starting client as autosharded");
 
-        (split.next(), split.next())
-    }) {
-        let total_shards = env::var("SHARD_COUNT")
-            .map(|shard_count| shard_count.parse::<u64>().ok())
-            .ok()
-            .flatten()
-            .expect("No SHARD_COUNT provided, but SHARD_RANGE was provided");
-
-        assert!(lower < upper, "SHARD_RANGE lower limit is not less than the upper limit");
-
-        info!("Starting client fragment with shards {}-{}/{}", lower, upper, total_shards);
-
-        client.start_shard_range([lower, upper], total_shards).await?;
-    } else if let Ok(total_shards) = env::var("SHARD_COUNT")
-        .map(|shard_count| shard_count.parse::<u64>().expect("SHARD_COUNT not an integer"))
-    {
-        info!("Starting client with {} shards", total_shards);
-
-        client.start_shards(total_shards).await?;
-    } else {
-        info!("Starting client as autosharded");
-
-        client.start_autosharded().await?;
-    }
+    client.start_autosharded().await?;
 
     Ok(())
-}
-
-pub async fn check_subscription(cache_http: impl CacheHttp, user_id: impl Into<UserId>) -> bool {
-    if let Some(subscription_guild) = *CNC_GUILD {
-        let guild_member = GuildId(subscription_guild).member(cache_http, user_id).await;
-
-        if let Ok(member) = guild_member {
-            for role in member.roles {
-                if SUBSCRIPTION_ROLES.contains(role.as_u64()) {
-                    return true;
-                }
-            }
-        }
-
-        false
-    } else {
-        true
-    }
-}
-
-pub async fn check_guild_subscription(
-    cache_http: impl CacheHttp,
-    guild_id: impl Into<GuildId>,
-) -> bool {
-    if let Some(guild) = cache_http.cache().unwrap().guild(guild_id) {
-        let owner = guild.owner_id;
-
-        check_subscription(&cache_http, owner).await
-    } else {
-        false
-    }
 }

@@ -1,25 +1,6 @@
-use num_integer::Integer;
 use rand::{rngs::OsRng, seq::IteratorRandom};
 
-use crate::consts::{CHARACTERS, DAY, HOUR, MINUTE};
-
-pub fn longhand_displacement(seconds: u64) -> String {
-    let (days, seconds) = seconds.div_rem(&DAY);
-    let (hours, seconds) = seconds.div_rem(&HOUR);
-    let (minutes, seconds) = seconds.div_rem(&MINUTE);
-
-    let mut sections = vec![];
-
-    for (var, name) in
-        [days, hours, minutes, seconds].iter().zip(["days", "hours", "minutes", "seconds"].iter())
-    {
-        if *var > 0 {
-            sections.push(format!("{} {}", var, name));
-        }
-    }
-
-    sections.join(", ")
-}
+use crate::consts::CHARACTERS;
 
 pub fn generate_uid() -> String {
     let mut generator: OsRng = Default::default();

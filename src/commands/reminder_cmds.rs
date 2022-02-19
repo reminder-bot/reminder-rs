@@ -11,7 +11,6 @@ use regex_command_attr::command;
 use serenity::{builder::CreateEmbed, client::Context, model::channel::Channel};
 
 use crate::{
-    check_guild_subscription, check_subscription,
     component_models::{
         pager::{DelPager, LookPager, Pager},
         ComponentDataModel, DelSelector,
@@ -33,6 +32,7 @@ use crate::{
         CtxData,
     },
     time_parser::natural_parser,
+    utils::{check_guild_subscription, check_subscription},
     SQLPool,
 };
 
@@ -323,7 +323,7 @@ async fn look(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
             .iter()
             .map(|reminder| reminder.display(&flags, &timezone))
             .fold(0, |t, r| t + r.len())
-            .div_ceil(&EMBED_DESCRIPTION_MAX_LENGTH);
+            .div_ceil(EMBED_DESCRIPTION_MAX_LENGTH);
 
         let pager = LookPager::new(flags, timezone);
 
