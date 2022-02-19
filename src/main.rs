@@ -21,7 +21,7 @@ use std::{
 
 use chrono_tz::Tz;
 use dotenv::dotenv;
-use log::info;
+use log::{info, warn};
 use serenity::{
     async_trait,
     client::Client,
@@ -88,13 +88,23 @@ impl EventHandler for Handler {
             let pool1 = ctx1.data.read().await.get::<SQLPool>().cloned().unwrap();
             let pool2 = ctx2.data.read().await.get::<SQLPool>().cloned().unwrap();
 
-            tokio::spawn(async move {
-                postman::initialize(ctx1, &pool1).await;
-            });
+            let run_settings = env::var("DONTRUN").unwrap_or_else(|_| "".to_string());
 
-            tokio::spawn(async move {
-                reminder_web::initialize(ctx2, pool2).await.unwrap();
-            });
+            if !run_settings.contains("postman") {
+                tokio::spawn(async move {
+                    postman::initialize(ctx1, &pool1).await;
+                });
+            } else {
+                warn!("Not running postman")
+            }
+
+            if !run_settings.contains("web") {
+                tokio::spawn(async move {
+                    reminder_web::initialize(ctx2, pool2).await.unwrap();
+                });
+            } else {
+                warn!("Not running web")
+            }
 
             self.is_loop_running.swap(true, Ordering::Relaxed);
         }
