@@ -12,7 +12,7 @@ mod models;
 mod time_parser;
 mod utils;
 
-use std::{collections::HashMap, env, sync::atomic::AtomicBool};
+use std::{collections::HashMap, env, fmt::Formatter, sync::atomic::AtomicBool};
 
 use chrono_tz::Tz;
 use dotenv::dotenv;
@@ -43,6 +43,12 @@ pub struct Data {
     recording_macros: RwLock<HashMap<(GuildId, UserId), CommandMacro<Data, Error>>>,
     popular_timezones: Vec<Tz>,
     is_loop_running: AtomicBool,
+}
+
+impl std::fmt::Debug for Data {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Data {{ .. }}")
+    }
 }
 
 #[tokio::main]
@@ -120,9 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Pool::connect(&env::var("DATABASE_URL").expect("No database URL provided")).await.unwrap();
 
     let popular_timezones = sqlx::query!(
-        "
-SELECT timezone FROM users GROUP BY timezone ORDER BY COUNT(timezone) DESC LIMIT 21
-        "
+        "SELECT timezone FROM users GROUP BY timezone ORDER BY COUNT(timezone) DESC LIMIT 21"
     )
     .fetch_all(&database)
     .await

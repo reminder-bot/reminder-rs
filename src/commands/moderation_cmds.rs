@@ -28,7 +28,7 @@ async fn timezone_autocomplete(ctx: Context<'_>, partial: String) -> Vec<String>
 }
 
 /// Select your timezone
-#[poise::command(slash_command)]
+#[poise::command(slash_command, identifying_name = "timezone")]
 pub async fn timezone(
     ctx: Context<'_>,
     #[description = "Timezone to use from this list: https://gist.github.com/JellyWX/913dfc8b63d45192ad6cb54c829324ee"]
@@ -150,13 +150,23 @@ WHERE
 }
 
 /// Record and replay command sequences
-#[poise::command(slash_command, rename = "macro", check = "guild_only")]
+#[poise::command(
+    slash_command,
+    rename = "macro",
+    check = "guild_only",
+    identifying_name = "macro_base"
+)]
 pub async fn macro_base(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
 /// Start recording up to 5 commands to replay
-#[poise::command(slash_command, rename = "record", check = "guild_only")]
+#[poise::command(
+    slash_command,
+    rename = "record",
+    check = "guild_only",
+    identifying_name = "record_macro"
+)]
 pub async fn record_macro(
     ctx: Context<'_>,
     #[description = "Name for the new macro"] name: String,
@@ -235,7 +245,7 @@ Please use `/macro finish` to end this recording before starting another.",
     slash_command,
     rename = "finish",
     check = "guild_only",
-    identifying_name = "macro_finish"
+    identifying_name = "finish_macro"
 )]
 pub async fn finish_macro(ctx: Context<'_>) -> Result<(), Error> {
     let key = (ctx.guild_id().unwrap(), ctx.author().id);
@@ -288,7 +298,12 @@ pub async fn finish_macro(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// List recorded macros
-#[poise::command(slash_command, rename = "list", check = "guild_only")]
+#[poise::command(
+    slash_command,
+    rename = "list",
+    check = "guild_only",
+    identifying_name = "list_macro"
+)]
 pub async fn list_macro(ctx: Context<'_>) -> Result<(), Error> {
     let macros = ctx.command_macros().await?;
 
@@ -304,7 +319,12 @@ pub async fn list_macro(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Run a recorded macro
-#[poise::command(slash_command, rename = "run", check = "guild_only")]
+#[poise::command(
+    slash_command,
+    rename = "run",
+    check = "guild_only",
+    identifying_name = "run_macro"
+)]
 pub async fn run_macro(
     ctx: poise::ApplicationContext<'_, Data, Error>,
     #[description = "Name of macro to run"]
@@ -317,13 +337,17 @@ pub async fn run_macro(
 
             for command in command_macro.commands {
                 if let Some(action) = command.action {
-                    (action)(poise::ApplicationContext { args: &command.options, ..ctx })
+                    match (action)(poise::ApplicationContext { args: &command.options, ..ctx })
                         .await
-                        .ok()
-                        .unwrap();
+                    {
+                        Ok(()) => {}
+                        Err(e) => {
+                            println!("{:?}", e);
+                        }
+                    }
                 } else {
                     Context::Application(ctx)
-                        .say(format!("Command \"{}\" failed to execute", command.command_name))
+                        .say(format!("Command \"{}\" not found", command.command_name))
                         .await?;
                 }
             }
@@ -338,7 +362,12 @@ pub async fn run_macro(
 }
 
 /// Delete a recorded macro
-#[poise::command(slash_command, rename = "delete", check = "guild_only")]
+#[poise::command(
+    slash_command,
+    rename = "delete",
+    check = "guild_only",
+    identifying_name = "delete_macro"
+)]
 pub async fn delete_macro(
     ctx: Context<'_>,
     #[description = "Name of macro to delete"]

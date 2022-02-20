@@ -15,7 +15,7 @@ pub async fn guild_only(ctx: Context<'_>) -> Result<bool, Error> {
 async fn macro_check(ctx: Context<'_>) -> bool {
     if let Context::Application(app_ctx) = ctx {
         if let Some(guild_id) = ctx.guild_id() {
-            if ctx.command().identifying_name != "macro_finish" {
+            if ctx.command().identifying_name != "finish_macro" {
                 let mut lock = ctx.data().recording_macros.write().await;
 
                 if let Some(command_macro) = lock.get_mut(&(guild_id, ctx.author().id)) {

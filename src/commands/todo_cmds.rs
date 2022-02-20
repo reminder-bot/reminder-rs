@@ -11,19 +11,29 @@ use crate::{
 };
 
 /// Manage todo lists
-#[poise::command(slash_command, rename = "todo")]
+#[poise::command(slash_command, rename = "todo", identifying_name = "todo_base")]
 pub async fn todo_base(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
 /// Manage the server todo list
-#[poise::command(slash_command, rename = "server", check = "guild_only")]
+#[poise::command(
+    slash_command,
+    rename = "server",
+    check = "guild_only",
+    identifying_name = "todo_guild_base"
+)]
 pub async fn todo_guild_base(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
 /// Add an item to the server todo list
-#[poise::command(slash_command, rename = "add")]
+#[poise::command(
+    slash_command,
+    rename = "add",
+    check = "guild_only",
+    identifying_name = "todo_guild_add"
+)]
 pub async fn todo_guild_add(
     ctx: Context<'_>,
     #[description = "The task to add to the todo list"] task: String,
@@ -44,7 +54,12 @@ VALUES ((SELECT id FROM guilds WHERE guild = ?), ?)",
 }
 
 /// View and remove from the server todo list
-#[poise::command(slash_command, rename = "view")]
+#[poise::command(
+    slash_command,
+    rename = "view",
+    check = "guild_only",
+    identifying_name = "todo_guild_view"
+)]
 pub async fn todo_guild_view(ctx: Context<'_>) -> Result<(), Error> {
     let values = sqlx::query!(
         "SELECT todos.id, value FROM todos
@@ -71,13 +86,23 @@ WHERE guilds.guild = ?",
 }
 
 /// Manage the channel todo list
-#[poise::command(slash_command, rename = "channel", check = "guild_only")]
+#[poise::command(
+    slash_command,
+    rename = "channel",
+    check = "guild_only",
+    identifying_name = "todo_channel_base"
+)]
 pub async fn todo_channel_base(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
 /// Add an item to the channel todo list
-#[poise::command(slash_command, rename = "add")]
+#[poise::command(
+    slash_command,
+    rename = "add",
+    check = "guild_only",
+    identifying_name = "todo_channel_add"
+)]
 pub async fn todo_channel_add(
     ctx: Context<'_>,
     #[description = "The task to add to the todo list"] task: String,
@@ -99,7 +124,12 @@ VALUES ((SELECT id FROM guilds WHERE guild = ?), (SELECT id FROM channels WHERE 
 }
 
 /// View and remove from the channel todo list
-#[poise::command(slash_command, rename = "view")]
+#[poise::command(
+    slash_command,
+    rename = "view",
+    check = "guild_only",
+    identifying_name = "todo_channel_view"
+)]
 pub async fn todo_channel_view(ctx: Context<'_>) -> Result<(), Error> {
     let values = sqlx::query!(
         "SELECT todos.id, value FROM todos
@@ -127,13 +157,13 @@ WHERE channels.channel = ?",
 }
 
 /// Manage your personal todo list
-#[poise::command(slash_command, rename = "user")]
+#[poise::command(slash_command, rename = "user", identifying_name = "todo_user_base")]
 pub async fn todo_user_base(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
 /// Add an item to your personal todo list
-#[poise::command(slash_command, rename = "add")]
+#[poise::command(slash_command, rename = "add", identifying_name = "todo_user_add")]
 pub async fn todo_user_add(
     ctx: Context<'_>,
     #[description = "The task to add to the todo list"] task: String,
@@ -154,7 +184,7 @@ VALUES ((SELECT id FROM users WHERE user = ?), ?)",
 }
 
 /// View and remove from your personal todo list
-#[poise::command(slash_command, rename = "view")]
+#[poise::command(slash_command, rename = "view", identifying_name = "todo_user_view")]
 pub async fn todo_user_view(ctx: Context<'_>) -> Result<(), Error> {
     let values = sqlx::query!(
         "SELECT todos.id, value FROM todos
