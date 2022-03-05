@@ -1,9 +1,17 @@
+use std::collections::HashMap;
+
 use chrono::naive::NaiveDateTime;
-use rocket::http::CookieJar;
-use rocket::response::Redirect;
+use rocket::{http::CookieJar, response::Redirect};
 use rocket_dyn_templates::Template;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use serenity::{
+    client::Context,
+    http::{CacheHttp, Http},
+    model::id::ChannelId,
+};
+use sqlx::{Executor, Pool};
+
+use crate::{consts::DEFAULT_AVATAR, Database, Error};
 
 pub mod guild;
 pub mod user;
@@ -46,8 +54,7 @@ pub struct Reminder {
 
 // https://github.com/serde-rs/json/issues/329#issuecomment-305608405
 mod string {
-    use std::fmt::Display;
-    use std::str::FromStr;
+    use std::{fmt::Display, str::FromStr};
 
     use serde::{de, Deserialize, Deserializer, Serializer};
 
@@ -72,6 +79,78 @@ mod string {
 #[derive(Deserialize)]
 pub struct DeleteReminder {
     uid: String,
+}
+
+async fn create_database_channel(
+    ctx: impl AsRef<Http>,
+    channel: ChannelId,
+    pool: impl Executor<'_, Database = Database> + Copy,
+) -> Result<u32, crate::Error> {
+    let row =
+        sqlx::query!("SELECT webhook_token, webhook_id FROM channels WHERE channel = ?", channel.0)
+            .fetch_one(pool)
+            .await;
+
+    match row {
+        Ok(row) => {
+            if row.webhook_token.is_none() || row.webhook_id.is_none() {
+                let webhook = channel
+                    .create_webhook_with_avatar(&ctx, "Reminder", DEFAULT_AVATAR.clone())
+                    .await
+                    .map_err(|e| Error::serenity(e))?;
+
+                sqlx::query!(
+                    "UPDATE channels SET webhook_id = ?, webhook_token = ? WHERE channel = ?",
+                    webhook.id.0,
+                    webhook.token,
+                    channel.0
+                )
+                .execute(pool)
+                .await
+                .map_err(|e| Error::SQLx(e))?;
+            }
+
+            Ok(())
+        }
+
+        Err(sqlx::Error::RowNotFound) => {
+            // create webhook
+            let webhook = channel
+                .create_webhook_with_avatar(&ctx, "Reminder", DEFAULT_AVATAR.clone())
+                .await
+                .map_err(|e| Error::serenity(e))?;
+
+            // create database entry
+            sqlx::query!(
+                "INSERT INTO channels (
+                 webhook_id,
+                 webhook_token,
+                 channel
+                ) VALUES (
+                 webhook_id = ?,
+                 webhook_token = ?,
+                 channel = ?
+                )",
+                webhook.id.0,
+                webhook.token,
+                channel.0
+            )
+            .execute(pool)
+            .await
+            .map_err(|e| Error::SQLx(e))?;
+
+            Ok(())
+        }
+
+        Err(e) => Err(Error::SQLx(e)),
+    }?;
+
+    let row = sqlx::query!("SELECT id FROM channels WHERE channel = ?", channel.0)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| Error::SQLx(e))?;
+
+    Ok(row.id)
 }
 
 #[get("/")]

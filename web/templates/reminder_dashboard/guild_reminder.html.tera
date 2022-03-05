@@ -126,45 +126,69 @@
         </div>
 
         <div class="field">
+            <label class="label">Time</label>
             <div class="control">
-                <label class="checkbox">
-                    Enable TTS
-                    <input type="checkbox">
-                </label>
+                <input class="input" type="datetime-local" name="time">
             </div>
         </div>
 
         <div class="field">
-            <div class="control">
-                <label class="checkbox">
-                    Pin Reminder
-                    <input type="checkbox">
-                </label>
+            <a class="intervalLabel"><label class="label">Interval <i class="fas fa-chevron-down"></i></label></a>
+            <div class="control intervalSelector">
+                <div class="columns">
+                    <div class="column">
+                        <input class="input" type="number" name="interval_months" placeholder="Months">
+                    </div>
+                    <div class="column">
+                        <input class="input" type="number" name="interval_seconds" placeholder="Days">
+                    </div>
+                    <div class="column">
+                        <input class="input" type="number" name="interval_seconds" placeholder="Hours">
+                    </div>
+                    <div class="column">
+                        <input class="input" type="number" name="interval_seconds" placeholder="Minutes">
+                    </div>
+                    <div class="column">
+                        <input class="input" type="number" name="interval_seconds" placeholder="Seconds">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="columns">
+            <div class="column has-text-centered">
+                <div style="display: inline-block;">
+                    <label class="label">Enable TTS <input type="checkbox" name="tts"></label>
+                </div>
+            </div>
+            <div class="column has-text-centered">
+                <div style="display: inline-block;">
+                    <label class="label">Pin Message <input type="checkbox" name="pin"></label>
+                </div>
+            </div>
+            <div class="column has-text-centered">
+                <div class="file is-boxed">
+                    <label class="file-label">
+                        <input class="file-input" type="file">
+                        <span class="file-cta">
+                            <span class="file-label">
+                                Add Attachment
+                            </span>
+                            <span class="file-icon">
+                                <i class="fas fa-upload"></i>
+                            </span>
+                        </span>
+                    </label>
+                </div>
             </div>
         </div>
 
         <a class="set-color">
             <p>
-                Set Embed Color <span class="icon is-small"><i
-                    class="far fa-eye-dropper"></i></span>
+                Set Embed Color <span class="icon is-small"><i class="far fa-eye-dropper"></i></span>
             </p>
         </a>
-        <a class="level-item file-upload">
-            <div class="file">
-                <input class="file-input" type="file" name="attachment">
-                <p>
-                    Attach File
-                    <span class="icon is-small">
-                        <i class="far fa-file-upload"></i>
-                    </span>
-                </p>
-            </div>
-        </a>
-        <a class="level-item set-interval">
-            <p>
-                Set Interval <span class="icon is-small"><i class="far fa-repeat"></i></span>
-            </p>
-        </a>
+
         <span style="width: 12px;"></span>
         {% if creating %}
             <button class="button is-outlined">

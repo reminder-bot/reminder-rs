@@ -722,6 +722,27 @@
         document.querySelector('div#reminderCreator').classList.toggle('is-hidden');
     });
 
+    let $showInterval = document.querySelectorAll('a.intervalLabel');
+
+    $showInterval.forEach((element) => {
+        element.addEventListener('click', () => {
+            element.querySelector('i').classList.toggle('fa-chevron-right');
+            element.querySelector('i').classList.toggle('fa-chevron-down');
+            element.nextElementSibling.classList.toggle('is-hidden');
+        });
+    });
+
+    const fileInput = document.querySelectorAll('input[type=file]');
+
+    fileInput.forEach((element) => {
+        element.addEventListener('change', () => {
+            if (element.files.length > 0) {
+                const fileName = element.parentElement.querySelector('.file-label');
+                fileName.textContent = element.files[0].name;
+            }
+        })
+    });
+
     document.querySelectorAll('.discord-field-title').forEach((element) => {
         const $template = document.querySelector('template#embedFieldTemplate');
         const $complement = element.parentElement.querySelector('.discord-field-value');

@@ -15,3 +15,4 @@ serde = { version = "1.0", features = ["derive"] }
 sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "macros", "mysql", "chrono"] }
 chrono = "0.4"
 chrono-tz = "0.5"
+lazy_static = "1.4.0"

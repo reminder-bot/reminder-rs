@@ -2131,6 +2131,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-tz 0.5.3",
+ "lazy_static",
  "log",
  "oauth2",
  "reqwest",

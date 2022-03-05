@@ -1,17 +1,17 @@
-use crate::consts::DISCORD_API;
 use log::warn;
-use oauth2::basic::BasicClient;
-use oauth2::reqwest::async_http_client;
 use oauth2::{
-    AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope, TokenResponse,
+    basic::BasicClient, reqwest::async_http_client, AuthorizationCode, CsrfToken,
+    PkceCodeChallenge, PkceCodeVerifier, Scope, TokenResponse,
 };
 use reqwest::Client;
-use rocket::http::private::cookie::Expiration;
-use rocket::http::{Cookie, CookieJar, SameSite};
-use rocket::response::{Flash, Redirect};
-use rocket::uri;
-use rocket::State;
+use rocket::{
+    http::{private::cookie::Expiration, Cookie, CookieJar, SameSite},
+    response::{Flash, Redirect},
+    uri, State,
+};
 use serenity::model::user::User;
+
+use crate::consts::DISCORD_API;
 
 #[get("/discord")]
 pub async fn discord_login(

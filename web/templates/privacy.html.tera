@@ -12,8 +12,63 @@
 
     <section class="section">
         <div class="container">
-            <h2 class="title">Privacy Policy</h2>
+            <h2 class="title">Who we are</h2>
             <p class="is-size-5 pl-6">
+                Reminder Bot is operated solely by Jude Southworth. You can contact me by email at
+                <a href="mailto:jude@jellywx.com">jude@jellywx.com</a>, or via private/public message on Discord at
+                <a href="https://discord.jellywx.com">https://discord.jellywx.com</a>.
+            </p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">What data we collect</h2>
+            <p class="is-size-5 pl-6">
+                Reminder Bot stores limited data necessary for the function of the bot. This data
+                is your <strong>unique user ID</strong>, <strong>timezone</strong>, and <strong>direct message channel</strong>.
+                <br>
+                <br>
+                Timezones are provided by the user or the user's browser.
+            </p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">Why we collect this data</h2>
+            <p class="is-size-5 pl-6">
+                Unique user IDs are stored to <strong>keep track of who sets reminders</strong>. User timezones are
+                stored to allow users to set reminders in their local timezone. Direct message channels are stored to
+                allow the setting of reminders for your direct message channel.
+            </p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">Who your data is shared with</h2>
+            <p class="is-size-5 pl-6">
+                Your data may also be guarded by the privacy policies of <strong>MEGA</strong>, our backup provider, and
+                <strong>Hetzner</strong>, our hosting provider.
+            </p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">Accessing or removing your data</h2>
+            <p class="is-size-5 pl-6">
+                Your timezone can be removed with the command <strong>/timezone UTC</strong>. Other data can be removed
+                on request. Please contact me.
+                <br>
+                <br>
+                Reminders created in a guild/channel will be removed automatically when the bot is removed from the
+                guild, the guild is deleted, or channel is deleted. Data is otherwise not removed automatically.
+                <br>
+                <br>
+                Reminders deleted with <strong>/del</strong> or via the dashboard are removed from the live database
+                instantly, but may persist in backups.
             </p>
         </div>
     </section>
