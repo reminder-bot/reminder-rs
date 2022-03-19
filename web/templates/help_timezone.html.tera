@@ -1,0 +1,47 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "Support" %}
+
+    {% set page_title = "Timezone Help" %}
+    {% set page_subtitle = "Timezones are tricky. Read on for help" %}
+    {% set show_invite = false %}
+{% endblock %}
+
+{% block content %}
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container has-text-centered">
+                <p class="title">Selecting your timezone manually</p>
+                <p class="content">
+                    To select your timezone manually, use <code>/timezone</code>. This will set your timezone
+                    across all servers with Reminder Bot.
+                    <br>
+                    You should only ever have to do this once. To avoid needing to change timezone due to daylight
+                    savings, choose a DST-aware region, for example <strong>Europe/London</strong> instead of
+                    <strong>GMT</strong>, or <strong>US/New_York</strong> instead of <strong>EST</strong>.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container has-text-centered">
+                <p class="title">Selecting your timezone automatically</p>
+                <p class="content">
+                    A new feature we offer is the ability to configure Reminder Bot's timezone from your browser. To do
+                    this, go to our dashboard, press 'Timezone' in the bottom left (desktop) or at the bottom of the
+                    navigation menu (mobile). Then, choose 'Set Bot Timezone' to set Reminder Bot to use your browser's
+                    timezone.
+                    <br>
+                    From here, you can also configure the dashboard to alternatively use the manually configured
+                    timezone instead of the browser's timezone, if your browser is reporting your timezone incorrectly,
+                    or if you have a special use-case.
+                </p>
+            </div>
+        </div>
+    </section>
+
+{% endblock %}

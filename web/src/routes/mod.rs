@@ -1,9 +1,10 @@
 pub mod dashboard;
 pub mod login;
 
+use std::collections::HashMap;
+
 use rocket::request::FlashMessage;
 use rocket_dyn_templates::Template;
-use std::collections::HashMap;
 
 #[get("/")]
 pub async fn index(flash: Option<FlashMessage<'_>>) -> Template {
@@ -48,4 +49,10 @@ pub async fn terms() -> Template {
 pub async fn help() -> Template {
     let map: HashMap<&str, String> = HashMap::new();
     Template::render("help", &map)
+}
+
+#[get("/help/timezone")]
+pub async fn help_timezone() -> Template {
+    let map: HashMap<&str, String> = HashMap::new();
+    Template::render("help_timezone", &map)
 }

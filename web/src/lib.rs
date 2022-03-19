@@ -82,6 +82,7 @@ pub async fn initialize(
                 routes::privacy,
                 routes::terms,
                 routes::help,
+                routes::help_timezone,
                 routes::return_to_same_site
             ],
         )
