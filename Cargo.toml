@@ -5,8 +5,7 @@ authors = ["jellywx <judesouthworth@pm.me>"]
 edition = "2018"
 
 [dependencies]
-#poise = { git = "https://github.com/kangalioo/poise", branch = "master" }
-poise = { path = "/home/jude/poise" }
+poise = { git = "https://github.com/kangalioo/poise", branch = "master" }
 dotenv = "0.15"
 tokio = { version = "1", features = ["process", "full"] }
 reqwest = "0.11"

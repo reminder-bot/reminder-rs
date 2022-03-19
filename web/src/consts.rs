@@ -18,6 +18,8 @@ pub const MINUTE: usize = 60;
 pub const HOUR: usize = 60 * MINUTE;
 pub const DAY: usize = 24 * HOUR;
 
+pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+
 use std::{collections::HashSet, env, iter::FromIterator};
 
 use lazy_static::lazy_static;

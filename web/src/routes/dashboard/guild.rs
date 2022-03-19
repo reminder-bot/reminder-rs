@@ -18,7 +18,9 @@ use crate::{
         MAX_EMBED_DESCRIPTION_LENGTH, MAX_EMBED_FOOTER_LENGTH, MAX_EMBED_TITLE_LENGTH,
         MAX_URL_LENGTH, MAX_USERNAME_LENGTH, MIN_INTERVAL,
     },
-    routes::dashboard::{create_database_channel, DeleteReminder, Reminder},
+    routes::dashboard::{
+        create_database_channel, generate_uid, name_default, DeleteReminder, Reminder,
+    },
 };
 
 #[derive(Serialize)]
@@ -193,11 +195,13 @@ pub async fn create_reminder(
     if reminder.utc_time < Utc::now().naive_utc() {
         return json!({"error": "Time must be in the future"});
     }
-    if reminder.interval_months.unwrap_or(0) * 30 * DAY as u32
-        + reminder.interval_seconds.unwrap_or(0)
-        < *MIN_INTERVAL
-    {
-        return json!({"error": "Interval too short"});
+    if reminder.interval_seconds.is_some() || reminder.interval_months.is_some() {
+        if reminder.interval_months.unwrap_or(0) * 30 * DAY as u32
+            + reminder.interval_seconds.unwrap_or(0)
+            < *MIN_INTERVAL
+        {
+            return json!({"error": "Interval too short"});
+        }
     }
 
     // check patreon if necessary
@@ -209,9 +213,12 @@ pub async fn create_reminder(
         }
     }
 
+    let name = if reminder.name.is_empty() { name_default() } else { reminder.name.clone() };
+
     // write to db
     match sqlx::query!(
         "INSERT INTO reminders (
+         uid,
          channel_id,
          avatar,
          content,
@@ -234,30 +241,8 @@ pub async fn create_reminder(
          tts,
          username,
          `utc_time`
-        ) VALUES (
-         channel_id = ?,
-         avatar = ?,
-         content = ?,
-         embed_author = ?,
-         embed_author_url = ?,
-         embed_color = ?,
-         embed_description = ?,
-         embed_footer = ?,
-         embed_footer_url = ?,
-         embed_image_url = ?,
-         embed_thumbnail_url = ?,
-         embed_title = ?,
-         enabled = ?,
-         expires = ?,
-         interval_seconds = ?,
-         interval_months = ?,
-         name = ?,
-         pin = ?,
-         restartable = ?,
-         tts = ?,
-         username = ?,
-         `utc_time` = ?
-        )",
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        generate_uid(),
         channel,
         reminder.avatar,
         reminder.content,
@@ -274,7 +259,7 @@ pub async fn create_reminder(
         reminder.expires,
         reminder.interval_seconds,
         reminder.interval_months,
-        reminder.name,
+        name,
         reminder.pin,
         reminder.restartable,
         reminder.tts,

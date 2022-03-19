@@ -282,7 +282,7 @@ pub async fn get_reminders(
         if let Some(channel_id) = dm_channel {
             let reminders = sqlx::query_as!(
                 Reminder,
-                "SELECT
+                r#"SELECT
                  reminders.attachment,
                  reminders.attachment_name,
                  reminders.avatar,
@@ -297,18 +297,18 @@ pub async fn get_reminders(
                  reminders.embed_image_url,
                  reminders.embed_thumbnail_url,
                  reminders.embed_title,
-                 reminders.enabled,
+                 reminders.enabled as "enabled:_",
                  reminders.expires,
                  reminders.interval_seconds,
                  reminders.interval_months,
                  reminders.name,
-                 reminders.pin,
-                 reminders.restartable,
-                 reminders.tts,
+                 reminders.pin as "pin:_",
+                 reminders.restartable as "restartable:_",
+                 reminders.tts as "tts:_",
                  reminders.uid,
                  reminders.username,
                  reminders.utc_time
-                 FROM reminders INNER JOIN channels ON channels.id = reminders.channel_id WHERE channels.channel = ?",
+                 FROM reminders INNER JOIN channels ON channels.id = reminders.channel_id WHERE channels.channel = ?"#,
                 channel_id
             )
                 .fetch_all(pool.inner())

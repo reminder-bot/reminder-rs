@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 
 use chrono::naive::NaiveDateTime;
+use rand::{rngs::OsRng, seq::IteratorRandom};
 use rocket::{http::CookieJar, response::Redirect};
 use rocket_dyn_templates::Template;
 use serde::{Deserialize, Serialize};
-use serenity::{
-    client::Context,
-    http::{CacheHttp, Http},
-    model::id::ChannelId,
-};
-use sqlx::{Executor, Pool};
+use serenity::{http::Http, model::id::ChannelId};
+use sqlx::Executor;
 
-use crate::{consts::DEFAULT_AVATAR, Database, Error};
+use crate::{
+    consts::{CHARACTERS, DEFAULT_AVATAR},
+    Database, Error,
+};
 
 pub mod guild;
 pub mod user;
@@ -37,19 +37,28 @@ pub struct Reminder {
     embed_image_url: Option<String>,
     embed_thumbnail_url: Option<String>,
     embed_title: String,
-    enabled: i8,
+    enabled: bool,
     expires: Option<NaiveDateTime>,
     interval_seconds: Option<u32>,
     interval_months: Option<u32>,
     #[serde(default = "name_default")]
     name: String,
-    pin: i8,
-    restartable: i8,
-    tts: i8,
+    pin: bool,
+    restartable: bool,
+    tts: bool,
     #[serde(default)]
     uid: String,
     username: Option<String>,
     utc_time: NaiveDateTime,
+}
+
+pub fn generate_uid() -> String {
+    let mut generator: OsRng = Default::default();
+
+    (0..64)
+        .map(|_| CHARACTERS.chars().choose(&mut generator).unwrap().to_owned().to_string())
+        .collect::<Vec<String>>()
+        .join("")
 }
 
 // https://github.com/serde-rs/json/issues/329#issuecomment-305608405

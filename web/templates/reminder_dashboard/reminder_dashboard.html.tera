@@ -6,6 +6,7 @@
         <div id="reminderCreator">
             {% set creating = true %}
             {% include "reminder_dashboard/guild_reminder" %}
+            {% set creating = false %}
         </div>
 
         <div class="buttons has-addons" style="margin-top: 1rem;">

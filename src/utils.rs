@@ -88,7 +88,7 @@ pub fn send_as_initial_response(
     if let Some(content) = content {
         f.content(content);
     }
-    f.embeds(embeds);
+    f.set_embeds(embeds);
     if let Some(allowed_mentions) = allowed_mentions {
         f.allowed_mentions(|f| {
             *f = allowed_mentions.clone();

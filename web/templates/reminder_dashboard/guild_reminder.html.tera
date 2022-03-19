@@ -28,7 +28,7 @@
                                         <div class="a">
                                             <p class="image is-24x24 customizable">
                                                 <a>
-                                                    <img class="is-rounded" src="">
+                                                    <img class="is-rounded embed_author_url" src="">
                                                 </a>
                                             </p>
                                         </div>
@@ -77,7 +77,7 @@
                                 <div class="b">
                                     <p class="image thumbnail customizable">
                                         <a>
-                                            <img class="" src="" alt="Square thumbnail embedded image">
+                                            <img class="embed_thumbnail_url" src="" alt="Square thumbnail embedded image">
                                         </a>
                                     </p>
                                 </div>
@@ -85,21 +85,21 @@
 
                             <p class="image is-400x300 customizable">
                                 <a>
-                                    <img class="" src="" alt="Large embedded image">
+                                    <img class="embed_image_url" src="" alt="Large embedded image">
                                 </a>
                             </p>
 
                             <div class="embed-footer-box">
                                 <p class="image is-20x20 customizable">
                                     <a>
-                                        <img class="is-rounded " src="" alt="Footer profile-like image">
+                                        <img class="is-rounded embed_footer_url" src="" alt="Footer profile-like image">
                                     </a>
                                 </p>
 
                                 <label class="is-sr-only" for="embedFooter">Embed Footer text</label>
                                 <textarea class="discord-embed-footer message-input autoresize "
                                           placeholder="Embed Footer..."
-                                          maxlength="2048" id="embedFooter" name="embed_author" rows="1"></textarea>
+                                          maxlength="2048" id="embedFooter" name="embed_footer" rows="1"></textarea>
                             </div>
                         </div>
                     </div>
@@ -128,7 +128,7 @@
         <div class="field">
             <label class="label">Time</label>
             <div class="control">
-                <input class="input" type="datetime-local" name="time">
+                <input class="input" type="datetime-local" step="1" name="time">
             </div>
         </div>
 
@@ -140,13 +140,13 @@
                         <input class="input" type="number" name="interval_months" placeholder="Months">
                     </div>
                     <div class="column">
-                        <input class="input" type="number" name="interval_seconds" placeholder="Days">
+                        <input class="input" type="number" name="interval_days" placeholder="Days">
                     </div>
                     <div class="column">
-                        <input class="input" type="number" name="interval_seconds" placeholder="Hours">
+                        <input class="input" type="number" name="interval_hours" placeholder="Hours">
                     </div>
                     <div class="column">
-                        <input class="input" type="number" name="interval_seconds" placeholder="Minutes">
+                        <input class="input" type="number" name="interval_minutes" placeholder="Minutes">
                     </div>
                     <div class="column">
                         <input class="input" type="number" name="interval_seconds" placeholder="Seconds">

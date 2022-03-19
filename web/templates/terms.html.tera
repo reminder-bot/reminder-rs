@@ -45,10 +45,20 @@
             <h2 class="title">JellyWX's Home</h2>
             <ul class="is-size-5 pl-6">
                 <li>Do not discuss politics, harass other users, or use language intended to upset other users</li>
-                <li>Do not send malicious links</li>
+                <li>Do not share personal information about yourself or any other user. This includes but is not
+                    limited to real names<sup>1</sup>, addresses, phone numbers, country of origin<sup>2</sup>, religion, email address,
+                    IP address.</li>
+                <li>Do not send malicious links or attachments</li>
                 <li>Do not advertise</li>
                 <li>Do not send unwarranted direct messages</li>
             </ul>
+            <p class="small">
+                <sup>1</sup> Some users may use their real name on their account. In this case, do not assert that
+                this is a user's real name, or use it to try and identify a user.
+                <br>
+                <sup>2</sup> Country of current residence may be discussed, as this is relevant to timezone and
+                DST selection.
+            </p>
         </div>
     </section>
 

@@ -114,7 +114,7 @@
                 <br>
                 Your browser timezone is: <strong><span class="browser-timezone">%browsertimezone%</span></strong> (<span class="browser-time">HH:mm</span>)
                 <br>
-                Your bot timezone is: <strong><span class="bot-timezone">%bottimezone</span></strong> (<span class="bot-time">HH:mm</span>)
+                Your bot timezone is: <strong><span class="bot-timezone">%bottimezone%</span></strong> (<span class="bot-time">HH:mm</span>)
             </p>
             <br>
             <div class="has-text-centered">
@@ -414,6 +414,7 @@
                             // populate channels
                             newFrame.querySelector('select.channel-selector');
 
+                            // populate majority of items
                             for (let prop in reminder) {
                                 if (reminder.hasOwnProperty(prop) && reminder[prop] !== null) {
                                     let $input = newFrame.querySelector(`*[name="${prop}"]`);
@@ -426,6 +427,10 @@
                                     }
                                 }
                             }
+
+                            let timeInput = newFrame.querySelector('input[name="time"]');
+                            let localTime = luxon.DateTime.fromISO(reminder["utc_time"]).setZone(timezone);
+                            timeInput.value = localTime.toFormat("yyyy-LL-dd'T'HH:mm:ss");
 
                             $reminderBox.appendChild(newFrame);
                         }
@@ -668,6 +673,62 @@
             });
     });
 
+    let $createReminder = document.querySelector('#reminderCreator');
+
+    $createReminder.querySelector('button#createReminder').addEventListener('click', () => {
+        // create reminder object
+        let seconds = parseInt($createReminder.querySelector('input[name="interval_seconds"]').value) || null;
+        let months = parseInt($createReminder.querySelector('input[name="interval_months"]').value) || null;
+
+        let rgb_color = window.getComputedStyle($createReminder.querySelector('div.discord-embed')).borderLeftColor;
+        let rgb = rgb_color.match(/\d+/g);
+        let color = colorToInt(parseInt(rgb[0]), parseInt(rgb[1]), parseInt(rgb[2]));
+
+        let utc_time = luxon.DateTime.fromISO($createReminder.querySelector('input[name="time"]').value).setZone('UTC');
+
+        let reminder = {
+            avatar: $createReminder.querySelector('img.discord-avatar').src,
+            channel: $createReminder.querySelector('select.channel-selector').value,
+            content: $createReminder.querySelector('textarea#messageContent').value,
+            embed_author_url: $createReminder.querySelector('img.embed_author_url').src,
+            embed_author: $createReminder.querySelector('textarea#embedAuthor').value,
+            embed_color: color,
+            embed_description: $createReminder.querySelector('textarea#embedDescription').value,
+            embed_footer: $createReminder.querySelector('textarea#embedFooter').value,
+            embed_footer_url: $createReminder.querySelector('img.embed_footer_url').src,
+            embed_image_url: $createReminder.querySelector('img.embed_image_url').src,
+            embed_thumbnail_url: $createReminder.querySelector('img.embed_thumbnail_url').src,
+            embed_title: $createReminder.querySelector('textarea#embedTitle').value,
+            enabled: true,
+            expires: null,
+            interval_seconds: seconds,
+            interval_months: months,
+            name: $createReminder.querySelector('input[name="name"]').value,
+            pin: $createReminder.querySelector('input[name="pin"]').checked,
+            restartable: false,
+            tts: $createReminder.querySelector('input[name="tts"]').checked,
+            username: $createReminder.querySelector('input#reminderUsername').value,
+            utc_time: utc_time.toFormat("yyyy-LL-dd'T'HH:mm:ss")
+        }
+
+        console.log(reminder);
+
+        // send to server
+        let guild = document.querySelector('.guildList a.is-active').dataset['guild'];
+
+        fetch(`/dashboard/api/guild/${guild}/reminders`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(reminder)
+        }).then(response => response.json()).then(data => console.log(data))
+
+        // process response
+
+        // reset inputs
+    });
+
     document.querySelectorAll('textarea.autoresize').forEach((element) => {
         element.addEventListener('input', () => {
             element.style.height = "";
@@ -695,6 +756,10 @@
             $modal.classList.remove('is-active')
         });
     });
+
+    function colorToInt(r, g, b) {
+        return (r << 16) + (g << 8) + (b);
+    }
 
     document.querySelectorAll('.customizable').forEach((element) => {
         element.querySelector('a').addEventListener('click', (e) => {

@@ -24,7 +24,7 @@ macro_rules! check_length_opt {
 
 macro_rules! check_url {
     ($field:expr) => {
-        if $field.starts_with("http://") || $field.starts_with("https://") {
+        if !($field.starts_with("http://") || $field.starts_with("https://")) {
             return json!({ "error": "URL invalid" });
         }
     };

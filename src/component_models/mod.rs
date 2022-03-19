@@ -122,7 +122,7 @@ impl ComponentDataModel {
                     .create_interaction_response(&ctx, |r| {
                         r.kind(InteractionResponseType::UpdateMessage).interaction_response_data(
                             |response| {
-                                response.embeds(vec![embed]).components(|comp| {
+                                response.set_embeds(vec![embed]).components(|comp| {
                                     pager.create_button_row(pages, comp);
 
                                     comp
