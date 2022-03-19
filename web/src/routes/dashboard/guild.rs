@@ -31,13 +31,15 @@ struct ChannelInfo {
     webhook_name: Option<String>,
 }
 
-// todo check the user can access this guild
 #[get("/api/guild/<id>/channels")]
 pub async fn get_guild_channels(
     id: u64,
+    cookies: &CookieJar<'_>,
     ctx: &State<Context>,
     pool: &State<Pool<MySql>>,
 ) -> JsonValue {
+    check_authorization!(cookies, ctx.inner(), id);
+
     let channels_res = GuildId(id).channels(ctx.inner()).await;
 
     match channels_res {
@@ -96,9 +98,10 @@ struct RoleInfo {
     name: String,
 }
 
-// todo check the user can access this guild
 #[get("/api/guild/<id>/roles")]
-pub async fn get_guild_roles(id: u64, ctx: &State<Context>) -> JsonValue {
+pub async fn get_guild_roles(id: u64, cookies: &CookieJar<'_>, ctx: &State<Context>) -> JsonValue {
+    check_authorization!(cookies, ctx.inner(), id);
+
     let roles_res = ctx.cache.guild_roles(id);
 
     match roles_res {
@@ -126,14 +129,10 @@ pub async fn create_reminder(
     serenity_context: &State<Context>,
     pool: &State<Pool<MySql>>,
 ) -> JsonValue {
-    // get userid from cookies
-    let user_id = cookies.get_private("userid").map(|c| c.value().parse::<u64>().ok()).flatten();
+    check_authorization!(cookies, serenity_context.inner(), id);
 
-    if user_id.is_none() {
-        return json!({"error": "User not authorized"});
-    }
-
-    let user_id = user_id.unwrap();
+    let user_id =
+        cookies.get_private("userid").map(|c| c.value().parse::<u64>().ok()).flatten().unwrap();
 
     // validate channel
     let channel = ChannelId(reminder.channel).to_channel_cached(&serenity_context.inner());

@@ -106,7 +106,7 @@ async fn create_database_channel(
                 let webhook = channel
                     .create_webhook_with_avatar(&ctx, "Reminder", DEFAULT_AVATAR.clone())
                     .await
-                    .map_err(|e| Error::serenity(e))?;
+                    .map_err(|e| Error::Serenity(e))?;
 
                 sqlx::query!(
                     "UPDATE channels SET webhook_id = ?, webhook_token = ? WHERE channel = ?",
@@ -127,7 +127,7 @@ async fn create_database_channel(
             let webhook = channel
                 .create_webhook_with_avatar(&ctx, "Reminder", DEFAULT_AVATAR.clone())
                 .await
-                .map_err(|e| Error::serenity(e))?;
+                .map_err(|e| Error::Serenity(e))?;
 
             // create database entry
             sqlx::query!(

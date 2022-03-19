@@ -1,13 +1,64 @@
 {% extends "base" %}
 
-{% set title = "Commands" %}
-{% set page_title = "Commands" %}
+{% block init %}
+    {% set title = "Support" %}
+
+    {% set page_title = "Reminder Bot" %}
+    {% set page_subtitle = "Command Support" %}
+    {% set page_emoji = "fa-life-ring" %}
+    {% set show_invite = true %}
+{% endblock %}
 
 {% block content %}
 
-    <section class="section">
-        <div class="container">
-            <h2 class="title">Information Commands</h2>
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container has-text-centered">
+                <p class="title">First things first...</p>
+                <p class="content">
+                    Use the link below to add the bot.
+                </p>
+            </div>
+        </div>
+        <div class="hero-foot has-text-centered">
+            <a class="button is-size-6 is-rounded is-success" href="https://invite.reminder-bot.com">
+                <p class="is-size-6">
+                    Add Now <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                </p>
+            </a>
+        </div>
+    </section>
+
+    <section class="hero">
+        <div class="hero-body">
+            <div class="container has-text-centered">
+                <p class="title">Choose Your Timezone</p>
+                <p class="content">
+                    Select your timezone with <code>/timezone</code>, to ensure times are correct.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="hero">
+        <div class="hero-body">
+            <div class="container has-text-centered">
+                <p class="title">Create a Reminder</p>
+                <p class="content">
+                    Create reminders with <code>/remind</code>!
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="hero">
+        <div class="hero-body">
+            <div class="container has-text-centered">
+                <p class="title">Delete a Reminder</p>
+                <p class="content">
+                    Made a mistake? Delete reminders with <code>/del</code>.
+                </p>
+            </div>
         </div>
     </section>
 

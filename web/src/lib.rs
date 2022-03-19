@@ -25,7 +25,7 @@ type Database = MySql;
 #[derive(Debug)]
 enum Error {
     SQLx(sqlx::Error),
-    serenity(serenity::Error),
+    Serenity(serenity::Error),
 }
 
 #[catch(401)]

@@ -54,6 +54,19 @@
     </div>
 </nav>
 
+<div id="loader" class="is-hidden hero is-fullheight" style="position: fixed; background-color: white; opacity: 0.8; width: 100vw; z-index: 999;">
+    <div class="hero-body">
+        <div class="container has-text-centered">
+            <p class="title" style="font-size: 6rem; color: #8fb677">
+                <i class="fas fa-cog fa-spin"></i>
+            </p>
+            <p class="subtitle">
+                Bear with...
+            </p>
+        </div>
+    </div>
+</div>
+
 <!-- dead image used to check which other images are dead -->
 <img style="display: none;" src="" id="dead">
 
@@ -158,7 +171,7 @@
             <ul class="menu-list guildList">
 
             </ul>
-            <div class="aside-footer" style="margin-top: auto;">
+            <div class="aside-footer" style="position: fixed; bottom: 0;">
                 <p class="menu-label">
                     Settings
                 </p>
@@ -234,23 +247,21 @@
         <section id="guild" class="is-hidden">
             {% include "reminder_dashboard/reminder_dashboard" %}
         </section>
+        <section id="guild-error" class="is-hidden hero is-fullheight">
+            <div class="hero-body">
+                <div class="">
+                    <p class="title">
+                        We couldn't get this server's data
+                    </p>
+                    <p class="subtitle">
+                        Please check Reminder Bot is in the server, and has correct permissions.
+                    </p>
+                </div>
+            </div>
+        </section>
     </div>
     <!-- /main content -->
 </div>
-
-<footer class="footer">
-    <div class="content has-text-centered">
-        <p>
-            <strong>Reminder Bot</strong>, created by <a href="https://github.com/JellyWX"><strong>JellyWX</strong></a>
-            <br>
-            <a href="https://patreon.com/jellywx"><strong>Patreon</strong></a> | <a
-                href="https://discord.jellywx.com"><strong>Discord</strong></a> | <a
-                href="https://github.com/JellyWX"><strong>GitHub</strong></a>
-            <br>
-            or, <a href="mailto:jude@jellywx.com">Email me</a>
-        </p>
-    </div>
-</footer>
 
 <template id="embedFieldTemplate">
     <div class="embed-field-box">
@@ -412,7 +423,7 @@
                             let newFrame = $template.content.cloneNode(true);
 
                             // populate channels
-                            newFrame.querySelector('select.channel-selector');
+                            set_channels(newFrame.querySelector('select.channel-selector'))
 
                             // populate majority of items
                             for (let prop in reminder) {
@@ -475,12 +486,15 @@
 
     let colorPicker = new iro.ColorPicker('#colorpicker');
     let $discordFrame;
+    const $loader = document.querySelector('#loader');
     const $colorPickerModal = document.querySelector('div#pickColorModal');
     const $colorPickerInput = $colorPickerModal.querySelector('input');
 
     let timezone = luxon.DateTime.now().zone.name;
     const browserTimezone = luxon.DateTime.now().zone.name;
     let botTimezone = 'UTC';
+
+    let channels;
 
     document.getElementById('set-bot-timezone').addEventListener('click', () => {
         timezone = botTimezone;
@@ -557,6 +571,8 @@
     })
 
     document.addEventListener('DOMContentLoaded', () => {
+        $loader.classList.remove('is-hidden');
+
         document.querySelectorAll('.navbar-burger').forEach(el => {
             el.addEventListener('click', () => {
                 const target = el.dataset.target;
@@ -616,8 +632,10 @@
                             $anchor.dataset['guild'] = guild.id;
                             $anchor.dataset['name'] = guild.name;
 
-                            $anchor.addEventListener('click', (e) => {
+                            $anchor.addEventListener('click', async (e) => {
                                 e.preventDefault();
+
+                                $loader.classList.remove('is-hidden');
 
                                 switch_pane($anchor.dataset['pane']);
 
@@ -625,30 +643,15 @@
 
                                 fetch_roles($anchor.dataset['guild']);
 
-                                fetch(`/dashboard/api/guild/${$anchor.dataset['guild']}/channels`)
+                                await fetch(`/dashboard/api/guild/${$anchor.dataset['guild']}/channels`)
                                     .then(response => response.json())
                                     .then(data => {
                                         if (data.error) {
                                             show_error(data.error);
                                         } else {
-                                            document.querySelectorAll('select.channel-selector').forEach((el) => {
-                                                for (let channel of data) {
-                                                    let newOption = document.createElement('option');
+                                            channels = data;
 
-                                                    newOption.value = channel.id;
-                                                    newOption.textContent = channel.name;
-                                                    if (channel.webhook_avatar !== null) {
-                                                        newOption.dataset['webhookAvatar'] = channel.webhook_avatar;
-                                                    }
-                                                    if (channel.webhook_name !== null) {
-                                                        newOption.dataset['webhookName'] = channel.webhook_name;
-                                                    }
-
-                                                    el.appendChild(newOption);
-                                                }
-
-                                                update_select(el);
-                                            });
+                                            document.querySelectorAll('select.channel-selector').forEach(set_channels);
                                         }
                                     });
 
@@ -664,6 +667,8 @@
                                 });
                                 $anchor.classList.add('is-active');
                                 resize_textareas();
+
+                                $loader.classList.add('is-hidden');
                             });
 
                             element.append($clone);
@@ -671,7 +676,28 @@
                     }
                 }
             });
+
+        $loader.classList.add('is-hidden');
     });
+
+    function set_channels(element) {
+        for (let channel of channels) {
+            let newOption = document.createElement('option');
+
+            newOption.value = channel.id;
+            newOption.textContent = channel.name;
+            if (channel.webhook_avatar !== null) {
+                newOption.dataset['webhookAvatar'] = channel.webhook_avatar;
+            }
+            if (channel.webhook_name !== null) {
+                newOption.dataset['webhookName'] = channel.webhook_name;
+            }
+
+            element.appendChild(newOption);
+        }
+
+        update_select(element);
+    }
 
     let $createReminder = document.querySelector('#reminderCreator');
 
@@ -710,8 +736,6 @@
             username: $createReminder.querySelector('input#reminderUsername').value,
             utc_time: utc_time.toFormat("yyyy-LL-dd'T'HH:mm:ss")
         }
-
-        console.log(reminder);
 
         // send to server
         let guild = document.querySelector('.guildList a.is-active').dataset['guild'];

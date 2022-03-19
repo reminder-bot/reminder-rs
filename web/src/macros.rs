@@ -45,3 +45,37 @@ macro_rules! check_url_opt {
         check_url_opt!($($fields),+);
     };
 }
+
+macro_rules! check_authorization {
+    ($cookies:expr, $ctx:expr, $guild:expr) => {
+        use serenity::model::id::UserId;
+
+        let user_id = $cookies.get_private("userid").map(|c| c.value().parse::<u64>().ok()).flatten();
+
+        match user_id {
+            Some(user_id) => {
+                match GuildId($guild).to_guild_cached($ctx) {
+                    Some(guild) => {
+                        let member = guild.member($ctx, UserId(user_id)).await;
+
+                        match member {
+                            Err(_) => {
+                                return json!({"error": "User not in guild"})
+                            }
+
+                            Ok(_) => {}
+                        }
+                    }
+
+                    None => {
+                        return json!({"error": "Bot not in guild"})
+                    }
+                }
+            }
+
+            None => {
+                return json!({"error": "User not authorized"});
+            }
+        }
+    }
+}
