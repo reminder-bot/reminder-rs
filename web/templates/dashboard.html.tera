@@ -54,14 +54,14 @@
     </div>
 </nav>
 
-<div id="loader" class="is-hidden hero is-fullheight" style="position: fixed; background-color: white; opacity: 0.8; width: 100vw; z-index: 999;">
+<div id="loader" class="is-hidden hero is-fullheight" style="position: fixed; background-color: rgba(255, 255, 255, 0.8); width: 100vw; z-index: 999;">
     <div class="hero-body">
         <div class="container has-text-centered">
             <p class="title" style="font-size: 6rem; color: #8fb677">
                 <i class="fas fa-cog fa-spin"></i>
             </p>
             <p class="subtitle">
-                Bear with...
+                <strong>Loading...</strong>
             </p>
         </div>
     </div>

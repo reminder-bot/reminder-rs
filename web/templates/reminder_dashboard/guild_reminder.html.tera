@@ -1,215 +1,226 @@
-<div class="columns reminderContent">
+<div class="columns reminderContent {% if creating %}creator{% endif %}">
     <div class="column discord-frame">
-        <div class="">
-            <article class="media">
-                <figure class="media-left">
-                    <p class="image is-32x32 customizable">
-                        <a>
-                            <img class="is-rounded discord-avatar" src="">
-                        </a>
-                    </p>
-                </figure>
-                <div class="media-content">
-                    <div class="content">
-                        <div class="discord-message-header">
-                            <label class="is-sr-only" for="reminderUsername">Username Override</label>
-                            <input class="discord-username message-input" placeholder="Username Override"
-                                   maxlength="32" id="reminderUsername" name="username">
-                        </div>
-                        <label class="is-sr-only" for="messageContent">Message</label>
-                        <textarea class="message-input autoresize discord-content"
-                                  placeholder="Message Content..."
-                                  maxlength="2000" id="messageContent" name="content" rows="1"></textarea>
+        <article class="media">
+            <figure class="media-left">
+                <p class="image is-32x32 customizable">
+                    <a>
+                        <img class="is-rounded discord-avatar" src="">
+                    </a>
+                </p>
+            </figure>
+            <div class="media-content">
+                <div class="content">
+                    <div class="discord-message-header">
+                        <label class="is-sr-only" for="reminderUsername">Username Override</label>
+                        <input class="discord-username message-input" placeholder="Username Override"
+                               maxlength="32" id="reminderUsername" name="username">
+                    </div>
+                    <label class="is-sr-only" for="messageContent">Message</label>
+                    <textarea class="message-input autoresize discord-content"
+                              placeholder="Message Content..."
+                              maxlength="2000" id="messageContent" name="content" rows="1"></textarea>
 
-                        <div class="discord-embed">
-                            <div class="embed-body">
-                                <div class="a">
-                                    <div class="embed-author-box">
-                                        <div class="a">
-                                            <p class="image is-24x24 customizable">
-                                                <a>
-                                                    <img class="is-rounded embed_author_url" src="">
-                                                </a>
-                                            </p>
-                                        </div>
-
-                                        <div class="b">
-                                            <label class="is-sr-only" for="embedAuthor">Embed Author</label>
-                                            <textarea
-                                                    class="discord-embed-author message-input  autoresize"
-                                                    placeholder="Embed Author..." rows="1" maxlength="256"
-                                                    id="embedAuthor" name="embed_author"></textarea>
-                                        </div>
+                    <div class="discord-embed">
+                        <div class="embed-body">
+                            <button class="change-color button is-rounded is-small">
+                                <i class="fas fa-eye-dropper"></i>
+                            </button>
+                            <div class="a">
+                                <div class="embed-author-box">
+                                    <div class="a">
+                                        <p class="image is-24x24 customizable">
+                                            <a>
+                                                <img class="is-rounded embed_author_url" src="">
+                                            </a>
+                                        </p>
                                     </div>
 
-                                    <label class="is-sr-only" for="embedTitle">Embed Title</label>
-                                    <textarea class="discord-title message-input  autoresize"
-                                              placeholder="Embed Title..."
-                                              maxlength="256" id="embedTitle" rows="1"
-                                              name="embed_title"></textarea>
-                                    <br>
-                                    <label class="is-sr-only" for="embedDescription">Embed Description</label>
-                                    <textarea class="discord-description message-input autoresize "
-                                              placeholder="Embed Description..."
-                                              maxlength="4096" id="embedDescription" name="embed_description"
-                                              rows="1"></textarea>
-                                    <br>
-
-                                    <div class="embed-multifield-box">
-                                        <div class="embed-field-box">
-                                            <label class="is-sr-only" for="embedFieldTitle">Field Title</label>
-                                            <textarea
-                                                    class="discord-field-title field-input message-input autoresize "
-                                                    placeholder="Field Title..." rows="1"
-                                                    maxlength="256" id="embedFieldTitle"
-                                                    name="embed_field_title[]"></textarea>
-
-                                            <label class="is-sr-only" for="embedFieldValue">Field Value</label>
-                                            <textarea
-                                                    class="discord-field-value field-input message-input autoresize "
-                                                    placeholder="Field Value..."
-                                                    maxlength="1024" id="embedFieldValue" name="embed_field_value[]"
-                                                    rows="1"></textarea>
-                                        </div>
+                                    <div class="b">
+                                        <label class="is-sr-only" for="embedAuthor">Embed Author</label>
+                                        <textarea
+                                                class="discord-embed-author message-input  autoresize"
+                                                placeholder="Embed Author..." rows="1" maxlength="256"
+                                                id="embedAuthor" name="embed_author"></textarea>
                                     </div>
                                 </div>
 
-                                <div class="b">
-                                    <p class="image thumbnail customizable">
-                                        <a>
-                                            <img class="embed_thumbnail_url" src="" alt="Square thumbnail embedded image">
-                                        </a>
-                                    </p>
+                                <label class="is-sr-only" for="embedTitle">Embed Title</label>
+                                <textarea class="discord-title message-input  autoresize"
+                                          placeholder="Embed Title..."
+                                          maxlength="256" id="embedTitle" rows="1"
+                                          name="embed_title"></textarea>
+                                <br>
+                                <label class="is-sr-only" for="embedDescription">Embed Description</label>
+                                <textarea class="discord-description message-input autoresize "
+                                          placeholder="Embed Description..."
+                                          maxlength="4096" id="embedDescription" name="embed_description"
+                                          rows="1"></textarea>
+                                <br>
+
+                                <div class="embed-multifield-box">
+                                    <div class="embed-field-box">
+                                        <label class="is-sr-only" for="embedFieldTitle">Field Title</label>
+                                        <textarea
+                                                class="discord-field-title field-input message-input autoresize "
+                                                placeholder="Field Title..." rows="1"
+                                                maxlength="256" id="embedFieldTitle"
+                                                name="embed_field_title[]"></textarea>
+
+                                        <label class="is-sr-only" for="embedFieldValue">Field Value</label>
+                                        <textarea
+                                                class="discord-field-value field-input message-input autoresize "
+                                                placeholder="Field Value..."
+                                                maxlength="1024" id="embedFieldValue" name="embed_field_value[]"
+                                                rows="1"></textarea>
+                                    </div>
                                 </div>
                             </div>
 
-                            <p class="image is-400x300 customizable">
+                            <div class="b">
+                                <p class="image thumbnail customizable">
+                                    <a>
+                                        <img class="embed_thumbnail_url" src="" alt="Square thumbnail embedded image">
+                                    </a>
+                                </p>
+                            </div>
+                        </div>
+
+                        <p class="image is-400x300 customizable">
+                            <a>
+                                <img class="embed_image_url" src="" alt="Large embedded image">
+                            </a>
+                        </p>
+
+                        <div class="embed-footer-box">
+                            <p class="image is-20x20 customizable">
                                 <a>
-                                    <img class="embed_image_url" src="" alt="Large embedded image">
+                                    <img class="is-rounded embed_footer_url" src="" alt="Footer profile-like image">
                                 </a>
                             </p>
 
-                            <div class="embed-footer-box">
-                                <p class="image is-20x20 customizable">
-                                    <a>
-                                        <img class="is-rounded embed_footer_url" src="" alt="Footer profile-like image">
-                                    </a>
-                                </p>
-
-                                <label class="is-sr-only" for="embedFooter">Embed Footer text</label>
-                                <textarea class="discord-embed-footer message-input autoresize "
-                                          placeholder="Embed Footer..."
-                                          maxlength="2048" id="embedFooter" name="embed_footer" rows="1"></textarea>
-                            </div>
+                            <label class="is-sr-only" for="embedFooter">Embed Footer text</label>
+                            <textarea class="discord-embed-footer message-input autoresize "
+                                      placeholder="Embed Footer..."
+                                      maxlength="2048" id="embedFooter" name="embed_footer" rows="1"></textarea>
                         </div>
                     </div>
                 </div>
-            </article>
-        </div>
+            </div>
+        </article>
     </div>
-    <div class="column">
-        <div class="field">
-            <div class="control">
-                <label class="label sr-only">Reminder Name</label>
-                <input class="input" type="text" name="name" placeholder="Reminder Name">
+    <div class="column settings">
+        <div class="columns is-mobile">
+            <div class="column">
+                <div class="field">
+                    <div class="control">
+                        <label class="label sr-only">Reminder Name</label>
+                        <input class="input" type="text" name="name" placeholder="Reminder Name">
+                    </div>
+                </div>
+            </div>
+            <div class="column is-narrow">
+                <button class="button is-rounded hide-box">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
             </div>
         </div>
 
-        <div class="field">
-            <label class="label">Channel</label>
-            <div class="control">
+        <div class="field channel-field">
+            <div class="collapses">
+                <label class="label" for="channelOption">Channel</label>
+            </div>
+            <div class="control has-icons-left">
                 <div class="select">
                     <select id="channelOption" name="channel" class="channel-selector">
                     </select>
                 </div>
-            </div>
-        </div>
-
-        <div class="field">
-            <label class="label">Time</label>
-            <div class="control">
-                <input class="input" type="datetime-local" step="1" name="time">
-            </div>
-        </div>
-
-        <div class="field">
-            <a class="intervalLabel"><label class="label">Interval <i class="fas fa-chevron-down"></i></label></a>
-            <div class="control intervalSelector">
-                <div class="columns">
-                    <div class="column">
-                        <input class="input" type="number" name="interval_months" placeholder="Months">
-                    </div>
-                    <div class="column">
-                        <input class="input" type="number" name="interval_days" placeholder="Days">
-                    </div>
-                    <div class="column">
-                        <input class="input" type="number" name="interval_hours" placeholder="Hours">
-                    </div>
-                    <div class="column">
-                        <input class="input" type="number" name="interval_minutes" placeholder="Minutes">
-                    </div>
-                    <div class="column">
-                        <input class="input" type="number" name="interval_seconds" placeholder="Seconds">
-                    </div>
+                <div class="icon is-small is-left">
+                    <i class="fas fa-hashtag"></i>
                 </div>
             </div>
         </div>
 
-        <div class="columns">
-            <div class="column has-text-centered">
-                <div style="display: inline-block;">
-                    <label class="label">Enable TTS <input type="checkbox" name="tts"></label>
+        <div class="collapses">
+            <div class="field">
+                <label class="label">Time</label>
+                <div class="control">
+                    <input class="input" type="datetime-local" step="1" name="time">
                 </div>
             </div>
-            <div class="column has-text-centered">
-                <div style="display: inline-block;">
-                    <label class="label">Pin Message <input type="checkbox" name="pin"></label>
+
+            <div class="field">
+                <a class="intervalLabel"><label class="label">Interval <i class="fas fa-chevron-down"></i></label></a>
+                <div class="control intervalSelector">
+                    <div class="columns">
+                        <div class="column">
+                            <input class="input" type="number" name="interval_months" placeholder="Months">
+                        </div>
+                        <div class="column">
+                            <input class="input" type="number" name="interval_days" placeholder="Days">
+                        </div>
+                        <div class="column">
+                            <input class="input" type="number" name="interval_hours" placeholder="Hours">
+                        </div>
+                        <div class="column">
+                            <input class="input" type="number" name="interval_minutes" placeholder="Minutes">
+                        </div>
+                        <div class="column">
+                            <input class="input" type="number" name="interval_seconds" placeholder="Seconds">
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="column has-text-centered">
-                <div class="file is-boxed">
-                    <label class="file-label">
-                        <input class="file-input" type="file">
-                        <span class="file-cta">
-                            <span class="file-label">
-                                Add Attachment
+
+            <div class="columns">
+                <div class="column has-text-centered">
+                    <div style="display: inline-block;">
+                        <label class="label">Enable TTS <input type="checkbox" name="tts"></label>
+                    </div>
+                </div>
+                <div class="column has-text-centered">
+                    <div style="display: inline-block;">
+                        <label class="label">Pin Message <input type="checkbox" name="pin"></label>
+                    </div>
+                </div>
+                <div class="column has-text-centered">
+                    <div class="file is-boxed">
+                        <label class="file-label">
+                            <input class="file-input" type="file">
+                            <span class="file-cta">
+                                <span class="file-label">
+                                    Add Attachment
+                                </span>
+                                <span class="file-icon">
+                                    <i class="fas fa-upload"></i>
+                                </span>
                             </span>
-                            <span class="file-icon">
-                                <i class="fas fa-upload"></i>
-                            </span>
-                        </span>
-                    </label>
+                        </label>
+                    </div>
                 </div>
             </div>
+
+            <span style="width: 12px;"></span>
+            {% if creating %}
+                <button class="button is-outlined">
+                    Load Template
+                </button>
+                <button class="button is-success is-outlined" id="createTemplate">
+                    Create Template
+                </button>
+                <button class="button is-success" id="createReminder">
+                    Create Reminder
+                </button>
+            {% else %}
+                <button class="button is-primary" disabled>
+                    Saved!
+                </button>
+                <button class="button is-warning disable-enable">
+                    Disable
+                </button>
+                <button class="button is-danger">
+                    Delete
+                </button>
+            {% endif %}
         </div>
-
-        <a class="set-color">
-            <p>
-                Set Embed Color <span class="icon is-small"><i class="far fa-eye-dropper"></i></span>
-            </p>
-        </a>
-
-        <span style="width: 12px;"></span>
-        {% if creating %}
-            <button class="button is-outlined">
-                Load Template
-            </button>
-            <button class="button is-success is-outlined" id="createTemplate">
-                Create Template
-            </button>
-            <button class="button is-success" id="createReminder">
-                Create Reminder
-            </button>
-        {% else %}
-            <button class="button is-primary" disabled>
-                Saved!
-            </button>
-            <button class="button is-warning disable-enable">
-                Disable
-            </button>
-            <button class="button is-danger">
-                Delete
-            </button>
-        {% endif %}
     </div>
 </div>

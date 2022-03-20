@@ -2,6 +2,69 @@
     font-family: "Ubuntu Bold", "Ubuntu", sans-serif;
 }
 
+/* override styles for when the div is collapsed */
+div.reminderContent.is-collapsed .column.discord-frame {
+    display: none;
+}
+
+div.reminderContent.is-collapsed .collapses {
+    display: none;
+}
+
+div.reminderContent.is-collapsed .invert-collapses {
+    display: inline-flex;
+}
+
+div.reminderContent .invert-collapses {
+    display: none;
+}
+
+div.reminderContent.is-collapsed .settings {
+    display: flex;
+    flex-direction: row;
+    padding-bottom: 0;
+}
+
+div.reminderContent.is-collapsed .channel-field {
+    display: inline-flex;
+    order: 1;
+}
+
+div.reminderContent.is-collapsed .columns {
+    display: inline-flex;
+    margin-bottom: 0px;
+    flex-grow: 1;
+    order: 2;
+}
+
+div.reminderContent.is-collapsed input[name="name"] {
+    display: inline-flex;
+    flex-grow: 1;
+}
+
+div.reminderContent.is-collapsed button.hide-box {
+    display: inline-flex;
+}
+
+div.reminderContent.is-collapsed button.hide-box i {
+    transform: rotate(90deg);
+}
+/* END */
+
+/* dashboard styles */
+button.change-color {
+    position: absolute;
+    left: calc(-1rem - 40px);
+}
+
+.media-content {
+    overflow-x: visible;
+}
+
+div.discord-embed {
+    position: relative;
+}
+
 div.reminderContent {
     padding: 2px;
     background-color: #f5f5f5;
@@ -338,36 +401,6 @@ textarea, input {
     display: flex;
     max-width: 100%;
     flex-wrap: wrap;
-}
-
-.icon-toggle {
-    color: #fff;
-    opacity: 0.2;
-}
-
-.preview-toggle {
-    color: #fcb620;
-    opacity: 0.2;
-}
-
-a.level-item.preview-toggle:hover {
-    color: #fcb620;
-}
-
-.preview-toggle.is-active {
-    opacity: 1;
-}
-
-a.level-item.icon-toggle:hover {
-    color: inherit;
-}
-
-a.level-item:hover {
-    color: rgb(55, 127, 242)
-}
-
-.icon-toggle.is-active {
-    opacity: 1;
 }
 
 .channel-select {

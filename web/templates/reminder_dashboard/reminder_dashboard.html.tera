@@ -1,25 +1,45 @@
 <div style="margin: 0 12px 12px 12px;">
     <div class="create-reminder">
-        <button class="button is-rounded is-light" id="showReminderCreator">
-            <strong>Create Reminder <span class="icon left-pad"><i class="fas fa-chevron-down"></i></span></strong>
-        </button>
+        <strong>Create Reminder</strong>
         <div id="reminderCreator">
             {% set creating = true %}
             {% include "reminder_dashboard/guild_reminder" %}
             {% set creating = false %}
         </div>
+        <br>
 
-        <div class="field" style="margin-top: 22px;">
-            <div class="control has-icons-left">
-                <div class="select is-small">
-                    <select id="orderBy">
-                        <option value="time" selected>Time</option>
-                        <option value="name">Name</option>
-                        <option value="channel">Channel</option>
-                    </select>
+        <div class="field">
+            <div class="columns">
+                <div class="column">
+                    <strong>Reminders</strong>
                 </div>
-                <div class="icon is-small is-left">
-                    <i class="fas fa-sort-amount-down"></i>
+                <div class="column is-narrow">
+                    <div class="control has-icons-left">
+                        <div class="select is-small">
+                            <select id="orderBy">
+                                <option value="time" selected>Time</option>
+                                <option value="name">Name</option>
+                                <option value="channel">Channel</option>
+                            </select>
+                        </div>
+                        <div class="icon is-small is-left">
+                            <i class="fas fa-sort-amount-down"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-narrow">
+                    <div class="control has-icons-left">
+                        <div class="select is-small">
+                            <select id="expandAll">
+                                <option value="" selected>Expand/Collapse...</option>
+                                <option value="expand">Expand All</option>
+                                <option value="collapse">Collapse All</option>
+                            </select>
+                        </div>
+                        <div class="icon is-small is-left">
+                            <i class="fas fa-expand-arrows"></i>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -31,3 +51,4 @@
 </div>
 
 <script src="/static/js/sort.js"></script>
+<script src="/static/js/expand.js"></script>

@@ -12,9 +12,27 @@ function sort_by(cond) {
             .forEach((node) => guildReminders.appendChild(node));
 
         // go through and add channel categories
-        for (let child in guildReminders.children) {
+        let currentChannelGroup = null;
+        for (let child of guildReminders.querySelectorAll("div.reminderContent")) {
+            let thisChannelGroup = child.querySelector("select.channel-selector").value;
+
+            if (currentChannelGroup !== thisChannelGroup) {
+                let newNode = document.createElement("div");
+                newNode.textContent =
+                    "#" + channels.find((a) => a.id === thisChannelGroup).name;
+                newNode.classList.add("channel-tag");
+
+                guildReminders.insertBefore(newNode, child);
+
+                currentChannelGroup = thisChannelGroup;
+            }
         }
     } else {
+        // remove any channel tags if previous ordering was by channel
+        guildReminders.querySelectorAll("div.channel-tag").forEach((el) => {
+            el.remove();
+        });
+
         if (cond === "time") {
             [...guildReminders.children]
                 .sort((a, b) => {
@@ -41,8 +59,10 @@ function sort_by(cond) {
     }
 }
 
-document.querySelector("#orderBy").addEventListener("change", (element) => {
-    sort_by(element.value);
+const selector = document.querySelector("#orderBy");
+
+selector.addEventListener("change", () => {
+    sort_by(selector.value);
 });
 
 document.addEventListener("remindersLoaded", () => {

@@ -362,7 +362,49 @@ pub async fn edit_reminder(
             .await;
     }
 
-    json!({})
+    match sqlx::query_as_unchecked!(
+        Reminder,
+        "SELECT reminders.attachment,
+         reminders.attachment_name,
+         reminders.avatar,
+         channels.channel,
+         reminders.content,
+         reminders.embed_author,
+         reminders.embed_author_url,
+         reminders.embed_color,
+         reminders.embed_description,
+         reminders.embed_footer,
+         reminders.embed_footer_url,
+         reminders.embed_image_url,
+         reminders.embed_thumbnail_url,
+         reminders.embed_title,
+         reminders.enabled,
+         reminders.expires,
+         reminders.interval_seconds,
+         reminders.interval_months,
+         reminders.name,
+         reminders.pin,
+         reminders.restartable,
+         reminders.tts,
+         reminders.uid,
+         reminders.username,
+         reminders.utc_time
+        FROM reminders
+        LEFT JOIN channels ON channels.id = reminders.channel_id
+        WHERE uid = ?",
+        reminder.uid
+    )
+    .fetch_one(pool.inner())
+    .await
+    {
+        Ok(reminder) => json!(reminder),
+
+        Err(e) => {
+            warn!("Error exiting `edit_reminder': {:?}", e);
+
+            json!({"error": "Unknown error"})
+        }
+    }
 }
 
 #[delete("/api/guild/<id>/reminders", data = "<reminder>")]
