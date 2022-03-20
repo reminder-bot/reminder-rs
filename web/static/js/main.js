@@ -138,6 +138,8 @@ async function fetch_reminders(guild_id) {
                     for (let reminder of data) {
                         let newFrame = $template.content.cloneNode(true);
 
+                        newFrame.querySelector('.reminderContent').dataset.uid = reminder['uid'];
+
                         // populate channels
                         set_channels(newFrame.querySelector('select.channel-selector'))
 
@@ -154,6 +156,21 @@ async function fetch_reminders(guild_id) {
                                 }
                             }
                         }
+
+                        let guild = document.querySelector('.guildList a.is-active').dataset['guild'];
+
+                        let $enableBtn = newFrame.querySelector('.disable-enable');
+
+                        $enableBtn.textContent = reminder['enabled'] ? 'Disable' : 'Enable';
+                        $enableBtn.addEventListener('click', () => {
+                            fetch(`/dashboard/api/guild/${guild}/reminders`, {
+                                method: 'PATCH',
+                                body: JSON.stringify({
+                                    uid: reminder['uid'],
+                                    enabled: false
+                                })
+                            })
+                        })
 
                         let timeInput = newFrame.querySelector('input[name="time"]');
                         let localTime = luxon.DateTime.fromISO(reminder["utc_time"]).setZone(timezone);

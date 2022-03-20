@@ -16,6 +16,8 @@ use crate::{
 pub mod guild;
 pub mod user;
 
+type Unset<T> = Option<T>;
+
 fn name_default() -> String {
     "Reminder".to_string()
 }
@@ -50,6 +52,57 @@ pub struct Reminder {
     uid: String,
     username: Option<String>,
     utc_time: NaiveDateTime,
+}
+
+#[derive(Deserialize)]
+pub struct PatchReminder {
+    uid: String,
+    #[serde(default)]
+    attachment: Unset<Option<Vec<u8>>>,
+    #[serde(default)]
+    attachment_name: Unset<Option<String>>,
+    #[serde(default)]
+    avatar: Unset<Option<String>>,
+    #[serde(default)]
+    content: Unset<String>,
+    #[serde(default)]
+    embed_author: Unset<String>,
+    #[serde(default)]
+    embed_author_url: Unset<Option<String>>,
+    #[serde(default)]
+    embed_color: Unset<u32>,
+    #[serde(default)]
+    embed_description: Unset<String>,
+    #[serde(default)]
+    embed_footer: Unset<String>,
+    #[serde(default)]
+    embed_footer_url: Unset<Option<String>>,
+    #[serde(default)]
+    embed_image_url: Unset<Option<String>>,
+    #[serde(default)]
+    embed_thumbnail_url: Unset<Option<String>>,
+    #[serde(default)]
+    embed_title: Unset<String>,
+    #[serde(default)]
+    enabled: Unset<bool>,
+    #[serde(default)]
+    expires: Unset<Option<NaiveDateTime>>,
+    #[serde(default)]
+    interval_seconds: Unset<Option<u32>>,
+    #[serde(default)]
+    interval_months: Unset<Option<u32>>,
+    #[serde(default)]
+    name: Unset<String>,
+    #[serde(default)]
+    pin: Unset<bool>,
+    #[serde(default)]
+    restartable: Unset<bool>,
+    #[serde(default)]
+    tts: Unset<bool>,
+    #[serde(default)]
+    username: Unset<Option<String>>,
+    #[serde(default)]
+    utc_time: Unset<NaiveDateTime>,
 }
 
 pub fn generate_uid() -> String {

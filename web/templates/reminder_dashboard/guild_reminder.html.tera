@@ -204,7 +204,7 @@
             <button class="button is-primary" disabled>
                 Saved!
             </button>
-            <button class="button is-warning">
+            <button class="button is-warning disable-enable">
                 Disable
             </button>
             <button class="button is-danger">

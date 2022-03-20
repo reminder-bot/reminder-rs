@@ -19,7 +19,8 @@ use crate::{
         MAX_URL_LENGTH, MAX_USERNAME_LENGTH, MIN_INTERVAL,
     },
     routes::dashboard::{
-        create_database_channel, generate_uid, name_default, DeleteReminder, Reminder,
+        create_database_channel, generate_uid, name_default, DeleteReminder, PatchReminder,
+        Reminder,
     },
 };
 
@@ -351,11 +352,17 @@ WHERE
 #[patch("/api/guild/<id>/reminders", data = "<reminder>")]
 pub async fn edit_reminder(
     id: u64,
-    reminder: Json<Reminder>,
+    reminder: Json<PatchReminder>,
     serenity_context: &State<Context>,
     pool: &State<Pool<MySql>>,
 ) -> JsonValue {
-    json!({"error": "Not implemented"})
+    if let Some(enabled) = reminder.enabled {
+        sqlx::query!("UPDATE reminders SET enabled = ? WHERE uid = ?", enabled, reminder.uid)
+            .execute(pool.inner())
+            .await;
+    }
+
+    json!({})
 }
 
 #[delete("/api/guild/<id>/reminders", data = "<reminder>")]
