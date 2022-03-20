@@ -12,7 +12,7 @@
 
     <section class="hero is-small">
         <div class="hero-body">
-            <div class="container has-text-centered">
+            <div class="container">
                 <p class="title">Selecting your timezone manually</p>
                 <p class="content">
                     To select your timezone manually, use <code>/timezone</code>. This will set your timezone
@@ -28,7 +28,7 @@
 
     <section class="hero is-small">
         <div class="hero-body">
-            <div class="container has-text-centered">
+            <div class="container">
                 <p class="title">Selecting your timezone automatically</p>
                 <p class="content">
                     A new feature we offer is the ability to configure Reminder Bot's timezone from your browser. To do

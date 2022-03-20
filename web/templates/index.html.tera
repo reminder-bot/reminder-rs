@@ -27,7 +27,7 @@
                     <p class="title">Advanced Options <span class="icon"><i class="fad fa-palette"></i></span></p>
                     <p class="subtitle">Decorate your announcements with our web dashboard</p>
                     <figure class="image">
-                        <img class="rounded-corners" src="/static/img/tournament-demo.png" alt="Discord slash commands demonstration">
+                        <img class="rounded-corners" src="/static/img/tournament-demo.png" alt="Advanced options demonstration">
                     </figure>
                 </article>
             </div>

@@ -24,7 +24,6 @@
     <link rel="stylesheet" href="/static/css/fa.css">
     <link rel="stylesheet" href="/static/css/font.css">
     <link rel="stylesheet" href="/static/css/style.css">
-
 </head>
 <body>
     {% if flashed_message %}
@@ -49,14 +48,17 @@
         </div>
         <div class="navbar-menu">
             <div class="navbar-start">
-                <a class="navbar-item">
+                <a class="navbar-item" href="https://invite.reminder-bot.com">
                     <i class="fas fa-plus"></i>
                 </a>
-                <a class="navbar-item">
+                <a class="navbar-item" href="https://github.com/jellywx">
                     <i class="fab fa-github"></i>
                 </a>
-                <a class="navbar-item">
+                <a class="navbar-item" href="https://discord.jellywx.com">
                     <i class="fab fa-discord"></i>
+                </a>
+                <a class="navbar-item" href="/help">
+                    <i class="fas fa-book"></i>
                 </a>
             </div>
 
@@ -72,14 +74,17 @@
         </div>
 
         <div class="navbar-menu is-hidden-desktop" id="pageNavbar">
-            <a class="navbar-item">
+            <a class="navbar-item" href="https://invite.reminder-bot.com">
                 <i class="fas fa-plus"></i>
             </a>
-            <a class="navbar-item">
+            <a class="navbar-item" href="https://github.com/jellywx">
                 <i class="fab fa-github"></i>
             </a>
-            <a class="navbar-item">
+            <a class="navbar-item" href="https://discord.jellywx.com">
                 <i class="fab fa-discord"></i>
+            </a>
+            <a class="navbar-item" href="/help">
+                <i class="fab fa-book"></i>
             </a>
 
             <div class="navbar-item">

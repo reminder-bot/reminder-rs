@@ -1,0 +1,64 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "Support" %}
+
+    {% set page_title = "Timezone Help" %}
+    {% set page_subtitle = "Timezones are tricky. Read on for help" %}
+    {% set show_invite = false %}
+{% endblock %}
+
+{% block content %}
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
+                <p class="title">Deleting reminders via commands</p>
+                <p class="content">
+                    Deleting reminders is as easy as typing <code>/del</code>.
+                    <br>
+                </p>
+                <figure>
+                    <img src="/static/img/support/delete_reminder/cmd-1.png" alt="/del">
+                </figure>
+                <figure>
+                    <img src="/static/img/support/delete_reminder/cmd-2.png" alt="Reminder deleted">
+                </figure>
+                <p class="content">
+                    Note that you cannot delete reminders that were set for another user's direct messages. To delete
+                    reminders in your direct messages, use <code>/del</code> in the direct message channel with
+                    Reminder Bot.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
+                <p class="title">Deleting reminders via the dashboard</p>
+                <p class="content">
+                    Reminders in servers can be deleted via the dashboard. First, select your server from the menu.
+                </p>
+                <figure>
+                    <img src="/static/img/support/delete_reminder/1.png" alt="Selecting server">
+                </figure>
+                <br>
+                <p class="content">
+                    Then, find the reminder you wish to delete.
+                </p>
+                <figure>
+                    <img src="/static/img/support/delete_reminder/2.png" alt="Finding reminder">
+                </figure>
+                <br>
+                <p class="content">
+                    Finally, press the 'Delete' button under the reminder.
+                </p>
+                <figure>
+                    <img src="/static/img/support/delete_reminder/3.png" alt="Delete button">
+                </figure>
+            </div>
+        </div>
+    </section>
+
+{% endblock %}

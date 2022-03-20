@@ -3,63 +3,75 @@
 {% block init %}
     {% set title = "Support" %}
 
-    {% set page_title = "Reminder Bot" %}
-    {% set page_subtitle = "Command Support" %}
-    {% set page_emoji = "fa-life-ring" %}
-    {% set show_invite = true %}
+    {% set page_title = "Support Articles" %}
+    {% set page_subtitle = "Can't find what you're looking for? Join our Discord!" %}
+    {% set show_contact = true %}
 {% endblock %}
 
 {% block content %}
 
-    <section class="hero is-small">
-        <div class="hero-body">
-            <div class="container has-text-centered">
-                <p class="title">First things first...</p>
-                <p class="content">
-                    Use the link below to add the bot.
-                </p>
+    <div class="inset-content" >
+        <div class="tile is-ancestor">
+            <div class="tile is-parent">
+                <article class="tile is-child notification">
+                    <p class="title">Timezone</p>
+                    <p class="subtitle">Learn how to configure your timezone</p>
+                    <div class="content has-text-centered">
+                        <a class="button is-size-4 is-rounded is-light" href="/help/timezone">
+                            <p class="is-size-4">
+                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            </p>
+                        </a>
+                    </div>
+                </article>
+            </div>
+            <div class="tile is-parent">
+                <article class="tile is-child notification">
+                    <p class="title">Creating reminders</p>
+                    <p class="subtitle">Learn to create reminders for your server</p>
+                    <div class="content has-text-centered">
+                        <a class="button is-size-4 is-rounded is-light" href="/help/create_reminder">
+                            <p class="is-size-4">
+                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            </p>
+                        </a>
+                    </div>
+                </article>
+            </div>
+            <div class="tile is-parent is-vertical">
+                <article class="tile is-child notification">
+                    <p class="title">Delete reminders</p>
+                    <p class="subtitle">Learn to delete reminders that you've created</p>
+                    <div class="content has-text-centered">
+                        <a class="button is-size-4 is-rounded is-light" href="/help/delete_reminder">
+                            <p class="is-size-4">
+                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            </p>
+                        </a>
+                    </div>
+                </article>
             </div>
         </div>
-        <div class="hero-foot has-text-centered">
-            <a class="button is-size-6 is-rounded is-success" href="https://invite.reminder-bot.com">
-                <p class="is-size-6">
-                    Add Now <span class="icon"><i class="fas fa-chevron-right"></i></span>
-                </p>
-            </a>
-        </div>
-    </section>
-
-    <section class="hero">
-        <div class="hero-body">
-            <div class="container has-text-centered">
-                <p class="title">Choose Your Timezone</p>
-                <p class="content">
-                    Select your timezone with <code>/timezone</code>, to ensure times are correct.
-                </p>
+        <div class="tile is-ancestor">
+            <div class="tile is-parent">
+                <article class="tile is-child notification">
+                    <p class="title">Timers</p>
+                    <p class="subtitle">Learn to manage timers</p>
+                </article>
+            </div>
+            <div class="tile is-parent">
+                <article class="tile is-child notification">
+                    <p class="title">Todo Lists</p>
+                    <p class="subtitle">Learn to manage various todo lists</p>
+                </article>
+            </div>
+            <div class="tile is-parent is-vertical">
+                <article class="tile is-child notification">
+                    <p class="title">Macros</p>
+                    <p class="subtitle">Learn how to create combination commands called macros, to suit advanced use cases</p>
+                </article>
             </div>
         </div>
-    </section>
-
-    <section class="hero">
-        <div class="hero-body">
-            <div class="container has-text-centered">
-                <p class="title">Create a Reminder</p>
-                <p class="content">
-                    Create reminders with <code>/remind</code>!
-                </p>
-            </div>
-        </div>
-    </section>
-
-    <section class="hero">
-        <div class="hero-body">
-            <div class="container has-text-centered">
-                <p class="title">Delete a Reminder</p>
-                <p class="content">
-                    Made a mistake? Delete reminders with <code>/del</code>.
-                </p>
-            </div>
-        </div>
-    </section>
+    </div>
 
 {% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "Support" %}
+
+    {% set page_title = "Timezone Help" %}
+    {% set page_subtitle = "Timezones are tricky. Read on for help" %}
+    {% set show_invite = false %}
+{% endblock %}
+
+{% block content %}
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
+                <p class="title">Create reminders via commands</p>
+                <p class="content">
+                    You can create reminders with the <code>/remind</code> command.
+                    <br>
+                    Fill out the "time" and "content" fields. If you wish, press on "Optional" to view other options
+                    for the reminder.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
+                <p class="title">Create reminders via the dashboard</p>
+                <p class="content">
+                    Reminders can also be created on the dashboard.
+                </p>
+            </div>
+        </div>
+    </section>
+
+{% endblock %}

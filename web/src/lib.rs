@@ -81,9 +81,16 @@ pub async fn initialize(
                 routes::cookies,
                 routes::privacy,
                 routes::terms,
+                routes::return_to_same_site
+            ],
+        )
+        .mount(
+            "/help",
+            routes![
                 routes::help,
                 routes::help_timezone,
-                routes::return_to_same_site
+                routes::help_create_reminder,
+                routes::help_delete_reminder
             ],
         )
         .mount("/login", routes![routes::login::discord_login, routes::login::discord_callback])
