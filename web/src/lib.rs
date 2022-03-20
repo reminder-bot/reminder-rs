@@ -90,7 +90,10 @@ pub async fn initialize(
                 routes::help,
                 routes::help_timezone,
                 routes::help_create_reminder,
-                routes::help_delete_reminder
+                routes::help_delete_reminder,
+                routes::help_timers,
+                routes::help_todo_lists,
+                routes::help_macros,
             ],
         )
         .mount("/login", routes![routes::login::discord_login, routes::login::discord_callback])

@@ -1,0 +1,23 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "Support" %}
+
+    {% set page_title = "Timers" %}
+    {% set page_subtitle = "" %}
+    {% set show_invite = false %}
+{% endblock %}
+
+{% block content %}
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
+                <p class="title">Create timers via commands</p>
+                <p class="content">
+                </p>
+            </div>
+        </div>
+    </section>
+
+{% endblock %}

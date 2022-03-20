@@ -68,3 +68,21 @@ pub async fn help_delete_reminder() -> Template {
     let map: HashMap<&str, String> = HashMap::new();
     Template::render("support/delete_reminder", &map)
 }
+
+#[get("/timers")]
+pub async fn help_timers() -> Template {
+    let map: HashMap<&str, String> = HashMap::new();
+    Template::render("support/timers", &map)
+}
+
+#[get("/todo_lists")]
+pub async fn help_todo_lists() -> Template {
+    let map: HashMap<&str, String> = HashMap::new();
+    Template::render("support/todo_lists", &map)
+}
+
+#[get("/macros")]
+pub async fn help_macros() -> Template {
+    let map: HashMap<&str, String> = HashMap::new();
+    Template::render("support/macros", &map)
+}

@@ -3,9 +3,8 @@
 {% block init %}
     {% set title = "Support" %}
 
-    {% set page_title = "Timezone Help" %}
-    {% set page_subtitle = "Timezones are tricky. Read on for help" %}
-    {% set show_invite = false %}
+    {% set page_title = "Create Reminders" %}
+    {% set page_subtitle = "" %}
 {% endblock %}
 
 {% block content %}

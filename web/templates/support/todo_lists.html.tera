@@ -1,0 +1,23 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "Support" %}
+
+    {% set page_title = "Todo lists" %}
+    {% set page_subtitle = "" %}
+    {% set show_invite = false %}
+{% endblock %}
+
+{% block content %}
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
+                <p class="title">Add to todo lists via commands</p>
+                <p class="content">
+                </p>
+            </div>
+        </div>
+    </section>
+
+{% endblock %}
