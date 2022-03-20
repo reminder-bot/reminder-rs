@@ -9,11 +9,19 @@
             {% set creating = false %}
         </div>
 
-        <div class="buttons has-addons" style="margin-top: 1rem;">
-            <button class="button is-static">Order By</button>
-            <button class="button" disabled>Time</button>
-            <button class="button">Name</button>
-            <button class="button">Channel</button>
+        <div class="field" style="margin-top: 22px;">
+            <div class="control has-icons-left">
+                <div class="select is-small">
+                    <select id="orderBy">
+                        <option value="time" selected>Time</option>
+                        <option value="name">Name</option>
+                        <option value="channel">Channel</option>
+                    </select>
+                </div>
+                <div class="icon is-small is-left">
+                    <i class="fas fa-sort-amount-down"></i>
+                </div>
+            </div>
         </div>
 
         <div id="guildReminders">
@@ -21,3 +29,5 @@
         </div>
     </div>
 </div>
+
+<script src="/static/js/sort.js"></script>
