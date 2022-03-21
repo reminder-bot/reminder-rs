@@ -3,10 +3,7 @@ let $discordFrame;
 const $loader = document.querySelector("#loader");
 const $colorPickerModal = document.querySelector("div#pickColorModal");
 const $colorPickerInput = $colorPickerModal.querySelector("input");
-
-let timezone = luxon.DateTime.now().zone.name;
-const browserTimezone = luxon.DateTime.now().zone.name;
-let botTimezone = "UTC";
+const $deleteReminderBtn = document.querySelector("#delete-reminder-confirm");
 
 let channels;
 let roles;
@@ -75,6 +72,8 @@ function fetch_roles(guild_id) {
 }
 
 async function fetch_reminders(guild_id) {
+    document.dispatchEvent(new Event("remindersLoading"));
+
     const $reminderBox = document.querySelector("div#guildReminders");
 
     // reset div contents
@@ -113,7 +112,6 @@ async function fetch_reminders(guild_id) {
                     }
 
                     let $enableBtn = newFrame.querySelector(".disable-enable");
-                    $enableBtn.textContent = reminder["enabled"] ? "Disable" : "Enable";
                     $enableBtn.dataset.action = reminder["enabled"]
                         ? "disable"
                         : "enable";
@@ -164,12 +162,34 @@ document.addEventListener("remindersLoaded", (event) => {
                     if (data.error) {
                         show_error(data.error);
                     } else {
-                        enableBtn.textContent = data["enabled"] ? "Disable" : "Enable";
                         enableBtn.dataset.action = data["enabled"] ? "enable" : "disable";
                     }
                 });
         });
+
+        reminder.node
+            .querySelector("button.delete-reminder")
+            .addEventListener("click", () => {
+                let uid = reminder.node.closest(".reminderContent").dataset.uid;
+
+                $deleteReminderBtn.dataset["uid"] = uid;
+                $deleteReminderBtn.closest(".modal").classList.toggle("is-active");
+            });
     }
+});
+
+$deleteReminderBtn.addEventListener("click", () => {
+    let guild = document.querySelector(".guildList a.is-active").dataset["guild"];
+
+    fetch(`/dashboard/api/guild/${guild}/reminders`, {
+        method: "DELETE",
+        body: JSON.stringify({
+            uid: $deleteReminderBtn.dataset["uid"],
+        }),
+    }).then(() => {
+        document.querySelector("#deleteReminderModal").classList.remove("is-active");
+        fetch_reminders(guild);
+    });
 });
 
 function show_error(error) {
@@ -181,60 +201,6 @@ function show_error(error) {
         document.getElementById("errors").classList.remove("is-active");
     }, 5000);
 }
-
-function update_times() {
-    document.querySelectorAll("span.set-timezone").forEach((element) => {
-        element.textContent = timezone;
-    });
-    document.querySelectorAll("span.set-time").forEach((element) => {
-        element.textContent = luxon.DateTime.now().setZone(timezone).toFormat("HH:mm");
-    });
-    document.querySelectorAll("span.browser-timezone").forEach((element) => {
-        element.textContent = browserTimezone;
-    });
-    document.querySelectorAll("span.browser-time").forEach((element) => {
-        element.textContent = luxon.DateTime.now().toFormat("HH:mm");
-    });
-    document.querySelectorAll("span.bot-timezone").forEach((element) => {
-        element.textContent = botTimezone;
-    });
-    document.querySelectorAll("span.bot-time").forEach((element) => {
-        element.textContent = luxon.DateTime.now().setZone(botTimezone).toFormat("HH:mm");
-    });
-}
-
-window.setInterval(() => {
-    update_times();
-}, 30000);
-
-document.getElementById("set-bot-timezone").addEventListener("click", () => {
-    timezone = botTimezone;
-    update_times();
-});
-document.getElementById("set-browser-timezone").addEventListener("click", () => {
-    timezone = browserTimezone;
-    update_times();
-});
-document.getElementById("update-bot-timezone").addEventListener("click", () => {
-    timezone = browserTimezone;
-    fetch("/dashboard/api/user", {
-        method: "PATCH",
-        headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ timezone: timezone }),
-    })
-        .then((response) => response.json())
-        .then((data) => {
-            if (data.error) {
-                show_error(data.error);
-            } else {
-                botTimezone = browserTimezone;
-                update_times();
-            }
-        });
-});
 
 $colorPickerInput.value = colorPicker.color.hexString;
 
@@ -482,6 +448,7 @@ $createReminder.querySelector("button#createReminder").addEventListener("click",
         .then((data) => console.log(data));
 
     // process response
+    fetch_reminders(guild);
 
     // reset inputs
 });

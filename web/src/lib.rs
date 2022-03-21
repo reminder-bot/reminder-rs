@@ -9,7 +9,7 @@ mod routes;
 use std::{collections::HashMap, env};
 
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
-use rocket::fs::FileServer;
+use rocket::{fs::FileServer, tokio::sync::broadcast::Sender};
 use rocket_dyn_templates::Template;
 use serenity::{
     client::Context,
@@ -53,6 +53,7 @@ async fn internal_server_error() -> Template {
 }
 
 pub async fn initialize(
+    kill_channel: Sender<()>,
     serenity_context: Context,
     db_pool: Pool<Database>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -118,6 +119,10 @@ pub async fn initialize(
         )
         .launch()
         .await?;
+
+    warn!("Exiting rocket runtime");
+    // distribute kill signal
+    kill_channel.send(());
 
     Ok(())
 }

@@ -140,6 +140,27 @@
     <button class="modal-close is-large close-modal" aria-label="close"></button>
 </div>
 
+<div class="modal" id="deleteReminderModal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+        <header class="modal-card-head">
+            <label class="modal-card-title" for="urlInput">Delete Reminder</label>
+            <button class="delete close-modal" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body">
+            <p>
+                This reminder will be permenantly deleted. Are you sure?
+            </p>
+            <br>
+            <div class="has-text-centered">
+                <button class="button is-danger" id="delete-reminder-confirm">Delete</button>
+                <button class="button is-light close-modal">Cancel</button>
+            </div>
+        </section>
+    </div>
+    <button class="modal-close is-large close-modal" aria-label="close"></button>
+</div>
+
 <div class="columns is-gapless dashboard-frame">
     <div class="column is-2 is-sidebar-menu dashboard-sidebar is-hidden-touch" style="display: flex; flex-direction: column;">
         <a href="/">
@@ -300,6 +321,7 @@
     {% include "reminder_dashboard/personal_reminder" %}
 </template>
 
+<script src="/static/js/timezone.js"></script>
 <script src="/static/js/main.js"></script>
 
 </body>

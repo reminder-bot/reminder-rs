@@ -215,9 +215,8 @@
                     Saved!
                 </button>
                 <button class="button is-warning disable-enable">
-                    Disable
                 </button>
-                <button class="button is-danger">
+                <button class="button is-danger delete-reminder">
                     Delete
                 </button>
             {% endif %}

@@ -57,6 +57,14 @@ button.change-color {
     left: calc(-1rem - 40px);
 }
 
+button.disable-enable[data-action="enable"]:after {
+    content: "Enable";
+}
+
+button.disable-enable[data-action="disable"]:after {
+    content: "Disable";
+}
+
 .media-content {
     overflow-x: visible;
 }

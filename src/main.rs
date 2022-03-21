@@ -12,7 +12,13 @@ mod models;
 mod time_parser;
 mod utils;
 
-use std::{collections::HashMap, env, fmt::Formatter, sync::atomic::AtomicBool};
+use std::{
+    collections::HashMap,
+    env,
+    error::Error as StdError,
+    fmt::{Debug, Display, Formatter},
+    sync::atomic::AtomicBool,
+};
 
 use chrono_tz::Tz;
 use dotenv::dotenv;
@@ -21,7 +27,7 @@ use poise::serenity::model::{
     id::{GuildId, UserId},
 };
 use sqlx::{MySql, Pool};
-use tokio::sync::RwLock;
+use tokio::sync::{broadcast, broadcast::Sender, RwLock};
 
 use crate::{
     commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
@@ -43,6 +49,7 @@ pub struct Data {
     recording_macros: RwLock<HashMap<(GuildId, UserId), CommandMacro<Data, Error>>>,
     popular_timezones: Vec<Tz>,
     is_loop_running: AtomicBool,
+    broadcast: Sender<()>,
 }
 
 impl std::fmt::Debug for Data {
@@ -51,8 +58,33 @@ impl std::fmt::Debug for Data {
     }
 }
 
+struct Ended;
+
+impl Debug for Ended {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Process ended.")
+    }
+}
+
+impl Display for Ended {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Process ended.")
+    }
+}
+
+impl StdError for Ended {}
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn main() -> Result<(), Box<dyn StdError + Send + Sync>> {
+    let (tx, mut rx) = broadcast::channel(16);
+
+    tokio::select! {
+        output = _main(tx) => output,
+        _ = rx.recv() => Err(Box::new(Ended) as Box<dyn StdError + Send + Sync>)
+    }
+}
+
+async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
     env_logger::init();
 
     dotenv()?;
@@ -157,6 +189,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     popular_timezones,
                     recording_macros: Default::default(),
                     is_loop_running: AtomicBool::new(false),
+                    broadcast: tx,
                 })
             })
         })

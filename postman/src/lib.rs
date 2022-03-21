@@ -2,14 +2,31 @@ mod sender;
 
 use std::env;
 
-use log::info;
+use log::{info, warn};
 use serenity::client::Context;
 use sqlx::{Executor, MySql};
-use tokio::time::{sleep_until, Duration, Instant};
+use tokio::{
+    sync::broadcast::Receiver,
+    time::{sleep_until, Duration, Instant},
+};
 
 type Database = MySql;
 
-pub async fn initialize(ctx: Context, pool: impl Executor<'_, Database = Database> + Copy) {
+pub async fn initialize(
+    mut kill: Receiver<()>,
+    ctx: Context,
+    pool: impl Executor<'_, Database = Database> + Copy,
+) -> Result<(), &'static str> {
+    tokio::select! {
+        output = _initialize(ctx, pool) => Ok(output),
+        _ = kill.recv() => {
+            warn!("Received terminate signal. Goodbye");
+            Err("Received terminate signal. Goodbye")
+        }
+    }
+}
+
+async fn _initialize(ctx: Context, pool: impl Executor<'_, Database = Database> + Copy) {
     let remind_interval = env::var("REMIND_INTERVAL")
         .map(|inner| inner.parse::<u64>().ok())
         .ok()

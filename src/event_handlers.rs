@@ -1,6 +1,6 @@
 use std::{collections::HashMap, env, sync::atomic::Ordering};
 
-use log::{info, warn};
+use log::{error, info, warn};
 use poise::{
     serenity::{model::interactions::Interaction, utils::shard_id},
     serenity_prelude as serenity,
@@ -15,10 +15,12 @@ pub async fn listener(
 ) -> Result<(), Error> {
     match event {
         poise::Event::CacheReady { .. } => {
-            info!("Cache Ready!");
-            info!("Preparing to send reminders");
+            info!("Cache Ready! Preparing extra processes");
 
             if !data.is_loop_running.load(Ordering::Relaxed) {
+                let kill_tx = data.broadcast.clone();
+                let kill_recv = data.broadcast.subscribe();
+
                 let ctx1 = ctx.clone();
                 let ctx2 = ctx.clone();
 
@@ -29,7 +31,12 @@ pub async fn listener(
 
                 if !run_settings.contains("postman") {
                     tokio::spawn(async move {
-                        postman::initialize(ctx1, &pool1).await;
+                        match postman::initialize(kill_recv, ctx1, &pool1).await {
+                            Ok(_) => {}
+                            Err(e) => {
+                                error!("postman exiting: {}", e);
+                            }
+                        };
                     });
                 } else {
                     warn!("Not running postman")
@@ -37,7 +44,7 @@ pub async fn listener(
 
                 if !run_settings.contains("web") {
                     tokio::spawn(async move {
-                        reminder_web::initialize(ctx2, pool2).await.unwrap();
+                        reminder_web::initialize(kill_tx, ctx2, pool2).await.unwrap();
                     });
                 } else {
                     warn!("Not running web")
