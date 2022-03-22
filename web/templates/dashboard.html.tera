@@ -38,7 +38,7 @@
     <div class="navbar-brand">
         <a class="navbar-item" href="/">
             <figure class="image">
-                <img src="/static/img/logo_flat.jpg" alt="Reminder Bot Logo">
+                <img src="/static/img/logo_flat.webp" alt="Reminder Bot Logo">
             </figure>
         </a>
 
@@ -85,7 +85,7 @@
             <input class="input" id="urlInput" placeholder="Image URL...">
         </section>
         <footer class="modal-card-foot">
-            <button class="button is-success">Save</button>
+            <button class="button is-success" id="setImgUrl">Save</button>
             <button class="button close-modal">Cancel</button>
         </footer>
     </div>
@@ -165,7 +165,7 @@
     <div class="column is-2 is-sidebar-menu dashboard-sidebar is-hidden-touch" style="display: flex; flex-direction: column;">
         <a href="/">
             <div class="brand">
-                <img src="/static/img/logo_flat.jpg" alt="Reminder bot logo"
+                <img src="/static/img/logo_flat.webp" alt="Reminder bot logo"
                      class="dashboard-brand">
             </div>
         </a>
@@ -210,7 +210,7 @@
     <div class="dashboard-sidebar mobile-sidebar is-hidden-desktop" id="mobileSidebar">
         <a href="/">
             <div class="brand">
-                <img src="/static/img/logo_flat.jpg" alt="Reminder bot logo"
+                <img src="/static/img/logo_flat.webp" alt="Reminder bot logo"
                      class="dashboard-brand">
             </div>
         </a>

@@ -294,42 +294,35 @@ pub async fn get_reminders(id: u64, ctx: &State<Context>, pool: &State<Pool<MySq
 
             sqlx::query_as_unchecked!(
                 Reminder,
-                "
-SELECT
-    reminders.attachment,
-    reminders.attachment_name,
-    reminders.avatar,
-    channels.channel,
-    reminders.content,
-    reminders.embed_author,
-    reminders.embed_author_url,
-    reminders.embed_color,
-    reminders.embed_description,
-    reminders.embed_footer,
-    reminders.embed_footer_url,
-    reminders.embed_image_url,
-    reminders.embed_thumbnail_url,
-    reminders.embed_title,
-    reminders.enabled,
-    reminders.expires,
-    reminders.interval_seconds,
-    reminders.interval_months,
-    reminders.name,
-    reminders.pin,
-    reminders.restartable,
-    reminders.tts,
-    reminders.uid,
-    reminders.username,
-    reminders.utc_time
-FROM
-    reminders
-LEFT JOIN
-    channels
-ON
-    channels.id = reminders.channel_id
-WHERE
-    FIND_IN_SET(channels.channel, ?)
-            ",
+                "SELECT
+                 reminders.attachment,
+                 reminders.attachment_name,
+                 reminders.avatar,
+                 channels.channel,
+                 reminders.content,
+                 reminders.embed_author,
+                 reminders.embed_author_url,
+                 reminders.embed_color,
+                 reminders.embed_description,
+                 reminders.embed_footer,
+                 reminders.embed_footer_url,
+                 reminders.embed_image_url,
+                 reminders.embed_thumbnail_url,
+                 reminders.embed_title,
+                 reminders.enabled,
+                 reminders.expires,
+                 reminders.interval_seconds,
+                 reminders.interval_months,
+                 reminders.name,
+                 reminders.pin,
+                 reminders.restartable,
+                 reminders.tts,
+                 reminders.uid,
+                 reminders.username,
+                 reminders.utc_time
+                FROM reminders
+                LEFT JOIN channels ON channels.id = reminders.channel_id
+                WHERE FIND_IN_SET(channels.channel, ?)",
                 channels
             )
             .fetch_all(pool.inner())
@@ -356,10 +349,90 @@ pub async fn edit_reminder(
     serenity_context: &State<Context>,
     pool: &State<Pool<MySql>>,
 ) -> JsonValue {
-    if let Some(enabled) = reminder.enabled {
-        sqlx::query!("UPDATE reminders SET enabled = ? WHERE uid = ?", enabled, reminder.uid)
-            .execute(pool.inner())
-            .await;
+    let mut error = vec![];
+
+    update_field!(pool.inner(), error, reminder.[
+        attachment,
+        attachment_name,
+        avatar,
+        content,
+        embed_author,
+        embed_author_url,
+        embed_color,
+        embed_description,
+        embed_footer,
+        embed_footer_url,
+        embed_image_url,
+        embed_thumbnail_url,
+        embed_title,
+        enabled,
+        expires,
+        interval_seconds,
+        interval_months,
+        name,
+        pin,
+        restartable,
+        tts,
+        username,
+        utc_time
+    ]);
+
+    if reminder.channel > 0 {
+        let channel = ChannelId(reminder.channel).to_channel_cached(&serenity_context.inner());
+        match channel {
+            Some(channel) => {
+                let channel_matches_guild = channel.guild().map_or(false, |c| c.guild_id.0 == id);
+
+                if !channel_matches_guild {
+                    warn!(
+                        "Error in `edit_reminder`: channel {:?} not found for guild {}",
+                        reminder.channel, id
+                    );
+
+                    return json!({"error": "Channel not found"});
+                }
+
+                let channel = create_database_channel(
+                    serenity_context.inner(),
+                    ChannelId(reminder.channel),
+                    pool.inner(),
+                )
+                .await;
+
+                if let Err(e) = channel {
+                    warn!("`create_database_channel` returned an error code: {:?}", e);
+
+                    return json!({"error": "Failed to configure channel for reminders. Please check the bot permissions"});
+                }
+
+                let channel = channel.unwrap();
+
+                match sqlx::query!(
+                    "UPDATE reminders SET channel_id = ? WHERE uid = ?",
+                    channel,
+                    reminder.uid
+                )
+                .execute(pool.inner())
+                .await
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        warn!("Error setting channel: {:?}", e);
+
+                        error.push("Couldn't set channel".to_string())
+                    }
+                }
+            }
+
+            None => {
+                warn!(
+                    "Error in `edit_reminder`: channel {:?} not found for guild {}",
+                    reminder.channel, id
+                );
+
+                return json!({"error": "Channel not found"});
+            }
+        }
     }
 
     match sqlx::query_as_unchecked!(
@@ -397,12 +470,12 @@ pub async fn edit_reminder(
     .fetch_one(pool.inner())
     .await
     {
-        Ok(reminder) => json!(reminder),
+        Ok(reminder) => json!({"reminder": reminder, "errors": error}),
 
         Err(e) => {
             warn!("Error exiting `edit_reminder': {:?}", e);
 
-            json!({"error": "Unknown error"})
+            json!({"reminder": Option::<Reminder>::None, "errors": vec!["Unknown error"]})
         }
     }
 }

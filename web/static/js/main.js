@@ -12,6 +12,10 @@ function colorToInt(r, g, b) {
     return (r << 16) + (g << 8) + b;
 }
 
+function intToColor(i) {
+    return `#${i.toString(16)}`;
+}
+
 function resize_textareas() {
     document.querySelectorAll("textarea.autoresize").forEach((element) => {
         element.style.height = "";
@@ -134,19 +138,23 @@ async function fetch_reminders(guild_id) {
                 document.dispatchEvent(remindersLoadedEvent);
             }
         });
-
-    register_interval_hide();
 }
 
 document.addEventListener("remindersLoaded", (event) => {
     const guild = document.querySelector(".guildList a.is-active").dataset["guild"];
 
     for (let reminder of event.detail) {
-        reminder.node.querySelector("button.hide-box").addEventListener("click", () => {
-            reminder.node.closest(".reminderContent").classList.toggle("is-collapsed");
+        let node = reminder.node;
+
+        node.querySelector("button.hide-box").addEventListener("click", () => {
+            node.closest(".reminderContent").classList.toggle("is-collapsed");
         });
 
-        const enableBtn = reminder.node.querySelector(".disable-enable");
+        node.querySelector("div.discord-embed").style.borderLeftColor = intToColor(
+            reminder.embed_color
+        );
+
+        const enableBtn = node.querySelector(".disable-enable");
         enableBtn.addEventListener("click", () => {
             let enable = enableBtn.dataset.action === "enable";
 
@@ -167,14 +175,68 @@ document.addEventListener("remindersLoaded", (event) => {
                 });
         });
 
-        reminder.node
-            .querySelector("button.delete-reminder")
-            .addEventListener("click", () => {
-                let uid = reminder.node.closest(".reminderContent").dataset.uid;
+        node.querySelector("button.delete-reminder").addEventListener("click", () => {
+            $deleteReminderBtn.dataset["uid"] = reminder["uid"];
+            $deleteReminderBtn.closest(".modal").classList.toggle("is-active");
+        });
 
-                $deleteReminderBtn.dataset["uid"] = uid;
-                $deleteReminderBtn.closest(".modal").classList.toggle("is-active");
-            });
+        node.querySelector("button.save-btn").addEventListener("click", (event) => {
+            let seconds =
+                parseInt(node.querySelector('input[name="interval_seconds"]').value) ||
+                null;
+            let months =
+                parseInt(node.querySelector('input[name="interval_months"]').value) ||
+                null;
+
+            let rgb_color = window.getComputedStyle(
+                node.querySelector("div.discord-embed")
+            ).borderLeftColor;
+            let rgb = rgb_color.match(/\d+/g);
+            let color = colorToInt(parseInt(rgb[0]), parseInt(rgb[1]), parseInt(rgb[2]));
+
+            let utc_time = luxon.DateTime.fromISO(
+                node.querySelector('input[name="time"]').value
+            ).setZone("UTC");
+
+            let reminder = {
+                uid: node.closest(".reminderContent").dataset["uid"],
+                avatar: node.querySelector("img.discord-avatar").src,
+                channel: node.querySelector("select.channel-selector").value,
+                content: node.querySelector('textarea[name="content"]').value,
+                embed_author_url: node.querySelector("img.embed_author_url").src,
+                embed_author: node.querySelector('textarea[name="embed_author"]').value,
+                embed_color: color,
+                embed_description: node.querySelector(
+                    'textarea[name="embed_description"]'
+                ).value,
+                embed_footer: node.querySelector('textarea[name="embed_footer"]').value,
+                embed_footer_url: node.querySelector("img.embed_footer_url").src,
+                embed_image_url: node.querySelector("img.embed_image_url").src,
+                embed_thumbnail_url: node.querySelector("img.embed_thumbnail_url").src,
+                embed_title: node.querySelector('textarea[name="embed_title"]').value,
+                expires: null,
+                interval_seconds: seconds,
+                interval_months: months,
+                name: node.querySelector('input[name="name"]').value,
+                pin: node.querySelector('input[name="pin"]').checked,
+                tts: node.querySelector('input[name="tts"]').checked,
+                username: node.querySelector('input[name="username"]').value,
+                utc_time: utc_time.toFormat("yyyy-LL-dd'T'HH:mm:ss"),
+            };
+
+            // send to server
+            let guild = document.querySelector(".guildList a.is-active").dataset["guild"];
+
+            fetch(`/dashboard/api/guild/${guild}/reminders`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(reminder),
+            })
+                .then((response) => response.json())
+                .then((data) => console.log(data));
+        });
     }
 });
 
@@ -212,19 +274,6 @@ $colorPickerInput.addEventListener("input", () => {
 
 colorPicker.on("color:change", function (color) {
     $colorPickerInput.value = color.hexString;
-});
-
-document.querySelectorAll(".change-color").forEach((element) => {
-    element.addEventListener("click", (e) => {
-        e.preventDefault();
-
-        $discordFrame = element
-            .closest("div.reminderContent")
-            .querySelector("div.discord-embed");
-        $colorPickerModal.classList.toggle("is-active");
-        colorPicker.color.rgbString =
-            window.getComputedStyle($discordFrame).borderLeftColor;
-    });
 });
 
 $colorPickerModal.querySelector("button.is-success").addEventListener("click", () => {
@@ -464,7 +513,7 @@ let $img;
 const $urlModal = document.querySelector("div#addImageModal");
 const $urlInput = $urlModal.querySelector("input");
 
-$urlModal.querySelector("button.is-success").addEventListener("click", () => {
+$urlModal.querySelector("button#setImgUrl").addEventListener("click", () => {
     $img.src = $urlInput.value;
 
     $urlInput.value = "";
@@ -481,26 +530,29 @@ document.querySelectorAll("button.close-modal").forEach((element) => {
     });
 });
 
-document.querySelectorAll(".customizable").forEach((element) => {
-    element.querySelector("a").addEventListener("click", (e) => {
-        e.preventDefault();
+document.addEventListener("remindersLoaded", () => {
+    document.querySelectorAll(".customizable").forEach((element) => {
+        element.querySelector("a").addEventListener("click", (e) => {
+            e.preventDefault();
 
-        $img = element.querySelector("img");
+            $img = element.querySelector("img");
 
-        $urlModal.classList.toggle("is-active");
+            $urlModal.classList.toggle("is-active");
+        });
     });
-});
 
-document.querySelectorAll("a.icon-toggle").forEach((element) => {
-    element.addEventListener("click", (e) => {
-        e.preventDefault();
+    const fileInput = document.querySelectorAll("input[type=file]");
 
-        element.classList.toggle("is-active");
+    fileInput.forEach((element) => {
+        element.addEventListener("change", () => {
+            if (element.files.length > 0) {
+                const fileName = element.parentElement.querySelector(".file-label");
+                fileName.textContent = element.files[0].name;
+            }
+        });
     });
-});
 
-function register_interval_hide() {
-    let $showInterval = document.querySelectorAll("a.intervalLabel");
+    const $showInterval = document.querySelectorAll("a.intervalLabel");
 
     $showInterval.forEach((element) => {
         element.addEventListener("click", () => {
@@ -509,16 +561,18 @@ function register_interval_hide() {
             element.nextElementSibling.classList.toggle("is-hidden");
         });
     });
-}
 
-const fileInput = document.querySelectorAll("input[type=file]");
+    document.querySelectorAll(".change-color").forEach((element) => {
+        element.addEventListener("click", (e) => {
+            e.preventDefault();
 
-fileInput.forEach((element) => {
-    element.addEventListener("change", () => {
-        if (element.files.length > 0) {
-            const fileName = element.parentElement.querySelector(".file-label");
-            fileName.textContent = element.files[0].name;
-        }
+            $discordFrame = element
+                .closest("div.reminderContent")
+                .querySelector("div.discord-embed");
+            $colorPickerModal.classList.toggle("is-active");
+            colorPicker.color.rgbString =
+                window.getComputedStyle($discordFrame).borderLeftColor;
+        });
     });
 });
 

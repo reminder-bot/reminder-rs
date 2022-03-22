@@ -211,8 +211,8 @@
                     Create Reminder
                 </button>
             {% else %}
-                <button class="button is-primary" disabled>
-                    Saved!
+                <button class="button is-primary save-btn">
+                    Save
                 </button>
                 <button class="button is-warning disable-enable">
                 </button>

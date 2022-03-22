@@ -22,6 +22,10 @@ fn name_default() -> String {
     "Reminder".to_string()
 }
 
+fn channel_default() -> u64 {
+    0
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Reminder {
     attachment: Option<Vec<u8>>,
@@ -63,6 +67,9 @@ pub struct PatchReminder {
     attachment_name: Unset<Option<String>>,
     #[serde(default)]
     avatar: Unset<Option<String>>,
+    #[serde(default = "channel_default")]
+    #[serde(with = "string")]
+    channel: u64,
     #[serde(default)]
     content: Unset<String>,
     #[serde(default)]

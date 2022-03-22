@@ -36,7 +36,7 @@
         <div class="navbar-brand">
             <a class="navbar-item" href="/">
                 <figure class="image">
-                    <img src="/static/img/logo_flat.jpg" alt="Reminder Bot Logo" class="is-rounded" style="width: auto;">
+                    <img src="/static/img/logo_flat.webp" alt="Reminder Bot Logo" class="is-rounded" style="width: auto;">
                 </figure>
             </a>
 

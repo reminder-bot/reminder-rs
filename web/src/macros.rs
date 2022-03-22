@@ -79,3 +79,41 @@ macro_rules! check_authorization {
         }
     }
 }
+
+macro_rules! update_field {
+    ($pool:expr, $error:ident, $reminder:ident.[$field:ident]) => {
+        if let Some(value) = &$reminder.$field {
+            match sqlx::query(concat!(
+                "UPDATE reminders SET `",
+                stringify!($field),
+                "` = ? WHERE uid = ?"
+            ))
+            .bind(value)
+            .bind(&$reminder.uid)
+            .execute($pool)
+            .await
+            {
+                Ok(_) => {}
+                Err(e) => {
+                    warn!(
+                        concat!(
+                            "Error in `update_field!(",
+                            stringify!($pool),
+                            stringify!($reminder),
+                            stringify!($field),
+                            ")': {:?}"
+                        ),
+                        e
+                    );
+
+                    $error.push(format!("Error setting field {}", stringify!($field)));
+                }
+            }
+        }
+    };
+
+    ($pool:expr, $error:ident, $reminder:ident.[$field:ident, $($fields:ident),+]) => {
+        update_field!($pool, $error, $reminder.[$field]);
+        update_field!($pool, $error, $reminder.[$($fields),+]);
+    };
+}

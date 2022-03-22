@@ -122,7 +122,12 @@ pub async fn initialize(
 
     warn!("Exiting rocket runtime");
     // distribute kill signal
-    kill_channel.send(());
+    match kill_channel.send(()) {
+        Ok(_) => {}
+        Err(e) => {
+            error!("Failed to issue kill signal: {:?}", e);
+        }
+    }
 
     Ok(())
 }
