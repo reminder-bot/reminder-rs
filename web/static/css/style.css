@@ -80,6 +80,31 @@ div.reminderContent {
     margin: 8px;
 }
 
+div.interval-group > button {
+    margin-left: auto;
+}
+
+div.interval-group > .interval-group-left > input {
+    -webkit-appearance: none;
+    border-style: none;
+    background-color: #eee;
+    font-size: 1rem;
+    font-family: monospace;
+}
+
+div.interval-group > .interval-group-left > input.w2 {
+    width: 3ch;
+}
+
+div.interval-group > .interval-group-left > input.w3 {
+    width: 6ch;
+}
+
+div.interval-group {
+    display: flex;
+    flex-direction: row;
+}
+
 .left-pad {
     padding-left: 1rem;
     padding-right: 0.2rem;

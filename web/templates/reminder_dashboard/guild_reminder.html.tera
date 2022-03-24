@@ -151,22 +151,15 @@
             <div class="field">
                 <a class="intervalLabel"><label class="label">Interval <i class="fas fa-chevron-down"></i></label></a>
                 <div class="control intervalSelector">
-                    <div class="columns">
-                        <div class="column">
-                            <input class="input" type="number" name="interval_months" placeholder="Months">
+                    <div class="input interval-group">
+                        <div class="interval-group-left">
+                            <input class="w2" type="text" pattern="\d*" name="interval_months" maxlength="2" placeholder=""> <span style="width: 0.5rem"></span> months, <span style="width: 0.5rem"></span>
+                            <input class="w3" type="text" pattern="\d*" name="interval_days" maxlength="4" placeholder=""> <span style="width: 0.5rem"></span> days, <span style="width: 0.5rem"></span>
+                            <input class="w2" type="text" pattern="\d*" name="interval_hours" maxlength="2" placeholder="HH">:
+                            <input class="w2" type="text" pattern="\d*" name="interval_minutes" maxlength="2" placeholder="MM">:
+                            <input class="w2" type="text" pattern="\d*" name="interval_seconds" maxlength="2" placeholder="SS">
                         </div>
-                        <div class="column">
-                            <input class="input" type="number" name="interval_days" placeholder="Days">
-                        </div>
-                        <div class="column">
-                            <input class="input" type="number" name="interval_hours" placeholder="Hours">
-                        </div>
-                        <div class="column">
-                            <input class="input" type="number" name="interval_minutes" placeholder="Minutes">
-                        </div>
-                        <div class="column">
-                            <input class="input" type="number" name="interval_seconds" placeholder="Seconds">
-                        </div>
+                        <button><span class="icon"><i class="fas fa-trash"></i></span></button>
                     </div>
                 </div>
             </div>
