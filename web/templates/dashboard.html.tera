@@ -308,7 +308,7 @@
 <template id="guildListEntry">
     <li>
         <a class="switch-pane" data-pane="guild">
-            <span class="icon"><i class="fas fa-map-pin"></i></span> %guildname%
+            <span class="icon"><i class="fas fa-map-pin"></i></span> <span class="guild-name">%guildname%</span>
         </a>
     </li>
 </template>

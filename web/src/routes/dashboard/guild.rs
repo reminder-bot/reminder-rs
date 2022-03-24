@@ -41,14 +41,15 @@ pub async fn get_guild_channels(
 ) -> JsonValue {
     check_authorization!(cookies, ctx.inner(), id);
 
-    let channels_res = GuildId(id).channels(ctx.inner()).await;
-
-    match channels_res {
-        Ok(channels) => {
+    match GuildId(id).to_guild_cached(ctx.inner()) {
+        Some(guild) => {
             let mut channel_info = vec![];
 
-            for (channel_id, channel) in
-                channels.iter().filter(|(_, channel)| channel.is_text_based())
+            for (channel_id, channel) in guild
+                .channels
+                .iter()
+                .filter_map(|(id, channel)| channel.to_owned().guild().map(|c| (id, c)))
+                .filter(|(_, channel)| channel.is_text_based())
             {
                 let mut ch = ChannelInfo {
                     name: channel.name.to_string(),
@@ -85,10 +86,9 @@ pub async fn get_guild_channels(
 
             json!(channel_info)
         }
-        Err(e) => {
-            warn!("Could not fetch channels from {}: {:?}", id, e);
 
-            json!({"error": "Could not get channels"})
+        None => {
+            json!({"error": "Bot not in guild"})
         }
     }
 }

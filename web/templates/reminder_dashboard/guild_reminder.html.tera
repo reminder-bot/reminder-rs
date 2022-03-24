@@ -4,7 +4,7 @@
             <figure class="media-left">
                 <p class="image is-32x32 customizable">
                     <a>
-                        <img class="is-rounded discord-avatar" src="">
+                        <img class="is-rounded discord-avatar" src="/static/img/bg.webp">
                     </a>
                 </p>
             </figure>
@@ -30,7 +30,7 @@
                                     <div class="a">
                                         <p class="image is-24x24 customizable">
                                             <a>
-                                                <img class="is-rounded embed_author_url" src="">
+                                                <img class="is-rounded embed_author_url" src="/static/img/bg.webp">
                                             </a>
                                         </p>
                                     </div>
@@ -79,7 +79,7 @@
                             <div class="b">
                                 <p class="image thumbnail customizable">
                                     <a>
-                                        <img class="embed_thumbnail_url" src="" alt="Square thumbnail embedded image">
+                                        <img class="embed_thumbnail_url" src="/static/img/bg.webp" alt="Square thumbnail embedded image">
                                     </a>
                                 </p>
                             </div>
@@ -87,14 +87,14 @@
 
                         <p class="image is-400x300 customizable">
                             <a>
-                                <img class="embed_image_url" src="" alt="Large embedded image">
+                                <img class="embed_image_url" src="/static/img/bg.webp" alt="Large embedded image">
                             </a>
                         </p>
 
                         <div class="embed-footer-box">
                             <p class="image is-20x20 customizable">
                                 <a>
-                                    <img class="is-rounded embed_footer_url" src="" alt="Footer profile-like image">
+                                    <img class="is-rounded embed_footer_url" src="/static/img/bg.webp" alt="Footer profile-like image">
                                 </a>
                             </p>
 
@@ -212,7 +212,7 @@
                 </button>
             {% else %}
                 <button class="button is-primary save-btn">
-                    Save
+                    <span>Save</span> <span class="icon"><i class="fas fa-save"></i></span>
                 </button>
                 <button class="button is-warning disable-enable">
                 </button>

@@ -7,6 +7,7 @@ const $deleteReminderBtn = document.querySelector("#delete-reminder-confirm");
 
 let channels;
 let roles;
+let guild_id;
 
 function colorToInt(r, g, b) {
     return (r << 16) + (g << 8) + b;
@@ -75,6 +76,29 @@ function fetch_roles(guild_id) {
         });
 }
 
+async function fetch_channels(guild_id) {
+    const event = new Event("channelsLoading");
+    document.dispatchEvent(event);
+
+    await fetch(`/dashboard/api/guild/${guild_id}/channels`)
+        .then((response) => response.json())
+        .then((data) => {
+            if (data.error) {
+                if (data.error === "Bot not in guild") {
+                    switch_pane("guild-error");
+                } else {
+                    show_error(data.error);
+                }
+            } else {
+                channels = data;
+            }
+        })
+        .then(() => {
+            const event = new Event("channelsLoaded");
+            document.dispatchEvent(event);
+        });
+}
+
 async function fetch_reminders(guild_id) {
     document.dispatchEvent(new Event("remindersLoading"));
 
@@ -84,7 +108,7 @@ async function fetch_reminders(guild_id) {
     $reminderBox.innerHTML = "";
 
     // fetch reminders
-    await fetch(`dashboard/api/guild/${guild_id}/reminders`)
+    await fetch(`/dashboard/api/guild/${guild_id}/reminders`)
         .then((response) => response.json())
         .then((data) => {
             if (data.error) {
@@ -140,6 +164,40 @@ async function fetch_reminders(guild_id) {
         });
 }
 
+document.addEventListener("guildSwitched", async (e) => {
+    $loader.classList.remove("is-hidden");
+
+    let $anchor = document.querySelector(
+        `.switch-pane[data-guild="${e.detail.guild_id}"]`
+    );
+
+    switch_pane($anchor.dataset["pane"]);
+    $anchor.classList.add("is-active");
+
+    reset_guild_pane();
+
+    fetch_roles(e.detail.guild_id);
+    await fetch_channels(e.detail.guild_id);
+    fetch_reminders(e.detail.guild_id);
+
+    document.querySelectorAll("p.pageTitle").forEach((el) => {
+        el.textContent = `${e.detail.guild_name} Reminders`;
+    });
+    document.querySelectorAll("select.channel-selector").forEach((el) => {
+        el.addEventListener("change", (e) => {
+            update_select(e.target);
+        });
+    });
+
+    resize_textareas();
+
+    $loader.classList.add("is-hidden");
+});
+
+document.addEventListener("channelsLoaded", () => {
+    document.querySelectorAll("select.channel-selector").forEach(set_channels);
+});
+
 document.addEventListener("remindersLoaded", (event) => {
     const guild = document.querySelector(".guildList a.is-active").dataset["guild"];
 
@@ -180,7 +238,13 @@ document.addEventListener("remindersLoaded", (event) => {
             $deleteReminderBtn.closest(".modal").classList.toggle("is-active");
         });
 
-        node.querySelector("button.save-btn").addEventListener("click", (event) => {
+        const $saveBtn = node.querySelector("button.save-btn");
+
+        $saveBtn.addEventListener("click", (event) => {
+            $saveBtn.querySelector("span.icon > i").classList = [
+                "fas fa-spinner fa-spin",
+            ];
+
             let seconds =
                 parseInt(node.querySelector('input[name="interval_seconds"]').value) ||
                 null;
@@ -200,19 +264,27 @@ document.addEventListener("remindersLoaded", (event) => {
 
             let reminder = {
                 uid: node.closest(".reminderContent").dataset["uid"],
-                avatar: node.querySelector("img.discord-avatar").src,
+                avatar: has_source(node.querySelector("img.discord-avatar").src),
                 channel: node.querySelector("select.channel-selector").value,
                 content: node.querySelector('textarea[name="content"]').value,
-                embed_author_url: node.querySelector("img.embed_author_url").src,
+                embed_author_url: has_source(
+                    node.querySelector("img.embed_author_url").src
+                ),
                 embed_author: node.querySelector('textarea[name="embed_author"]').value,
                 embed_color: color,
                 embed_description: node.querySelector(
                     'textarea[name="embed_description"]'
                 ).value,
                 embed_footer: node.querySelector('textarea[name="embed_footer"]').value,
-                embed_footer_url: node.querySelector("img.embed_footer_url").src,
-                embed_image_url: node.querySelector("img.embed_image_url").src,
-                embed_thumbnail_url: node.querySelector("img.embed_thumbnail_url").src,
+                embed_footer_url: has_source(
+                    node.querySelector("img.embed_footer_url").src
+                ),
+                embed_image_url: has_source(
+                    node.querySelector("img.embed_image_url").src
+                ),
+                embed_thumbnail_url: has_source(
+                    node.querySelector("img.embed_thumbnail_url").src
+                ),
                 embed_title: node.querySelector('textarea[name="embed_title"]').value,
                 expires: null,
                 interval_seconds: seconds,
@@ -236,6 +308,12 @@ document.addEventListener("remindersLoaded", (event) => {
             })
                 .then((response) => response.json())
                 .then((data) => console.log(data));
+
+            $saveBtn.querySelector("span.icon > i").classList = ["fas fa-check"];
+
+            window.setTimeout(() => {
+                $saveBtn.querySelector("span.icon > i").classList = ["fas fa-save"];
+            }, 1500);
         });
     }
 });
@@ -314,7 +392,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 show_error(data.error);
             } else {
                 document.querySelectorAll("a.switch-pane").forEach((element) => {
-                    element.innerHTML = element.innerHTML.replace(
+                    element.textContent = element.textContent.replace(
                         "%username%",
                         data.name
                     );
@@ -353,59 +431,28 @@ document.addEventListener("DOMContentLoaded", () => {
                         const $clone = $template.content.cloneNode(true);
                         const $anchor = $clone.querySelector("a");
 
-                        $anchor.innerHTML = $clone
-                            .querySelector("a")
-                            .innerHTML.replace("%guildname%", guild.name);
+                        let $span = $clone.querySelector("a > span.guild-name");
+
+                        $span.textContent = $span.textContent.replace(
+                            "%guildname%",
+                            guild.name
+                        );
                         $anchor.dataset["guild"] = guild.id;
                         $anchor.dataset["name"] = guild.name;
 
                         $anchor.addEventListener("click", async (e) => {
                             e.preventDefault();
 
-                            $loader.classList.remove("is-hidden");
+                            guild_id = guild.id;
 
-                            switch_pane($anchor.dataset["pane"]);
-
-                            reset_guild_pane();
-
-                            fetch_roles($anchor.dataset["guild"]);
-
-                            await fetch(
-                                `/dashboard/api/guild/${$anchor.dataset["guild"]}/channels`
-                            )
-                                .then((response) => response.json())
-                                .then((data) => {
-                                    if (data.error) {
-                                        if (data.error === "Bot not in guild") {
-                                            switch_pane("guild-error");
-                                        } else {
-                                            show_error(data.error);
-                                        }
-                                    } else {
-                                        channels = data;
-
-                                        document
-                                            .querySelectorAll("select.channel-selector")
-                                            .forEach(set_channels);
-                                    }
-                                });
-
-                            fetch_reminders($anchor.dataset["guild"]);
-
-                            document.querySelectorAll("p.pageTitle").forEach((el) => {
-                                el.textContent = $anchor.dataset["name"] + " Reminders";
+                            const event = new CustomEvent("guildSwitched", {
+                                detail: {
+                                    guild_name: guild.name,
+                                    guild_id: guild.id,
+                                },
                             });
-                            document
-                                .querySelectorAll("select.channel-selector")
-                                .forEach((el) => {
-                                    el.addEventListener("change", (e) => {
-                                        update_select(e.target);
-                                    });
-                                });
-                            $anchor.classList.add("is-active");
-                            resize_textareas();
 
-                            $loader.classList.add("is-hidden");
+                            document.dispatchEvent(event);
                         });
 
                         element.append($clone);
@@ -436,6 +483,14 @@ function set_channels(element) {
     update_select(element);
 }
 
+function has_source(string) {
+    if (string.startsWith(`https://${window.location.hostname}`)) {
+        return null;
+    } else {
+        return string;
+    }
+}
+
 let $createReminder = document.querySelector("#reminderCreator");
 
 $createReminder.querySelector("button#createReminder").addEventListener("click", () => {
@@ -458,18 +513,26 @@ $createReminder.querySelector("button#createReminder").addEventListener("click",
     ).setZone("UTC");
 
     let reminder = {
-        avatar: $createReminder.querySelector("img.discord-avatar").src,
+        avatar: has_source($createReminder.querySelector("img.discord-avatar").src),
         channel: $createReminder.querySelector("select.channel-selector").value,
         content: $createReminder.querySelector("textarea#messageContent").value,
-        embed_author_url: $createReminder.querySelector("img.embed_author_url").src,
+        embed_author_url: has_source(
+            $createReminder.querySelector("img.embed_author_url").src
+        ),
         embed_author: $createReminder.querySelector("textarea#embedAuthor").value,
         embed_color: color,
         embed_description: $createReminder.querySelector("textarea#embedDescription")
             .value,
         embed_footer: $createReminder.querySelector("textarea#embedFooter").value,
-        embed_footer_url: $createReminder.querySelector("img.embed_footer_url").src,
-        embed_image_url: $createReminder.querySelector("img.embed_image_url").src,
-        embed_thumbnail_url: $createReminder.querySelector("img.embed_thumbnail_url").src,
+        embed_footer_url: has_source(
+            $createReminder.querySelector("img.embed_footer_url").src
+        ),
+        embed_image_url: has_source(
+            $createReminder.querySelector("img.embed_image_url").src
+        ),
+        embed_thumbnail_url: has_source(
+            $createReminder.querySelector("img.embed_thumbnail_url").src
+        ),
         embed_title: $createReminder.querySelector("textarea#embedTitle").value,
         enabled: true,
         expires: null,
