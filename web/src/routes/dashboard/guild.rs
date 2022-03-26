@@ -1,3 +1,4 @@
+use base64;
 use chrono::Utc;
 use rocket::{
     http::CookieJar,
@@ -7,7 +8,10 @@ use rocket::{
 use serde::Serialize;
 use serenity::{
     client::Context,
-    model::id::{ChannelId, GuildId},
+    model::{
+        channel::GuildChannel,
+        id::{ChannelId, GuildId},
+    },
 };
 use sqlx::{MySql, Pool};
 
@@ -19,8 +23,8 @@ use crate::{
         MAX_URL_LENGTH, MAX_USERNAME_LENGTH, MIN_INTERVAL,
     },
     routes::dashboard::{
-        create_database_channel, generate_uid, name_default, DeleteReminder, PatchReminder,
-        Reminder,
+        create_database_channel, generate_uid, name_default, DeleteReminder, JsonReminder,
+        PatchReminder, Reminder,
     },
 };
 
@@ -45,12 +49,16 @@ pub async fn get_guild_channels(
         Some(guild) => {
             let mut channel_info = vec![];
 
-            for (channel_id, channel) in guild
+            let mut channels = guild
                 .channels
                 .iter()
-                .filter_map(|(id, channel)| channel.to_owned().guild().map(|c| (id, c)))
+                .filter_map(|(id, channel)| channel.to_owned().guild().map(|c| (id.to_owned(), c)))
                 .filter(|(_, channel)| channel.is_text_based())
-            {
+                .collect::<Vec<(ChannelId, GuildChannel)>>();
+
+            channels.sort_by(|(_, c1), (_, c2)| c1.position.cmp(&c2.position));
+
+            for (channel_id, channel) in channels {
                 let mut ch = ChannelInfo {
                     name: channel.name.to_string(),
                     id: channel_id.to_string(),
@@ -125,7 +133,7 @@ pub async fn get_guild_roles(id: u64, cookies: &CookieJar<'_>, ctx: &State<Conte
 #[post("/api/guild/<id>/reminders", data = "<reminder>")]
 pub async fn create_reminder(
     id: u64,
-    reminder: Json<Reminder>,
+    reminder: Json<JsonReminder>,
     cookies: &CookieJar<'_>,
     serenity_context: &State<Context>,
     pool: &State<Pool<MySql>>,
@@ -213,12 +221,16 @@ pub async fn create_reminder(
         }
     }
 
+    // base64 decode error dropped here
+    let attachment_data = reminder.attachment.as_ref().map(|s| base64::decode(s).ok()).flatten();
     let name = if reminder.name.is_empty() { name_default() } else { reminder.name.clone() };
 
     // write to db
     match sqlx::query!(
         "INSERT INTO reminders (
          uid,
+         attachment,
+         attachment_name,
          channel_id,
          avatar,
          content,
@@ -241,8 +253,10 @@ pub async fn create_reminder(
          tts,
          username,
          `utc_time`
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         generate_uid(),
+        attachment_data,
+        reminder.attachment_name,
         channel,
         reminder.avatar,
         reminder.content,

@@ -262,6 +262,13 @@ document.addEventListener("remindersLoaded", (event) => {
                 node.querySelector('input[name="time"]').value
             ).setZone("UTC");
 
+            let fields = node.querySelectorAll(".embed-field-box", (el) => {
+                return {
+                    title: el.querySelector('input[name="embed_field_title[]"]').value,
+                    value: el.querySelector('input[name="embed_field_value[]"]').value,
+                };
+            });
+
             let reminder = {
                 uid: node.closest(".reminderContent").dataset["uid"],
                 avatar: has_source(node.querySelector("img.discord-avatar").src),
@@ -286,6 +293,7 @@ document.addEventListener("remindersLoaded", (event) => {
                     node.querySelector("img.embed_thumbnail_url").src
                 ),
                 embed_title: node.querySelector('textarea[name="embed_title"]').value,
+                embed_fields: fields,
                 expires: null,
                 interval_seconds: seconds,
                 interval_months: months,
@@ -493,77 +501,99 @@ function has_source(string) {
 
 let $createReminder = document.querySelector("#reminderCreator");
 
-$createReminder.querySelector("button#createReminder").addEventListener("click", () => {
-    // create reminder object
-    let seconds =
-        parseInt($createReminder.querySelector('input[name="interval_seconds"]').value) ||
-        null;
-    let months =
-        parseInt($createReminder.querySelector('input[name="interval_months"]').value) ||
-        null;
+$createReminder
+    .querySelector("button#createReminder")
+    .addEventListener("click", async () => {
+        // create reminder object
+        let seconds =
+            parseInt(
+                $createReminder.querySelector('input[name="interval_seconds"]').value
+            ) || null;
+        let months =
+            parseInt(
+                $createReminder.querySelector('input[name="interval_months"]').value
+            ) || null;
 
-    let rgb_color = window.getComputedStyle(
-        $createReminder.querySelector("div.discord-embed")
-    ).borderLeftColor;
-    let rgb = rgb_color.match(/\d+/g);
-    let color = colorToInt(parseInt(rgb[0]), parseInt(rgb[1]), parseInt(rgb[2]));
+        let rgb_color = window.getComputedStyle(
+            $createReminder.querySelector("div.discord-embed")
+        ).borderLeftColor;
+        let rgb = rgb_color.match(/\d+/g);
+        let color = colorToInt(parseInt(rgb[0]), parseInt(rgb[1]), parseInt(rgb[2]));
 
-    let utc_time = luxon.DateTime.fromISO(
-        $createReminder.querySelector('input[name="time"]').value
-    ).setZone("UTC");
+        let utc_time = luxon.DateTime.fromISO(
+            $createReminder.querySelector('input[name="time"]').value
+        ).setZone("UTC");
 
-    let reminder = {
-        avatar: has_source($createReminder.querySelector("img.discord-avatar").src),
-        channel: $createReminder.querySelector("select.channel-selector").value,
-        content: $createReminder.querySelector("textarea#messageContent").value,
-        embed_author_url: has_source(
-            $createReminder.querySelector("img.embed_author_url").src
-        ),
-        embed_author: $createReminder.querySelector("textarea#embedAuthor").value,
-        embed_color: color,
-        embed_description: $createReminder.querySelector("textarea#embedDescription")
-            .value,
-        embed_footer: $createReminder.querySelector("textarea#embedFooter").value,
-        embed_footer_url: has_source(
-            $createReminder.querySelector("img.embed_footer_url").src
-        ),
-        embed_image_url: has_source(
-            $createReminder.querySelector("img.embed_image_url").src
-        ),
-        embed_thumbnail_url: has_source(
-            $createReminder.querySelector("img.embed_thumbnail_url").src
-        ),
-        embed_title: $createReminder.querySelector("textarea#embedTitle").value,
-        enabled: true,
-        expires: null,
-        interval_seconds: seconds,
-        interval_months: months,
-        name: $createReminder.querySelector('input[name="name"]').value,
-        pin: $createReminder.querySelector('input[name="pin"]').checked,
-        restartable: false,
-        tts: $createReminder.querySelector('input[name="tts"]').checked,
-        username: $createReminder.querySelector("input#reminderUsername").value,
-        utc_time: utc_time.toFormat("yyyy-LL-dd'T'HH:mm:ss"),
-    };
+        let attachment = null;
+        let attachment_name = null;
 
-    // send to server
-    let guild = document.querySelector(".guildList a.is-active").dataset["guild"];
+        if ($createReminder.querySelector('input[name="attachment"]').files.length > 0) {
+            let file = $createReminder.querySelector('input[name="attachment"]').files[0];
 
-    fetch(`/dashboard/api/guild/${guild}/reminders`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(reminder),
-    })
-        .then((response) => response.json())
-        .then((data) => console.log(data));
+            attachment = await new Promise((resolve) => {
+                let fileReader = new FileReader();
+                fileReader.onload = (e) => resolve(fileReader.result);
+                fileReader.readAsDataURL(file);
+            });
+            attachment = attachment.split(",")[1];
+            attachment_name = file.name;
+        }
 
-    // process response
-    fetch_reminders(guild);
+        let reminder = {
+            attachment: attachment,
+            attachment_name: attachment_name,
+            avatar: has_source($createReminder.querySelector("img.discord-avatar").src),
+            channel: $createReminder.querySelector("select.channel-selector").value,
+            content: $createReminder.querySelector("textarea#messageContent").value,
+            embed_author_url: has_source(
+                $createReminder.querySelector("img.embed_author_url").src
+            ),
+            embed_author: $createReminder.querySelector("textarea#embedAuthor").value,
+            embed_color: color,
+            embed_description: $createReminder.querySelector("textarea#embedDescription")
+                .value,
+            embed_footer: $createReminder.querySelector("textarea#embedFooter").value,
+            embed_footer_url: has_source(
+                $createReminder.querySelector("img.embed_footer_url").src
+            ),
+            embed_image_url: has_source(
+                $createReminder.querySelector("img.embed_image_url").src
+            ),
+            embed_thumbnail_url: has_source(
+                $createReminder.querySelector("img.embed_thumbnail_url").src
+            ),
+            embed_title: $createReminder.querySelector("textarea#embedTitle").value,
+            embed_fields: [],
+            enabled: true,
+            expires: null,
+            interval_seconds: seconds,
+            interval_months: months,
+            name: $createReminder.querySelector('input[name="name"]').value,
+            pin: $createReminder.querySelector('input[name="pin"]').checked,
+            restartable: false,
+            tts: $createReminder.querySelector('input[name="tts"]').checked,
+            username: $createReminder.querySelector("input#reminderUsername").value,
+            utc_time: utc_time.toFormat("yyyy-LL-dd'T'HH:mm:ss"),
+        };
 
-    // reset inputs
-});
+        // send to server
+        let guild = document.querySelector(".guildList a.is-active").dataset["guild"];
+
+        fetch(`/dashboard/api/guild/${guild}/reminders`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(reminder),
+        })
+            .then((response) => response.json())
+            .then((data) => console.log(data));
+
+        // process response
+        fetch_reminders(guild);
+
+        // reset inputs
+    });
 
 document.querySelectorAll("textarea.autoresize").forEach((element) => {
     element.addEventListener("input", () => {

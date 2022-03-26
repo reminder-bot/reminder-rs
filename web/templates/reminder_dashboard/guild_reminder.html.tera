@@ -178,7 +178,7 @@
                 <div class="column has-text-centered">
                     <div class="file is-boxed">
                         <label class="file-label">
-                            <input class="file-input" type="file">
+                            <input class="file-input" type="file" name="attachment">
                             <span class="file-cta">
                                 <span class="file-label">
                                     Add Attachment

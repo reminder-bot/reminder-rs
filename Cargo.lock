@@ -2142,6 +2142,7 @@ dependencies = [
 name = "reminder_web"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "chrono",
  "chrono-tz 0.5.3",
  "lazy_static",
