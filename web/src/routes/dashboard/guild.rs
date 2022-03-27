@@ -225,6 +225,8 @@ pub async fn create_reminder(
     let attachment_data = reminder.attachment.as_ref().map(|s| base64::decode(s).ok()).flatten();
     let name = if reminder.name.is_empty() { name_default() } else { reminder.name.clone() };
 
+    let new_uid = generate_uid();
+
     // write to db
     match sqlx::query!(
         "INSERT INTO reminders (
@@ -254,7 +256,7 @@ pub async fn create_reminder(
          username,
          `utc_time`
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        generate_uid(),
+        new_uid,
         attachment_data,
         reminder.attachment_name,
         channel,
@@ -283,7 +285,47 @@ pub async fn create_reminder(
     .execute(pool.inner())
     .await
     {
-        Ok(_) => json!({}),
+        Ok(_) => sqlx::query_as_unchecked!(
+            Reminder,
+            "SELECT
+             reminders.attachment,
+             reminders.attachment_name,
+             reminders.avatar,
+             channels.channel,
+             reminders.content,
+             reminders.embed_author,
+             reminders.embed_author_url,
+             reminders.embed_color,
+             reminders.embed_description,
+             reminders.embed_footer,
+             reminders.embed_footer_url,
+             reminders.embed_image_url,
+             reminders.embed_thumbnail_url,
+             reminders.embed_title,
+             reminders.enabled,
+             reminders.expires,
+             reminders.interval_seconds,
+             reminders.interval_months,
+             reminders.name,
+             reminders.pin,
+             reminders.restartable,
+             reminders.tts,
+             reminders.uid,
+             reminders.username,
+             reminders.utc_time
+            FROM reminders
+            LEFT JOIN channels ON channels.id = reminders.channel_id
+            WHERE uid = ?",
+            new_uid
+        )
+        .fetch_one(pool.inner())
+        .await
+        .map(|r| json!(r))
+        .unwrap_or_else(|e| {
+            warn!("Failed to complete SQL query: {:?}", e);
+
+            json!({"error": "Could not load reminders"})
+        }),
 
         Err(e) => {
             warn!("Error in `create_reminder`: Could not execute query: {:?}", e);

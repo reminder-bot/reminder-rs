@@ -166,17 +166,17 @@
 
             <div class="columns">
                 <div class="column has-text-centered">
-                    <div style="display: inline-block;">
+                    <div class="is-boxed">
                         <label class="label">Enable TTS <input type="checkbox" name="tts"></label>
                     </div>
                 </div>
                 <div class="column has-text-centered">
-                    <div style="display: inline-block;">
+                    <div class="is-boxed">
                         <label class="label">Pin Message <input type="checkbox" name="pin"></label>
                     </div>
                 </div>
                 <div class="column has-text-centered">
-                    <div class="file is-boxed">
+                    <div class="file is-small is-boxed">
                         <label class="file-label">
                             <input class="file-input" type="file" name="attachment">
                             <span class="file-cta">
@@ -201,7 +201,7 @@
                     Create Template
                 </button>
                 <button class="button is-success" id="createReminder">
-                    Create Reminder
+                    <span>Create Reminder</span> <span class="icon"><i class="fas fa-sparkles"></i></span>
                 </button>
             {% else %}
                 <button class="button is-primary save-btn">

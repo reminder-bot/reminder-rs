@@ -4,6 +4,7 @@ const $loader = document.querySelector("#loader");
 const $colorPickerModal = document.querySelector("div#pickColorModal");
 const $colorPickerInput = $colorPickerModal.querySelector("input");
 const $deleteReminderBtn = document.querySelector("#delete-reminder-confirm");
+const $reminderTemplate = document.querySelector("template#guildReminder");
 
 let channels;
 let roles;
@@ -14,7 +15,7 @@ function colorToInt(r, g, b) {
 }
 
 function intToColor(i) {
-    return `#${i.toString(16)}`;
+    return `#${i.toString(16).padStart(6, "0")}`;
 }
 
 function resize_textareas() {
@@ -114,41 +115,13 @@ async function fetch_reminders(guild_id) {
             if (data.error) {
                 show_error(data.error);
             } else {
-                const $template = document.querySelector("template#guildReminder");
-
                 for (let reminder of data) {
-                    let newFrame = $template.content.cloneNode(true);
+                    let newFrame = $reminderTemplate.content.cloneNode(true);
 
                     newFrame.querySelector(".reminderContent").dataset.uid =
                         reminder["uid"];
 
-                    // populate channels
-                    set_channels(newFrame.querySelector("select.channel-selector"));
-
-                    // populate majority of items
-                    for (let prop in reminder) {
-                        if (reminder.hasOwnProperty(prop) && reminder[prop] !== null) {
-                            let $input = newFrame.querySelector(`*[name="${prop}"]`);
-                            let $image = newFrame.querySelector(`img.${prop}`);
-
-                            if ($input !== null) {
-                                $input.value = reminder[prop];
-                            } else if ($image !== null) {
-                                $image.src = reminder[prop];
-                            }
-                        }
-                    }
-
-                    let $enableBtn = newFrame.querySelector(".disable-enable");
-                    $enableBtn.dataset.action = reminder["enabled"]
-                        ? "disable"
-                        : "enable";
-
-                    let timeInput = newFrame.querySelector('input[name="time"]');
-                    let localTime = luxon.DateTime.fromISO(reminder["utc_time"]).setZone(
-                        timezone
-                    );
-                    timeInput.value = localTime.toFormat("yyyy-LL-dd'T'HH:mm:ss");
+                    render_reminder(reminder, newFrame);
 
                     $reminderBox.appendChild(newFrame);
 
@@ -162,6 +135,40 @@ async function fetch_reminders(guild_id) {
                 document.dispatchEvent(remindersLoadedEvent);
             }
         });
+}
+
+function render_reminder(reminder, frame) {
+    // populate channels
+    set_channels(frame.querySelector("select.channel-selector"));
+
+    // populate majority of items
+    for (let prop in reminder) {
+        if (reminder.hasOwnProperty(prop) && reminder[prop] !== null) {
+            if (prop === "attachment") {
+            } else if (prop === "attachment_name") {
+                frame.querySelector(".file-cta > .file-label").textContent =
+                    reminder[prop];
+            } else {
+                let $input = frame.querySelector(`*[name="${prop}"]`);
+                let $image = frame.querySelector(`img.${prop}`);
+
+                if ($input !== null) {
+                    $input.value = reminder[prop];
+                } else if ($image !== null) {
+                    $image.src = reminder[prop];
+                }
+            }
+        }
+    }
+
+    let $enableBtn = frame.querySelector(".disable-enable");
+    $enableBtn.dataset.action = reminder["enabled"] ? "disable" : "enable";
+
+    let timeInput = frame.querySelector('input[name="time"]');
+    let localTime = luxon.DateTime.fromISO(reminder["utc_time"], { zone: "UTC" }).setZone(
+        timezone
+    );
+    timeInput.value = localTime.toFormat("yyyy-LL-dd'T'HH:mm:ss");
 }
 
 document.addEventListener("guildSwitched", async (e) => {
@@ -500,100 +507,127 @@ function has_source(string) {
 }
 
 let $createReminder = document.querySelector("#reminderCreator");
+let $createBtn = $createReminder.querySelector("button#createReminder");
 
-$createReminder
-    .querySelector("button#createReminder")
-    .addEventListener("click", async () => {
-        // create reminder object
-        let seconds =
-            parseInt(
-                $createReminder.querySelector('input[name="interval_seconds"]').value
-            ) || null;
-        let months =
-            parseInt(
-                $createReminder.querySelector('input[name="interval_months"]').value
-            ) || null;
+$createBtn.addEventListener("click", async () => {
+    $createBtn.querySelector("span.icon > i").classList = ["fas fa-spinner fa-spin"];
 
-        let rgb_color = window.getComputedStyle(
-            $createReminder.querySelector("div.discord-embed")
-        ).borderLeftColor;
-        let rgb = rgb_color.match(/\d+/g);
-        let color = colorToInt(parseInt(rgb[0]), parseInt(rgb[1]), parseInt(rgb[2]));
+    // create reminder object
+    let seconds =
+        parseInt($createReminder.querySelector('input[name="interval_seconds"]').value) ||
+        null;
+    let months =
+        parseInt($createReminder.querySelector('input[name="interval_months"]').value) ||
+        null;
 
-        let utc_time = luxon.DateTime.fromISO(
-            $createReminder.querySelector('input[name="time"]').value
-        ).setZone("UTC");
+    let rgb_color = window.getComputedStyle(
+        $createReminder.querySelector("div.discord-embed")
+    ).borderLeftColor;
+    let rgb = rgb_color.match(/\d+/g);
+    let color = colorToInt(parseInt(rgb[0]), parseInt(rgb[1]), parseInt(rgb[2]));
 
-        let attachment = null;
-        let attachment_name = null;
+    let utc_time = luxon.DateTime.fromISO(
+        $createReminder.querySelector('input[name="time"]').value
+    ).setZone("UTC");
 
-        if ($createReminder.querySelector('input[name="attachment"]').files.length > 0) {
-            let file = $createReminder.querySelector('input[name="attachment"]').files[0];
+    if (utc_time.invalid) {
+        show_error("Time provided invalid.");
+        $createBtn.querySelector("span.icon > i").classList = ["fas fa-sparkles"];
+        return;
+    }
 
-            attachment = await new Promise((resolve) => {
-                let fileReader = new FileReader();
-                fileReader.onload = (e) => resolve(fileReader.result);
-                fileReader.readAsDataURL(file);
-            });
-            attachment = attachment.split(",")[1];
-            attachment_name = file.name;
-        }
+    let attachment = null;
+    let attachment_name = null;
 
-        let reminder = {
-            attachment: attachment,
-            attachment_name: attachment_name,
-            avatar: has_source($createReminder.querySelector("img.discord-avatar").src),
-            channel: $createReminder.querySelector("select.channel-selector").value,
-            content: $createReminder.querySelector("textarea#messageContent").value,
-            embed_author_url: has_source(
-                $createReminder.querySelector("img.embed_author_url").src
-            ),
-            embed_author: $createReminder.querySelector("textarea#embedAuthor").value,
-            embed_color: color,
-            embed_description: $createReminder.querySelector("textarea#embedDescription")
-                .value,
-            embed_footer: $createReminder.querySelector("textarea#embedFooter").value,
-            embed_footer_url: has_source(
-                $createReminder.querySelector("img.embed_footer_url").src
-            ),
-            embed_image_url: has_source(
-                $createReminder.querySelector("img.embed_image_url").src
-            ),
-            embed_thumbnail_url: has_source(
-                $createReminder.querySelector("img.embed_thumbnail_url").src
-            ),
-            embed_title: $createReminder.querySelector("textarea#embedTitle").value,
-            embed_fields: [],
-            enabled: true,
-            expires: null,
-            interval_seconds: seconds,
-            interval_months: months,
-            name: $createReminder.querySelector('input[name="name"]').value,
-            pin: $createReminder.querySelector('input[name="pin"]').checked,
-            restartable: false,
-            tts: $createReminder.querySelector('input[name="tts"]').checked,
-            username: $createReminder.querySelector("input#reminderUsername").value,
-            utc_time: utc_time.toFormat("yyyy-LL-dd'T'HH:mm:ss"),
-        };
+    if ($createReminder.querySelector('input[name="attachment"]').files.length > 0) {
+        let file = $createReminder.querySelector('input[name="attachment"]').files[0];
 
-        // send to server
-        let guild = document.querySelector(".guildList a.is-active").dataset["guild"];
+        attachment = await new Promise((resolve) => {
+            let fileReader = new FileReader();
+            fileReader.onload = (e) => resolve(fileReader.result);
+            fileReader.readAsDataURL(file);
+        });
+        attachment = attachment.split(",")[1];
+        attachment_name = file.name;
+    }
 
-        fetch(`/dashboard/api/guild/${guild}/reminders`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(reminder),
-        })
-            .then((response) => response.json())
-            .then((data) => console.log(data));
+    let reminder = {
+        attachment: attachment,
+        attachment_name: attachment_name,
+        avatar: has_source($createReminder.querySelector("img.discord-avatar").src),
+        channel: $createReminder.querySelector("select.channel-selector").value,
+        content: $createReminder.querySelector("textarea#messageContent").value,
+        embed_author_url: has_source(
+            $createReminder.querySelector("img.embed_author_url").src
+        ),
+        embed_author: $createReminder.querySelector("textarea#embedAuthor").value,
+        embed_color: color,
+        embed_description: $createReminder.querySelector("textarea#embedDescription")
+            .value,
+        embed_footer: $createReminder.querySelector("textarea#embedFooter").value,
+        embed_footer_url: has_source(
+            $createReminder.querySelector("img.embed_footer_url").src
+        ),
+        embed_image_url: has_source(
+            $createReminder.querySelector("img.embed_image_url").src
+        ),
+        embed_thumbnail_url: has_source(
+            $createReminder.querySelector("img.embed_thumbnail_url").src
+        ),
+        embed_title: $createReminder.querySelector("textarea#embedTitle").value,
+        embed_fields: [],
+        enabled: true,
+        expires: null,
+        interval_seconds: seconds,
+        interval_months: months,
+        name: $createReminder.querySelector('input[name="name"]').value,
+        pin: $createReminder.querySelector('input[name="pin"]').checked,
+        restartable: false,
+        tts: $createReminder.querySelector('input[name="tts"]').checked,
+        username: $createReminder.querySelector("input#reminderUsername").value,
+        utc_time: utc_time.toFormat("yyyy-LL-dd'T'HH:mm:ss"),
+    };
 
-        // process response
-        fetch_reminders(guild);
+    // send to server
+    let guild = document.querySelector(".guildList a.is-active").dataset["guild"];
 
-        // reset inputs
-    });
+    fetch(`/dashboard/api/guild/${guild}/reminders`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(reminder),
+    })
+        .then((response) => response.json())
+        .then((data) => {
+            if (data.error) {
+                show_error(data.error);
+            } else {
+                const $reminderBox = document.querySelector("div#guildReminders");
+                let newFrame = $reminderTemplate.content.cloneNode(true);
+
+                newFrame.querySelector(".reminderContent").dataset["uid"] = data["uid"];
+
+                render_reminder(data, newFrame);
+
+                $reminderBox.appendChild(newFrame);
+
+                data.node = $reminderBox.lastElementChild;
+
+                document.dispatchEvent(
+                    new CustomEvent("remindersLoaded", {
+                        detail: [data],
+                    })
+                );
+            }
+
+            $createBtn.querySelector("span.icon > i").classList = ["fas fa-check"];
+
+            window.setTimeout(() => {
+                $createBtn.querySelector("span.icon > i").classList = ["fas fa-sparkles"];
+            }, 1500);
+        });
+});
 
 document.querySelectorAll("textarea.autoresize").forEach((element) => {
     element.addEventListener("input", () => {

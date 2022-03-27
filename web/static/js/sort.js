@@ -66,7 +66,5 @@ selector.addEventListener("change", () => {
 });
 
 document.addEventListener("remindersLoaded", () => {
-    let select = document.querySelector("#orderBy");
-
-    sort_by(select.value);
+    sort_by(selector.value);
 });
