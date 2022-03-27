@@ -321,6 +321,7 @@
     {% include "reminder_dashboard/personal_reminder" %}
 </template>
 
+<script src="/static/js/interval.js"></script>
 <script src="/static/js/timezone.js"></script>
 <script src="/static/js/main.js"></script>
 

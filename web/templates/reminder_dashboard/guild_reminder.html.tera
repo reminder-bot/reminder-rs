@@ -159,7 +159,7 @@
                             <input class="w2" type="text" pattern="\d*" name="interval_minutes" maxlength="2" placeholder="MM">:
                             <input class="w2" type="text" pattern="\d*" name="interval_seconds" maxlength="2" placeholder="SS">
                         </div>
-                        <button><span class="icon"><i class="fas fa-trash"></i></span></button>
+                        <button class="clear"><span class="icon"><i class="fas fa-trash"></i></span></button>
                     </div>
                 </div>
             </div>
