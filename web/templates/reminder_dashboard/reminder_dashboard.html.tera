@@ -9,7 +9,7 @@
         <br>
 
         <div class="field">
-            <div class="columns">
+            <div class="columns is-mobile">
                 <div class="column">
                     <strong>Reminders</strong>
                 </div>
@@ -30,8 +30,8 @@
                 <div class="column is-narrow">
                     <div class="control has-icons-left">
                         <div class="select is-small">
-                            <select id="expandAll">
-                                <option value="" selected>Expand/Collapse...</option>
+                            <select id="expandAll" style="width: 60px">
+                                <option value="" selected></option>
                                 <option value="expand">Expand All</option>
                                 <option value="collapse">Collapse All</option>
                             </select>

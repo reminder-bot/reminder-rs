@@ -244,7 +244,7 @@
                 <ul class="menu-list">
                     <li>
                         <a class="show-modal" data-modal="chooseTimezoneModal">
-                            <span class="icon"><i class="fas fa-map-pin"></i></span> Timezone
+                            <span class="icon"><i class="fas fa-map-marked"></i></span> Timezone
                         </a>
                     </li>
                 </ul>
@@ -279,7 +279,7 @@
                     </p>
                     <a class="button is-size-4 is-rounded is-success" href="https://invite.reminder-bot.com">
                         <p class="is-size-4">
-                            Add to Server <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            <span>Add to Server</span> <span class="icon"><i class="fas fa-chevron-right"></i></span>
                         </p>
                     </a>
                 </div>

@@ -45,25 +45,23 @@ document.querySelector(".interval-group").addEventListener(
 );
 
 $intervalGroup.querySelector("button.clear").addEventListener("click", () => {
-    document
-        .querySelector(".interval-group")
-        .querySelectorAll("input")
-        .forEach((el) => {
-            el.value = "";
-        });
+    $intervalGroup.querySelectorAll("input").forEach((el) => {
+        el.value = "";
+    });
 });
 
 document.addEventListener("remindersLoaded", (event) => {
     for (reminder of event.detail) {
-        update_input(reminder.node.querySelector(".interval-group input"));
+        let $intervalGroup = reminder.node.querySelector(".interval-group");
 
-        reminder.node.querySelector("button.clear").addEventListener("click", () => {
-            reminder.node
-                .querySelector(".interval-group")
-                .querySelectorAll("input")
-                .forEach((el) => {
-                    el.value = "";
-                });
+        $intervalGroup.addEventListener("blur", (ev) => {
+            if (ev.target.nodeName !== "BUTTON") update_input($intervalGroup);
+        });
+
+        $intervalGroup.querySelector("button.clear").addEventListener("click", () => {
+            $intervalGroup.querySelectorAll("input").forEach((el) => {
+                el.value = "";
+            });
         });
     }
 });
