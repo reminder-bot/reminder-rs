@@ -206,6 +206,18 @@ div.dashboard-frame {
     margin-bottom: 0 !important;
 }
 
+.embed-field-box[data-inlined="0"] .inline-btn > i {
+    transform: rotate(90deg);
+}
+
+.embed-field-box[data-inlined="0"] {
+    min-width: 100%;
+}
+
+.embed-field-box[data-inlined="1"] {
+    min-width: auto;
+}
+
 .menu a {
     color: #fff;
 }

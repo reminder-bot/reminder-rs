@@ -27,5 +27,5 @@ CREATE TABLE reminder_template (
 
     PRIMARY KEY (id),
 
-    FOREIGN KEY (`guild_id`) REFERENCES channels (`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`guild_id`) REFERENCES channels (`id`) ON DELETE CASCADE
 );

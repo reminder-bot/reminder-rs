@@ -161,6 +161,8 @@ function render_reminder(reminder, frame) {
         }
     }
 
+    if (reminder["interval_seconds"] !== null) update_interval(frame);
+
     let $enableBtn = frame.querySelector(".disable-enable");
     $enableBtn.dataset.action = reminder["enabled"] ? "disable" : "enable";
 
@@ -252,12 +254,7 @@ document.addEventListener("remindersLoaded", (event) => {
                 "fas fa-spinner fa-spin",
             ];
 
-            let seconds =
-                parseInt(node.querySelector('input[name="interval_seconds"]').value) ||
-                null;
-            let months =
-                parseInt(node.querySelector('input[name="interval_months"]').value) ||
-                null;
+            let interval = get_interval(node);
 
             let rgb_color = window.getComputedStyle(
                 node.querySelector("div.discord-embed")
@@ -302,8 +299,8 @@ document.addEventListener("remindersLoaded", (event) => {
                 embed_title: node.querySelector('textarea[name="embed_title"]').value,
                 embed_fields: fields,
                 expires: null,
-                interval_seconds: seconds,
-                interval_months: months,
+                interval_seconds: interval.seconds,
+                interval_months: interval.months,
                 name: node.querySelector('input[name="name"]').value,
                 pin: node.querySelector('input[name="pin"]').checked,
                 tts: node.querySelector('input[name="tts"]').checked,
@@ -406,28 +403,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (data.error) {
                 show_error(data.error);
             } else {
-                document.querySelectorAll("a.switch-pane").forEach((element) => {
-                    element.textContent = element.textContent.replace(
-                        "%username%",
-                        data.name
-                    );
-
-                    element.addEventListener("click", (e) => {
-                        e.preventDefault();
-
-                        switch_pane(element.dataset["pane"]);
-
-                        element.classList.add("is-active");
-
-                        document.querySelectorAll("p.pageTitle").forEach((el) => {
-                            el.textContent = "Your Reminders";
-                        });
-                    });
-                });
-
-                if (data.timezone !== null) {
-                    botTimezone = data.timezone;
-                }
+                if (data.timezone !== null) botTimezone = data.timezone;
 
                 update_times();
             }
@@ -512,13 +488,7 @@ let $createBtn = $createReminder.querySelector("button#createReminder");
 $createBtn.addEventListener("click", async () => {
     $createBtn.querySelector("span.icon > i").classList = ["fas fa-spinner fa-spin"];
 
-    // create reminder object
-    let seconds =
-        parseInt($createReminder.querySelector('input[name="interval_seconds"]').value) ||
-        null;
-    let months =
-        parseInt($createReminder.querySelector('input[name="interval_months"]').value) ||
-        null;
+    let interval = get_interval($createReminder);
 
     let rgb_color = window.getComputedStyle(
         $createReminder.querySelector("div.discord-embed")
@@ -535,6 +505,17 @@ $createBtn.addEventListener("click", async () => {
         $createBtn.querySelector("span.icon > i").classList = ["fas fa-sparkles"];
         return;
     }
+
+    let fields = [
+        ...$createReminder.querySelectorAll(
+            "div.embed-multifield-box div.embed-field-box"
+        ),
+    ].map((el) => {
+        return {
+            title: el.querySelector("textarea#embedFieldTitle").value,
+            value: el.querySelector("textarea#embedFieldValue").value,
+        };
+    });
 
     let attachment = null;
     let attachment_name = null;
@@ -575,11 +556,11 @@ $createBtn.addEventListener("click", async () => {
             $createReminder.querySelector("img.embed_thumbnail_url").src
         ),
         embed_title: $createReminder.querySelector("textarea#embedTitle").value,
-        embed_fields: [],
+        embed_fields: fields,
         enabled: true,
         expires: null,
-        interval_seconds: seconds,
-        interval_months: months,
+        interval_seconds: interval.seconds,
+        interval_months: interval.months,
         name: $createReminder.querySelector('input[name="name"]').value,
         pin: $createReminder.querySelector('input[name="pin"]').checked,
         restartable: false,
@@ -701,54 +682,81 @@ document.addEventListener("remindersLoaded", () => {
                 window.getComputedStyle($discordFrame).borderLeftColor;
         });
     });
+
+    document.querySelectorAll(".embed-field-box button.inline-btn").forEach((el) => {
+        el.addEventListener("click", (ev) => {
+            let inlined = ev.target.closest(".embed-field-box").dataset["inlined"];
+            ev.target.closest(".embed-field-box").dataset["inlined"] =
+                inlined === "1" ? "0" : "1";
+        });
+    });
 });
 
 function check_embed_fields() {
-    document.querySelectorAll(".discord-field-title").forEach((element) => {
+    document.querySelectorAll(".embed-field-box").forEach((element) => {
         const $template = document.querySelector("template#embedFieldTemplate");
-        const $complement = element.parentElement.querySelector(".discord-field-value");
+        const $titleInput = element.querySelector(".discord-field-title");
+        const $valueInput = element.querySelector(".discord-field-value");
 
         // when the user clicks out of the field title and if the field title/value are empty, remove the field
-        element.addEventListener("blur", () => {
+        $titleInput.addEventListener("blur", () => {
             if (
-                element.value === "" &&
-                $complement.value === "" &&
-                element.parentElement.nextElementSibling !== null
+                $titleInput.value === "" &&
+                $valueInput.value === "" &&
+                element.nextElementSibling !== null
             ) {
-                element.parentElement.remove();
+                element.remove();
             }
         });
 
-        $complement.addEventListener("blur", () => {
+        $valueInput.addEventListener("blur", () => {
             if (
-                element.value === "" &&
-                $complement.value === "" &&
-                element.parentElement.nextElementSibling !== null
+                $titleInput.value === "" &&
+                $valueInput.value === "" &&
+                element.nextElementSibling !== null
             ) {
-                element.parentElement.remove();
+                element.remove();
             }
         });
 
         // when the user inputs into the end field, create a new field after it
-        element.addEventListener("input", () => {
+        $titleInput.addEventListener("input", () => {
             if (
-                element.value !== "" &&
-                $complement.value !== "" &&
-                element.parentElement.nextElementSibling === null
+                $titleInput.value !== "" &&
+                $valueInput.value !== "" &&
+                element.nextElementSibling === null
             ) {
                 const $clone = $template.content.cloneNode(true);
-                element.parentElement.parentElement.append($clone);
+                $clone
+                    .querySelector(".embed-field-box button.inline-btn")
+                    .addEventListener("click", (ev) => {
+                        let inlined =
+                            ev.target.closest(".embed-field-box").dataset["inlined"];
+                        ev.target.closest(".embed-field-box").dataset["inlined"] =
+                            inlined == "1" ? "0" : "1";
+                    });
+
+                element.parentElement.append($clone);
             }
         });
 
-        $complement.addEventListener("input", () => {
+        $valueInput.addEventListener("input", () => {
             if (
-                element.value !== "" &&
-                $complement.value !== "" &&
-                element.parentElement.nextElementSibling === null
+                $titleInput.value !== "" &&
+                $valueInput.value !== "" &&
+                element.nextElementSibling === null
             ) {
                 const $clone = $template.content.cloneNode(true);
-                element.parentElement.parentElement.append($clone);
+                $clone
+                    .querySelector(".embed-field-box button.inline-btn")
+                    .addEventListener("click", (ev) => {
+                        let inlined =
+                            ev.target.closest(".embed-field-box").dataset["inlined"];
+                        ev.target.closest(".embed-field-box").dataset["inlined"] =
+                            inlined == "1" ? "0" : "1";
+                    });
+
+                element.parentElement.append($clone);
             }
         });
     });

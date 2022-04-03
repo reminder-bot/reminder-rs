@@ -58,13 +58,14 @@
                                 <br>
 
                                 <div class="embed-multifield-box">
-                                    <div class="embed-field-box">
+                                    <div data-inlined="1" class="embed-field-box">
                                         <label class="is-sr-only" for="embedFieldTitle">Field Title</label>
-                                        <textarea
-                                                class="discord-field-title field-input message-input autoresize "
-                                                placeholder="Field Title..." rows="1"
-                                                maxlength="256" id="embedFieldTitle"
-                                                name="embed_field_title[]"></textarea>
+                                        <div style="display: flex;">
+                                            <textarea class="discord-field-title field-input message-input autoresize"
+                                                      placeholder="Field Title..." rows="1"
+                                                      maxlength="256" id="embedFieldTitle" name="embed_field_title[]"></textarea>
+                                            <button class="button is-small inline-btn" style="height: 100%; padding: 5px;"><i class="fas fa-arrows-h"></i></button>
+                                        </div>
 
                                         <label class="is-sr-only" for="embedFieldValue">Field Value</label>
                                         <textarea

@@ -17,7 +17,11 @@ pub async fn listener(
         poise::Event::CacheReady { .. } => {
             info!("Cache Ready! Preparing extra processes");
 
-            if !data.is_loop_running.load(Ordering::Relaxed) {
+            if data
+                .is_loop_running
+                .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+                .is_ok()
+            {
                 let kill_tx = data.broadcast.clone();
                 let kill_recv = data.broadcast.subscribe();
 
@@ -49,8 +53,6 @@ pub async fn listener(
                 } else {
                     warn!("Not running web")
                 }
-
-                data.is_loop_running.swap(true, Ordering::Relaxed);
             }
         }
         poise::Event::ChannelDelete { channel } => {
