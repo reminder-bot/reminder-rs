@@ -4,6 +4,7 @@ use lazy_static::lazy_static;
 use log::{error, info, warn};
 use num_integer::Integer;
 use regex::{Captures, Regex};
+use serde::Deserialize;
 use serenity::{
     builder::CreateEmbed,
     http::{CacheHttp, Http, StatusCode},
@@ -15,7 +16,10 @@ use serenity::{
     Error, Result,
 };
 use sqlx::{
-    types::chrono::{NaiveDateTime, Utc},
+    types::{
+        chrono::{NaiveDateTime, Utc},
+        Json,
+    },
     Executor,
 };
 
@@ -94,11 +98,6 @@ pub fn substitute(string: &str) -> String {
 }
 
 struct Embed {
-    inner: EmbedInner,
-    fields: Vec<EmbedField>,
-}
-
-struct EmbedInner {
     title: String,
     description: String,
     image_url: Option<String>,
@@ -108,8 +107,10 @@ struct EmbedInner {
     author: String,
     author_url: Option<String>,
     color: u32,
+    fields: Json<Vec<EmbedField>>,
 }
 
+#[derive(Deserialize)]
 struct EmbedField {
     title: String,
     value: String,
@@ -121,76 +122,54 @@ impl Embed {
         pool: impl Executor<'_, Database = Database> + Copy,
         id: u32,
     ) -> Option<Self> {
-        let mut inner = sqlx::query_as_unchecked!(
-            EmbedInner,
-            "
-SELECT
-    `embed_title` AS title,
-    `embed_description` AS description,
-    `embed_image_url` AS image_url,
-    `embed_thumbnail_url` AS thumbnail_url,
-    `embed_footer` AS footer,
-    `embed_footer_url` AS footer_url,
-    `embed_author` AS author,
-    `embed_author_url` AS author_url,
-    `embed_color` AS color
-FROM
-    reminders
-WHERE
-    `id` = ?
-            ",
+        let mut embed = sqlx::query_as!(
+            Self,
+            r#"
+            SELECT
+             `embed_title` AS title,
+             `embed_description` AS description,
+             `embed_image_url` AS image_url,
+             `embed_thumbnail_url` AS thumbnail_url,
+             `embed_footer` AS footer,
+             `embed_footer_url` AS footer_url,
+             `embed_author` AS author,
+             `embed_author_url` AS author_url,
+             `embed_color` AS color,
+             IFNULL(`embed_fields`, '[]') AS "fields:_"
+            FROM reminders
+            WHERE `id` = ?"#,
             id
         )
         .fetch_one(pool)
         .await
         .unwrap();
 
-        inner.title = substitute(&inner.title);
-        inner.description = substitute(&inner.description);
-        inner.footer = substitute(&inner.footer);
+        embed.title = substitute(&embed.title);
+        embed.description = substitute(&embed.description);
+        embed.footer = substitute(&embed.footer);
 
-        let mut fields = sqlx::query_as_unchecked!(
-            EmbedField,
-            "
-SELECT
-    title,
-    value,
-    inline
-FROM
-    embed_fields
-WHERE
-    reminder_id = ?
-            ",
-            id
-        )
-        .fetch_all(pool)
-        .await
-        .unwrap();
-
-        fields.iter_mut().for_each(|mut field| {
+        embed.fields.iter_mut().for_each(|mut field| {
             field.title = substitute(&field.title);
             field.value = substitute(&field.value);
         });
 
-        let e = Embed { inner, fields };
-
-        if e.has_content() {
-            Some(e)
+        if embed.has_content() {
+            Some(embed)
         } else {
             None
         }
     }
 
     pub fn has_content(&self) -> bool {
-        if self.inner.title.is_empty()
-            && self.inner.description.is_empty()
-            && self.inner.image_url.is_none()
-            && self.inner.thumbnail_url.is_none()
-            && self.inner.footer.is_empty()
-            && self.inner.footer_url.is_none()
-            && self.inner.author.is_empty()
-            && self.inner.author_url.is_none()
-            && self.fields.is_empty()
+        if self.title.is_empty()
+            && self.description.is_empty()
+            && self.image_url.is_none()
+            && self.thumbnail_url.is_none()
+            && self.footer.is_empty()
+            && self.footer_url.is_none()
+            && self.author.is_empty()
+            && self.author_url.is_none()
+            && self.fields.0.is_empty()
         {
             false
         } else {
@@ -203,37 +182,37 @@ impl Into<CreateEmbed> for Embed {
     fn into(self) -> CreateEmbed {
         let mut c = CreateEmbed::default();
 
-        c.title(&self.inner.title)
-            .description(&self.inner.description)
-            .color(self.inner.color)
+        c.title(&self.title)
+            .description(&self.description)
+            .color(self.color)
             .author(|a| {
-                a.name(&self.inner.author);
+                a.name(&self.author);
 
-                if let Some(author_icon) = &self.inner.author_url {
+                if let Some(author_icon) = &self.author_url {
                     a.icon_url(author_icon);
                 }
 
                 a
             })
             .footer(|f| {
-                f.text(&self.inner.footer);
+                f.text(&self.footer);
 
-                if let Some(footer_icon) = &self.inner.footer_url {
+                if let Some(footer_icon) = &self.footer_url {
                     f.icon_url(footer_icon);
                 }
 
                 f
             });
 
-        for field in &self.fields {
+        for field in &self.fields.0 {
             c.field(&field.title, &field.value, field.inline);
         }
 
-        if let Some(image_url) = &self.inner.image_url {
+        if let Some(image_url) = &self.image_url {
             c.image(image_url);
         }
 
-        if let Some(thumbnail_url) = &self.inner.thumbnail_url {
+        if let Some(thumbnail_url) = &self.thumbnail_url {
             c.thumbnail(thumbnail_url);
         }
 

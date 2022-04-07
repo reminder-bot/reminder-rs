@@ -5,8 +5,6 @@ function get_interval(element) {
     let minutes = element.querySelector('input[name="interval_minutes"]').value;
     let seconds = element.querySelector('input[name="interval_seconds"]').value;
 
-    console.log(minutes);
-
     return {
         months: parseInt(months) || null,
         seconds:
@@ -53,7 +51,7 @@ function update_interval(element) {
     }
 }
 
-let $intervalGroup = document.querySelector(".interval-group");
+const $intervalGroup = document.querySelector(".interval-group");
 
 document.querySelector(".interval-group").addEventListener(
     "blur",
@@ -73,9 +71,13 @@ document.addEventListener("remindersLoaded", (event) => {
     for (reminder of event.detail) {
         let $intervalGroup = reminder.node.querySelector(".interval-group");
 
-        $intervalGroup.addEventListener("blur", (ev) => {
-            if (ev.target.nodeName !== "BUTTON") update_interval($intervalGroup);
-        });
+        $intervalGroup.addEventListener(
+            "blur",
+            (ev) => {
+                if (ev.target.nodeName !== "BUTTON") update_interval($intervalGroup);
+            },
+            true
+        );
 
         $intervalGroup.querySelector("button.clear").addEventListener("click", () => {
             $intervalGroup.querySelectorAll("input").forEach((el) => {

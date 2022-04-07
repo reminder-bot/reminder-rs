@@ -19,12 +19,13 @@ use crate::{
     check_guild_subscription, check_subscription,
     consts::{
         DAY, DISCORD_CDN, MAX_CONTENT_LENGTH, MAX_EMBED_AUTHOR_LENGTH,
-        MAX_EMBED_DESCRIPTION_LENGTH, MAX_EMBED_FOOTER_LENGTH, MAX_EMBED_TITLE_LENGTH,
+        MAX_EMBED_DESCRIPTION_LENGTH, MAX_EMBED_FIELDS, MAX_EMBED_FIELD_TITLE_LENGTH,
+        MAX_EMBED_FIELD_VALUE_LENGTH, MAX_EMBED_FOOTER_LENGTH, MAX_EMBED_TITLE_LENGTH,
         MAX_URL_LENGTH, MAX_USERNAME_LENGTH, MIN_INTERVAL,
     },
     routes::dashboard::{
-        create_database_channel, generate_uid, name_default, DeleteReminder, JsonReminder,
-        PatchReminder, Reminder,
+        create_database_channel, generate_uid, name_default, DeleteReminder, PatchReminder,
+        Reminder,
     },
 };
 
@@ -133,7 +134,7 @@ pub async fn get_guild_roles(id: u64, cookies: &CookieJar<'_>, ctx: &State<Conte
 #[post("/api/guild/<id>/reminders", data = "<reminder>")]
 pub async fn create_reminder(
     id: u64,
-    reminder: Json<JsonReminder>,
+    reminder: Json<Reminder>,
     cookies: &CookieJar<'_>,
     serenity_context: &State<Context>,
     pool: &State<Pool<MySql>>,
@@ -180,6 +181,13 @@ pub async fn create_reminder(
     check_length!(MAX_EMBED_TITLE_LENGTH, reminder.embed_title);
     check_length!(MAX_EMBED_AUTHOR_LENGTH, reminder.embed_author);
     check_length!(MAX_EMBED_FOOTER_LENGTH, reminder.embed_footer);
+    check_length_opt!(MAX_EMBED_FIELDS, reminder.embed_fields);
+    if let Some(fields) = &reminder.embed_fields {
+        for field in &fields.0 {
+            check_length!(MAX_EMBED_FIELD_VALUE_LENGTH, field.value);
+            check_length!(MAX_EMBED_FIELD_TITLE_LENGTH, field.title);
+        }
+    }
     check_length_opt!(MAX_USERNAME_LENGTH, reminder.username);
     check_length_opt!(
         MAX_URL_LENGTH,
@@ -245,6 +253,7 @@ pub async fn create_reminder(
          embed_image_url,
          embed_thumbnail_url,
          embed_title,
+         embed_fields,
          enabled,
          expires,
          interval_seconds,
@@ -255,7 +264,7 @@ pub async fn create_reminder(
          tts,
          username,
          `utc_time`
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         new_uid,
         attachment_data,
         reminder.attachment_name,
@@ -271,6 +280,7 @@ pub async fn create_reminder(
         reminder.embed_image_url,
         reminder.embed_thumbnail_url,
         reminder.embed_title,
+        reminder.embed_fields,
         reminder.enabled,
         reminder.expires,
         reminder.interval_seconds,
@@ -302,6 +312,7 @@ pub async fn create_reminder(
              reminders.embed_image_url,
              reminders.embed_thumbnail_url,
              reminders.embed_title,
+             reminders.embed_fields,
              reminders.enabled,
              reminders.expires,
              reminders.interval_seconds,
@@ -324,7 +335,7 @@ pub async fn create_reminder(
         .unwrap_or_else(|e| {
             warn!("Failed to complete SQL query: {:?}", e);
 
-            json!({"error": "Could not load reminders"})
+            json!({"error": "Could not load reminder"})
         }),
 
         Err(e) => {
@@ -365,6 +376,7 @@ pub async fn get_reminders(id: u64, ctx: &State<Context>, pool: &State<Pool<MySq
                  reminders.embed_image_url,
                  reminders.embed_thumbnail_url,
                  reminders.embed_title,
+                 reminders.embed_fields,
                  reminders.enabled,
                  reminders.expires,
                  reminders.interval_seconds,
@@ -421,6 +433,7 @@ pub async fn edit_reminder(
         embed_image_url,
         embed_thumbnail_url,
         embed_title,
+        embed_fields,
         enabled,
         expires,
         interval_seconds,
@@ -507,6 +520,7 @@ pub async fn edit_reminder(
          reminders.embed_image_url,
          reminders.embed_thumbnail_url,
          reminders.embed_title,
+         reminders.embed_fields,
          reminders.enabled,
          reminders.expires,
          reminders.interval_seconds,

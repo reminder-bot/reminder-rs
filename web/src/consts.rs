@@ -10,9 +10,9 @@ pub const MAX_EMBED_AUTHOR_LENGTH: usize = 256;
 pub const MAX_EMBED_FOOTER_LENGTH: usize = 2048;
 pub const MAX_URL_LENGTH: usize = 512;
 pub const MAX_USERNAME_LENGTH: usize = 100;
+pub const MAX_EMBED_FIELDS: usize = 25;
 pub const MAX_EMBED_FIELD_TITLE_LENGTH: usize = 256;
 pub const MAX_EMBED_FIELD_VALUE_LENGTH: usize = 1024;
-pub const MAX_EMBED_FIELDS: usize = 25;
 
 pub const MINUTE: usize = 60;
 pub const HOUR: usize = 60 * MINUTE;

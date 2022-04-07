@@ -6,7 +6,7 @@ use rocket::{http::CookieJar, response::Redirect};
 use rocket_dyn_templates::Template;
 use serde::{Deserialize, Serialize};
 use serenity::{http::Http, model::id::ChannelId};
-use sqlx::Executor;
+use sqlx::{types::Json, Executor};
 
 use crate::{
     consts::{CHARACTERS, DEFAULT_AVATAR},
@@ -30,39 +30,7 @@ fn channel_default() -> u64 {
 pub struct EmbedField {
     title: String,
     value: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct JsonReminder {
-    attachment: Option<String>,
-    attachment_name: Option<String>,
-    avatar: Option<String>,
-    #[serde(with = "string")]
-    channel: u64,
-    content: String,
-    embed_author: String,
-    embed_author_url: Option<String>,
-    embed_color: u32,
-    embed_description: String,
-    embed_footer: String,
-    embed_footer_url: Option<String>,
-    embed_image_url: Option<String>,
-    embed_thumbnail_url: Option<String>,
-    embed_title: String,
-    embed_fields: Vec<EmbedField>,
-    enabled: bool,
-    expires: Option<NaiveDateTime>,
-    interval_seconds: Option<u32>,
-    interval_months: Option<u32>,
-    #[serde(default = "name_default")]
-    name: String,
-    pin: bool,
-    restartable: bool,
-    tts: bool,
-    #[serde(default)]
-    uid: String,
-    username: Option<String>,
-    utc_time: NaiveDateTime,
+    inline: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -82,6 +50,7 @@ pub struct Reminder {
     embed_image_url: Option<String>,
     embed_thumbnail_url: Option<String>,
     embed_title: String,
+    embed_fields: Option<Json<Vec<EmbedField>>>,
     enabled: bool,
     expires: Option<NaiveDateTime>,
     interval_seconds: Option<u32>,
@@ -130,7 +99,7 @@ pub struct PatchReminder {
     #[serde(default)]
     embed_title: Unset<String>,
     #[serde(default)]
-    embed_fields: Unset<EmbedField>,
+    embed_fields: Unset<Json<Vec<EmbedField>>>,
     #[serde(default)]
     enabled: Unset<bool>,
     #[serde(default)]

@@ -29,3 +29,5 @@ CREATE TABLE reminder_template (
 
     FOREIGN KEY (`guild_id`) REFERENCES channels (`id`) ON DELETE CASCADE
 );
+
+ALTER TABLE reminders ADD COLUMN embed_fields JSON;

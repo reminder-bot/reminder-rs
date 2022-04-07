@@ -5,10 +5,10 @@ const $colorPickerModal = document.querySelector("div#pickColorModal");
 const $colorPickerInput = $colorPickerModal.querySelector("input");
 const $deleteReminderBtn = document.querySelector("#delete-reminder-confirm");
 const $reminderTemplate = document.querySelector("template#guildReminder");
+const $embedFieldTemplate = document.querySelector("template#embedFieldTemplate");
 
 let channels;
 let roles;
-let guild_id;
 
 function colorToInt(r, g, b) {
     return (r << 16) + (g << 8) + b;
@@ -118,10 +118,10 @@ async function fetch_reminders(guild_id) {
                 for (let reminder of data) {
                     let newFrame = $reminderTemplate.content.cloneNode(true);
 
-                    newFrame.querySelector(".reminderContent").dataset.uid =
+                    newFrame.querySelector(".reminderContent").dataset["uid"] =
                         reminder["uid"];
 
-                    render_reminder(reminder, newFrame);
+                    deserialize_reminder(reminder, newFrame);
 
                     $reminderBox.appendChild(newFrame);
 
@@ -137,7 +137,87 @@ async function fetch_reminders(guild_id) {
         });
 }
 
-function render_reminder(reminder, frame) {
+async function serialize_reminder(node) {
+    let interval = get_interval(node);
+
+    let rgb_color = window.getComputedStyle(
+        node.querySelector("div.discord-embed")
+    ).borderLeftColor;
+    let rgb = rgb_color.match(/\d+/g);
+    let color = colorToInt(parseInt(rgb[0]), parseInt(rgb[1]), parseInt(rgb[2]));
+
+    let utc_time = luxon.DateTime.fromISO(
+        node.querySelector('input[name="time"]').value
+    ).setZone("UTC");
+
+    if (utc_time.invalid) {
+        return { error: "Time provided invalid." };
+    }
+
+    let fields = [
+        ...node.querySelectorAll("div.embed-multifield-box div.embed-field-box"),
+    ]
+        .map((el) => {
+            return {
+                title: el.querySelector("textarea#embedFieldTitle").value,
+                value: el.querySelector("textarea#embedFieldValue").value,
+                inline: el.dataset["inlined"] === "1",
+            };
+        })
+        .filter(({ title, value, inline }) => title.length + value.length > 0);
+
+    let attachment = null;
+    let attachment_name = null;
+
+    if (node.querySelector('input[name="attachment"]').files.length > 0) {
+        let file = node.querySelector('input[name="attachment"]').files[0];
+
+        attachment = await new Promise((resolve) => {
+            let fileReader = new FileReader();
+            fileReader.onload = (e) => resolve(fileReader.result);
+            fileReader.readAsDataURL(file);
+        });
+        attachment = attachment.split(",")[1];
+        attachment_name = file.name;
+    }
+
+    const reminderContent = node.closest(".reminderContent");
+
+    return {
+        // if we're creating a reminder, ignore this field
+        uid: reminderContent !== null ? reminderContent.dataset["uid"] : "",
+        // if we're editing a reminder, ignore this field
+        enabled: reminderContent !== null ? null : true,
+        restartable: false,
+        attachment: attachment,
+        attachment_name: attachment_name,
+        avatar: has_source(node.querySelector("img.discord-avatar").src),
+        channel: node.querySelector("select.channel-selector").value,
+        content: node.querySelector('textarea[name="content"]').value,
+        embed_author_url: has_source(node.querySelector("img.embed_author_url").src),
+        embed_author: node.querySelector('textarea[name="embed_author"]').value,
+        embed_color: color,
+        embed_description: node.querySelector('textarea[name="embed_description"]').value,
+        embed_footer: node.querySelector('textarea[name="embed_footer"]').value,
+        embed_footer_url: has_source(node.querySelector("img.embed_footer_url").src),
+        embed_image_url: has_source(node.querySelector("img.embed_image_url").src),
+        embed_thumbnail_url: has_source(
+            node.querySelector("img.embed_thumbnail_url").src
+        ),
+        embed_title: node.querySelector('textarea[name="embed_title"]').value,
+        embed_fields: fields,
+        expires: null,
+        interval_seconds: interval.seconds,
+        interval_months: interval.months,
+        name: node.querySelector('input[name="name"]').value,
+        pin: node.querySelector('input[name="pin"]').checked,
+        tts: node.querySelector('input[name="tts"]').checked,
+        username: node.querySelector('input[name="username"]').value,
+        utc_time: utc_time.toFormat("yyyy-LL-dd'T'HH:mm:ss"),
+    };
+}
+
+function deserialize_reminder(reminder, frame) {
     // populate channels
     set_channels(frame.querySelector("select.channel-selector"));
 
@@ -161,10 +241,25 @@ function render_reminder(reminder, frame) {
         }
     }
 
+    const lastChild = frame.querySelector("div.embed-multifield-box .embed-field-box");
+
+    for (let field of reminder["embed_fields"]) {
+        let embed_field = $embedFieldTemplate.content.cloneNode(true);
+        embed_field.querySelector("textarea.discord-field-title").value = field["title"];
+        embed_field.querySelector("textarea.discord-field-value").value = field["value"];
+        embed_field.querySelector(".embed-field-box").dataset["inlined"] = field["inline"]
+            ? "1"
+            : "0";
+
+        frame
+            .querySelector("div.embed-multifield-box")
+            .insertBefore(embed_field, lastChild);
+    }
+
     if (reminder["interval_seconds"] !== null) update_interval(frame);
 
     let $enableBtn = frame.querySelector(".disable-enable");
-    $enableBtn.dataset.action = reminder["enabled"] ? "disable" : "enable";
+    $enableBtn.dataset["action"] = reminder["enabled"] ? "disable" : "enable";
 
     let timeInput = frame.querySelector('input[name="time"]');
     let localTime = luxon.DateTime.fromISO(reminder["utc_time"], { zone: "UTC" }).setZone(
@@ -223,7 +318,7 @@ document.addEventListener("remindersLoaded", (event) => {
 
         const enableBtn = node.querySelector(".disable-enable");
         enableBtn.addEventListener("click", () => {
-            let enable = enableBtn.dataset.action === "enable";
+            let enable = enableBtn.dataset["action"] === "enable";
 
             fetch(`/dashboard/api/guild/${guild}/reminders`, {
                 method: "PATCH",
@@ -237,7 +332,9 @@ document.addEventListener("remindersLoaded", (event) => {
                     if (data.error) {
                         show_error(data.error);
                     } else {
-                        enableBtn.dataset.action = data["enabled"] ? "enable" : "disable";
+                        enableBtn.dataset["action"] = data["enabled"]
+                            ? "enable"
+                            : "disable";
                     }
                 });
         });
@@ -249,66 +346,17 @@ document.addEventListener("remindersLoaded", (event) => {
 
         const $saveBtn = node.querySelector("button.save-btn");
 
-        $saveBtn.addEventListener("click", (event) => {
+        $saveBtn.addEventListener("click", async (event) => {
             $saveBtn.querySelector("span.icon > i").classList = [
                 "fas fa-spinner fa-spin",
             ];
 
-            let interval = get_interval(node);
+            let reminder = await serialize_reminder(node);
+            if (reminder.error) {
+                show_error(reminder.error);
+                return;
+            }
 
-            let rgb_color = window.getComputedStyle(
-                node.querySelector("div.discord-embed")
-            ).borderLeftColor;
-            let rgb = rgb_color.match(/\d+/g);
-            let color = colorToInt(parseInt(rgb[0]), parseInt(rgb[1]), parseInt(rgb[2]));
-
-            let utc_time = luxon.DateTime.fromISO(
-                node.querySelector('input[name="time"]').value
-            ).setZone("UTC");
-
-            let fields = node.querySelectorAll(".embed-field-box", (el) => {
-                return {
-                    title: el.querySelector('input[name="embed_field_title[]"]').value,
-                    value: el.querySelector('input[name="embed_field_value[]"]').value,
-                };
-            });
-
-            let reminder = {
-                uid: node.closest(".reminderContent").dataset["uid"],
-                avatar: has_source(node.querySelector("img.discord-avatar").src),
-                channel: node.querySelector("select.channel-selector").value,
-                content: node.querySelector('textarea[name="content"]').value,
-                embed_author_url: has_source(
-                    node.querySelector("img.embed_author_url").src
-                ),
-                embed_author: node.querySelector('textarea[name="embed_author"]').value,
-                embed_color: color,
-                embed_description: node.querySelector(
-                    'textarea[name="embed_description"]'
-                ).value,
-                embed_footer: node.querySelector('textarea[name="embed_footer"]').value,
-                embed_footer_url: has_source(
-                    node.querySelector("img.embed_footer_url").src
-                ),
-                embed_image_url: has_source(
-                    node.querySelector("img.embed_image_url").src
-                ),
-                embed_thumbnail_url: has_source(
-                    node.querySelector("img.embed_thumbnail_url").src
-                ),
-                embed_title: node.querySelector('textarea[name="embed_title"]').value,
-                embed_fields: fields,
-                expires: null,
-                interval_seconds: interval.seconds,
-                interval_months: interval.months,
-                name: node.querySelector('input[name="name"]').value,
-                pin: node.querySelector('input[name="pin"]').checked,
-                tts: node.querySelector('input[name="tts"]').checked,
-                username: node.querySelector('input[name="username"]').value,
-                utc_time: utc_time.toFormat("yyyy-LL-dd'T'HH:mm:ss"),
-            };
-
-            // send to server
             let guild = document.querySelector(".guildList a.is-active").dataset["guild"];
 
             fetch(`/dashboard/api/guild/${guild}/reminders`, {
@@ -319,7 +367,9 @@ document.addEventListener("remindersLoaded", (event) => {
                 body: JSON.stringify(reminder),
             })
                 .then((response) => response.json())
-                .then((data) => console.log(data));
+                .then((data) => {
+                    for (let error of data.errors) show_error(error);
+                });
 
             $saveBtn.querySelector("span.icon > i").classList = ["fas fa-check"];
 
@@ -384,7 +434,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".navbar-burger").forEach((el) => {
         el.addEventListener("click", () => {
-            const target = el.dataset.target;
+            const target = el.dataset["target"];
             const $target = document.getElementById(target);
 
             el.classList.toggle("is-active");
@@ -433,8 +483,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
                         $anchor.addEventListener("click", async (e) => {
                             e.preventDefault();
-
-                            guild_id = guild.id;
 
                             const event = new CustomEvent("guildSwitched", {
                                 detail: {
@@ -488,35 +536,6 @@ let $createBtn = $createReminder.querySelector("button#createReminder");
 $createBtn.addEventListener("click", async () => {
     $createBtn.querySelector("span.icon > i").classList = ["fas fa-spinner fa-spin"];
 
-    let interval = get_interval($createReminder);
-
-    let rgb_color = window.getComputedStyle(
-        $createReminder.querySelector("div.discord-embed")
-    ).borderLeftColor;
-    let rgb = rgb_color.match(/\d+/g);
-    let color = colorToInt(parseInt(rgb[0]), parseInt(rgb[1]), parseInt(rgb[2]));
-
-    let utc_time = luxon.DateTime.fromISO(
-        $createReminder.querySelector('input[name="time"]').value
-    ).setZone("UTC");
-
-    if (utc_time.invalid) {
-        show_error("Time provided invalid.");
-        $createBtn.querySelector("span.icon > i").classList = ["fas fa-sparkles"];
-        return;
-    }
-
-    let fields = [
-        ...$createReminder.querySelectorAll(
-            "div.embed-multifield-box div.embed-field-box"
-        ),
-    ].map((el) => {
-        return {
-            title: el.querySelector("textarea#embedFieldTitle").value,
-            value: el.querySelector("textarea#embedFieldValue").value,
-        };
-    });
-
     let attachment = null;
     let attachment_name = null;
 
@@ -532,44 +551,12 @@ $createBtn.addEventListener("click", async () => {
         attachment_name = file.name;
     }
 
-    let reminder = {
-        attachment: attachment,
-        attachment_name: attachment_name,
-        avatar: has_source($createReminder.querySelector("img.discord-avatar").src),
-        channel: $createReminder.querySelector("select.channel-selector").value,
-        content: $createReminder.querySelector("textarea#messageContent").value,
-        embed_author_url: has_source(
-            $createReminder.querySelector("img.embed_author_url").src
-        ),
-        embed_author: $createReminder.querySelector("textarea#embedAuthor").value,
-        embed_color: color,
-        embed_description: $createReminder.querySelector("textarea#embedDescription")
-            .value,
-        embed_footer: $createReminder.querySelector("textarea#embedFooter").value,
-        embed_footer_url: has_source(
-            $createReminder.querySelector("img.embed_footer_url").src
-        ),
-        embed_image_url: has_source(
-            $createReminder.querySelector("img.embed_image_url").src
-        ),
-        embed_thumbnail_url: has_source(
-            $createReminder.querySelector("img.embed_thumbnail_url").src
-        ),
-        embed_title: $createReminder.querySelector("textarea#embedTitle").value,
-        embed_fields: fields,
-        enabled: true,
-        expires: null,
-        interval_seconds: interval.seconds,
-        interval_months: interval.months,
-        name: $createReminder.querySelector('input[name="name"]').value,
-        pin: $createReminder.querySelector('input[name="pin"]').checked,
-        restartable: false,
-        tts: $createReminder.querySelector('input[name="tts"]').checked,
-        username: $createReminder.querySelector("input#reminderUsername").value,
-        utc_time: utc_time.toFormat("yyyy-LL-dd'T'HH:mm:ss"),
-    };
+    let reminder = await serialize_reminder($createReminder);
+    if (reminder.error) {
+        show_error(reminder.error);
+        return;
+    }
 
-    // send to server
     let guild = document.querySelector(".guildList a.is-active").dataset["guild"];
 
     fetch(`/dashboard/api/guild/${guild}/reminders`, {
@@ -589,7 +576,7 @@ $createBtn.addEventListener("click", async () => {
 
                 newFrame.querySelector(".reminderContent").dataset["uid"] = data["uid"];
 
-                render_reminder(data, newFrame);
+                deserialize_reminder(data, newFrame);
 
                 $reminderBox.appendChild(newFrame);
 
@@ -682,19 +669,10 @@ document.addEventListener("remindersLoaded", () => {
                 window.getComputedStyle($discordFrame).borderLeftColor;
         });
     });
-
-    document.querySelectorAll(".embed-field-box button.inline-btn").forEach((el) => {
-        el.addEventListener("click", (ev) => {
-            let inlined = ev.target.closest(".embed-field-box").dataset["inlined"];
-            ev.target.closest(".embed-field-box").dataset["inlined"] =
-                inlined === "1" ? "0" : "1";
-        });
-    });
 });
 
 function check_embed_fields() {
     document.querySelectorAll(".embed-field-box").forEach((element) => {
-        const $template = document.querySelector("template#embedFieldTemplate");
         const $titleInput = element.querySelector(".discord-field-title");
         const $valueInput = element.querySelector(".discord-field-value");
 
@@ -726,16 +704,7 @@ function check_embed_fields() {
                 $valueInput.value !== "" &&
                 element.nextElementSibling === null
             ) {
-                const $clone = $template.content.cloneNode(true);
-                $clone
-                    .querySelector(".embed-field-box button.inline-btn")
-                    .addEventListener("click", (ev) => {
-                        let inlined =
-                            ev.target.closest(".embed-field-box").dataset["inlined"];
-                        ev.target.closest(".embed-field-box").dataset["inlined"] =
-                            inlined == "1" ? "0" : "1";
-                    });
-
+                const $clone = $embedFieldTemplate.content.cloneNode(true);
                 element.parentElement.append($clone);
             }
         });
@@ -746,16 +715,7 @@ function check_embed_fields() {
                 $valueInput.value !== "" &&
                 element.nextElementSibling === null
             ) {
-                const $clone = $template.content.cloneNode(true);
-                $clone
-                    .querySelector(".embed-field-box button.inline-btn")
-                    .addEventListener("click", (ev) => {
-                        let inlined =
-                            ev.target.closest(".embed-field-box").dataset["inlined"];
-                        ev.target.closest(".embed-field-box").dataset["inlined"] =
-                            inlined == "1" ? "0" : "1";
-                    });
-
+                const $clone = $embedFieldTemplate.content.cloneNode(true);
                 element.parentElement.append($clone);
             }
         });
@@ -779,4 +739,12 @@ document.addEventListener("DOMNodeInserted", () => {
 
     check_embed_fields();
     resize_textareas();
+});
+
+document.addEventListener("click", (ev) => {
+    if (ev.target.closest("button.inline-btn") !== null) {
+        let inlined = ev.target.closest(".embed-field-box").dataset["inlined"];
+        ev.target.closest(".embed-field-box").dataset["inlined"] =
+            inlined == "1" ? "0" : "1";
+    }
 });

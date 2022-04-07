@@ -9,7 +9,11 @@ mod routes;
 use std::{collections::HashMap, env};
 
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
-use rocket::{fs::FileServer, tokio::sync::broadcast::Sender};
+use rocket::{
+    fs::FileServer,
+    serde::json::{json, Json, Value as JsonValue},
+    tokio::sync::broadcast::Sender,
+};
 use rocket_dyn_templates::Template;
 use serenity::{
     client::Context,
@@ -46,6 +50,11 @@ async fn not_found() -> Template {
     Template::render("errors/404", &map)
 }
 
+#[catch(422)]
+async fn unprocessable_entity() -> JsonValue {
+    json!({"error": "Invalid request.", "errors": ["Invalid request."]})
+}
+
 #[catch(500)]
 async fn internal_server_error() -> Template {
     let map: HashMap<String, String> = HashMap::new();
@@ -69,7 +78,16 @@ pub async fn initialize(
 
     rocket::build()
         .attach(Template::fairing())
-        .register("/", catchers![not_authorized, forbidden, not_found, internal_server_error])
+        .register(
+            "/",
+            catchers![
+                not_authorized,
+                forbidden,
+                not_found,
+                internal_server_error,
+                unprocessable_entity
+            ],
+        )
         .manage(oauth2_client)
         .manage(reqwest_client)
         .manage(serenity_context)
@@ -105,10 +123,6 @@ pub async fn initialize(
                 routes::dashboard::user::get_user_info,
                 routes::dashboard::user::update_user_info,
                 routes::dashboard::user::get_user_guilds,
-                routes::dashboard::user::create_reminder,
-                routes::dashboard::user::get_reminders,
-                routes::dashboard::user::overwrite_reminder,
-                routes::dashboard::user::delete_reminder,
                 routes::dashboard::guild::get_guild_channels,
                 routes::dashboard::guild::get_guild_roles,
                 routes::dashboard::guild::create_reminder,

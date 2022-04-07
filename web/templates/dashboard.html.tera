@@ -140,6 +140,23 @@
     <button class="modal-close is-large close-modal" aria-label="close"></button>
 </div>
 
+<div class="modal" id="dataManagerModal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+        <header class="modal-card-head">
+            <label class="modal-card-title" for="urlInput">Import/Export Manager <a href="/help/iemanager"><span><i class="fa fa-question-circle"></i></span></a></label>
+            <button class="delete close-modal" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body">
+            <div class="has-text-centered">
+                <button class="button is-success is-outlined" id="import-data">Import Data</button>
+                <button class="button is-success" id="export-data">Export Data</button>
+            </div>
+        </section>
+    </div>
+    <button class="modal-close is-large close-modal" aria-label="close"></button>
+</div>
+
 <div class="modal" id="deleteReminderModal">
     <div class="modal-background"></div>
     <div class="modal-card">
@@ -182,12 +199,15 @@
             <ul class="menu-list guildList">
 
             </ul>
-            <div class="aside-footer" style="position: fixed; bottom: 0;">
+            <div class="aside-footer" style="position: fixed; bottom: 0; width: 226px;">
                 <p class="menu-label">
                     Settings
                 </p>
                 <ul class="menu-list">
                     <li>
+                        <a class="show-modal" data-modal="dataManagerModal">
+                            <span class="icon"><i class="fas fa-exchange"></i></span> Import/Export
+                        </a>
                         <a class="show-modal" data-modal="chooseTimezoneModal">
                             <span class="icon"><i class="fas fa-map-marked"></i></span> Timezone
                         </a>
@@ -212,16 +232,6 @@
         </svg>
         <aside class="menu" style="display: flex; flex-direction: column; flex-grow: 1;">
             <p class="menu-label">
-                Personal
-            </p>
-            <ul class="menu-list">
-                <li>
-                    <a class="switch-pane" data-pane="personal">
-                        <span class="icon"><i class="fas fa-map-pin"></i></span> @%username%
-                    </a>
-                </li>
-            </ul>
-            <p class="menu-label">
                 Servers
             </p>
             <ul class="menu-list guildList">
@@ -233,6 +243,9 @@
                 </p>
                 <ul class="menu-list">
                     <li>
+                        <a class="show-modal" data-modal="dataManagerModal">
+                            <span class="icon"><i class="fas fa-exchange"></i></span> Import/Export
+                        </a>
                         <a class="show-modal" data-modal="chooseTimezoneModal">
                             <span class="icon"><i class="fas fa-map-marked"></i></span> Timezone
                         </a>
