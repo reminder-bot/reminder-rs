@@ -24,8 +24,8 @@ use crate::{
         MAX_URL_LENGTH, MAX_USERNAME_LENGTH, MIN_INTERVAL,
     },
     routes::dashboard::{
-        create_database_channel, generate_uid, name_default, DeleteReminder, PatchReminder,
-        Reminder,
+        create_database_channel, generate_uid, name_default, template_name_default, DeleteReminder,
+        PatchReminder, Reminder, ReminderTemplate,
     },
 };
 
@@ -127,6 +127,135 @@ pub async fn get_guild_roles(id: u64, cookies: &CookieJar<'_>, ctx: &State<Conte
             warn!("Could not fetch roles from {}", id);
 
             json!({"error": "Could not get roles"})
+        }
+    }
+}
+
+#[get("/api/guild/<id>/templates")]
+pub async fn get_reminder_templates(
+    id: u64,
+    cookies: &CookieJar<'_>,
+    ctx: &State<Context>,
+    pool: &State<Pool<MySql>>,
+) -> JsonValue {
+    check_authorization!(cookies, ctx.inner(), id);
+
+    match sqlx::query_as_unchecked!(
+        ReminderTemplate,
+        "SELECT * FROM reminder_template WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?)",
+        id
+    )
+    .fetch_all(pool.inner())
+    .await
+    {
+        Ok(templates) => {
+            json!(templates)
+        }
+        Err(e) => {
+            warn!("Could not fetch templates from {}: {:?}", id, e);
+
+            json!({"error": "Could not get templates"})
+        }
+    }
+}
+
+#[post("/api/guild/<id>/templates", data = "<reminder_template>")]
+pub async fn create_reminder_template(
+    id: u64,
+    reminder_template: Json<ReminderTemplate>,
+    cookies: &CookieJar<'_>,
+    ctx: &State<Context>,
+    pool: &State<Pool<MySql>>,
+) -> JsonValue {
+    check_authorization!(cookies, ctx.inner(), id);
+
+    // validate lengths
+    check_length!(MAX_CONTENT_LENGTH, reminder_template.content);
+    check_length!(MAX_EMBED_DESCRIPTION_LENGTH, reminder_template.embed_description);
+    check_length!(MAX_EMBED_TITLE_LENGTH, reminder_template.embed_title);
+    check_length!(MAX_EMBED_AUTHOR_LENGTH, reminder_template.embed_author);
+    check_length!(MAX_EMBED_FOOTER_LENGTH, reminder_template.embed_footer);
+    check_length_opt!(MAX_EMBED_FIELDS, reminder_template.embed_fields);
+    if let Some(fields) = &reminder_template.embed_fields {
+        for field in &fields.0 {
+            check_length!(MAX_EMBED_FIELD_VALUE_LENGTH, field.value);
+            check_length!(MAX_EMBED_FIELD_TITLE_LENGTH, field.title);
+        }
+    }
+    check_length_opt!(MAX_USERNAME_LENGTH, reminder_template.username);
+    check_length_opt!(
+        MAX_URL_LENGTH,
+        reminder_template.embed_footer_url,
+        reminder_template.embed_thumbnail_url,
+        reminder_template.embed_author_url,
+        reminder_template.embed_image_url,
+        reminder_template.avatar
+    );
+
+    // validate urls
+    check_url_opt!(
+        reminder_template.embed_footer_url,
+        reminder_template.embed_thumbnail_url,
+        reminder_template.embed_author_url,
+        reminder_template.embed_image_url,
+        reminder_template.avatar
+    );
+
+    let name = if reminder_template.name.is_empty() {
+        template_name_default()
+    } else {
+        reminder_template.name.clone()
+    };
+
+    match sqlx::query!(
+        "INSERT INTO reminder_template
+        (guild_id,
+         name,
+         attachment,
+         attachment_name,
+         avatar,
+         content,
+         embed_author,
+         embed_author_url,
+         embed_color,
+         embed_description,
+         embed_footer,
+         embed_footer_url,
+         embed_image_url,
+         embed_thumbnail_url,
+         embed_title,
+         embed_fields,
+         tts,
+         username
+        ) VALUES ((SELECT id FROM guilds WHERE guild = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        id, name,
+        reminder_template.attachment,
+        reminder_template.attachment_name,
+        reminder_template.avatar,
+        reminder_template.content,
+        reminder_template.embed_author,
+        reminder_template.embed_author_url,
+        reminder_template.embed_color,
+        reminder_template.embed_description,
+        reminder_template.embed_footer,
+        reminder_template.embed_footer_url,
+        reminder_template.embed_image_url,
+        reminder_template.embed_thumbnail_url,
+        reminder_template.embed_title,
+        reminder_template.embed_fields,
+        reminder_template.tts,
+        reminder_template.username,
+    )
+    .fetch_all(pool.inner())
+    .await
+    {
+        Ok(_) => {
+            json!({})
+        }
+        Err(e) => {
+            warn!("Could not fetch templates from {}: {:?}", id, e);
+
+            json!({"error": "Could not get templates"})
         }
     }
 }
@@ -550,9 +679,8 @@ pub async fn edit_reminder(
     }
 }
 
-#[delete("/api/guild/<id>/reminders", data = "<reminder>")]
+#[delete("/api/guild/<_>/reminders", data = "<reminder>")]
 pub async fn delete_reminder(
-    id: u64,
     reminder: Json<DeleteReminder>,
     pool: &State<Pool<MySql>>,
 ) -> JsonValue {

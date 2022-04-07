@@ -24,10 +24,11 @@ CREATE TABLE reminder_template (
     `embed_author` VARCHAR(256) NOT NULL DEFAULT '',
     `embed_author_url` VARCHAR(512),
     `embed_color` INT UNSIGNED NOT NULL DEFAULT 0x0,
+    `embed_fields` JSON,
 
     PRIMARY KEY (id),
 
-    FOREIGN KEY (`guild_id`) REFERENCES channels (`id`) ON DELETE CASCADE
+    FOREIGN KEY (`guild_id`) REFERENCES guilds (`id`) ON DELETE CASCADE
 );
 
 ALTER TABLE reminders ADD COLUMN embed_fields JSON;

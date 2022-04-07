@@ -6,6 +6,7 @@
     <meta charset="UTF-8">
     <meta name="yandex-verification" content="bb77b8681eb64a90"/>
     <meta name="google-site-verification" content="7h7UVTeEe0AOzHiH3cFtsqMULYGN-zCZdMT_YCkW1Ho"/>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src *; font-src fonts.gstatic.com 'self'">
 
     <!-- favicon -->
     <link rel="apple-touch-icon" sizes="180x180"
@@ -27,10 +28,7 @@
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="/static/css/dtsel.css">
 
-    <script src="/static/js/iro.js"></script>
-    <script src="/static/js/dtsel.js"></script>
     <script src="/static/js/luxon.min.js"></script>
-
 </head>
 <body>
 <nav class="navbar is-spaced is-size-4 is-hidden-desktop dashboard-navbar" role="navigation"
@@ -54,10 +52,10 @@
     </div>
 </nav>
 
-<div id="loader" class="is-hidden hero is-fullheight" style="position: fixed; background-color: rgba(255, 255, 255, 0.8); width: 100vw; z-index: 999;">
+<div id="loader" class="is-hidden hero is-fullheight">
     <div class="hero-body">
         <div class="container has-text-centered">
-            <p class="title" style="font-size: 6rem; color: #8fb677">
+            <p class="title">
                 <i class="fas fa-cog fa-spin"></i>
             </p>
             <p class="subtitle">
@@ -68,7 +66,7 @@
 </div>
 
 <!-- dead image used to check which other images are dead -->
-<img style="display: none;" src="" id="dead">
+<img src="" id="dead">
 
 <div class="notification is-danger flash-message" id="errors">
     <span class="icon"><i class="far fa-exclamation-circle"></i></span> <span class="error-message"></span>
@@ -100,7 +98,7 @@
             <button class="delete close-modal" aria-label="close"></button>
         </header>
         <section class="modal-card-body">
-            <div style="display: flex; justify-content: center">
+            <div class="colorpicker-container">
                 <div id="colorpicker"></div>
             </div>
             <input class="input" id="colorInput">
@@ -134,6 +132,33 @@
                 <button class="button is-success close-modal" id="set-browser-timezone">Use Browser Timezone</button>
                 <button class="button is-link close-modal" id="set-bot-timezone">Use Bot Timezone</button>
                 <button class="button is-warning close-modal" id="update-bot-timezone">Set Bot Timezone</button>
+            </div>
+        </section>
+    </div>
+    <button class="modal-close is-large close-modal" aria-label="close"></button>
+</div>
+
+<div class="modal" id="chooseTemplateModal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+        <header class="modal-card-head">
+            <label class="modal-card-title" for="urlInput">Load Template</label>
+            <button class="delete close-modal" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body">
+            <div class="control has-icons-left">
+                <div class="select is-fullwidth">
+                    <select id="templateSelect">
+                    </select>
+                </div>
+                <div class="icon is-small is-left">
+                    <i class="fas fa-file-spreadsheet"></i>
+                </div>
+            </div>
+            <br>
+            <div class="has-text-centered">
+                <button class="button is-success close-modal" id="load-template">Load Template</button>
+                <button class="button is-danger" id="delete-template">Delete</button>
             </div>
         </section>
     </div>
@@ -179,7 +204,7 @@
 </div>
 
 <div class="columns is-gapless dashboard-frame">
-    <div class="column is-2 is-sidebar-menu dashboard-sidebar is-hidden-touch" style="display: flex; flex-direction: column;">
+    <div class="column is-2 is-sidebar-menu dashboard-sidebar is-hidden-touch">
         <a href="/">
             <div class="brand">
                 <img src="/static/img/logo_flat.webp" alt="Reminder bot logo"
@@ -192,14 +217,14 @@
                       d="M0,192L60,170.7C120,149,240,107,360,96C480,85,600,107,720,138.7C840,171,960,213,1080,197.3C1200,181,1320,107,1380,69.3L1440,32L1440,0L1380,0C1320,0,1200,0,1080,0C960,0,840,0,720,0C600,0,480,0,360,0C240,0,120,0,60,0L0,0Z"></path>
             </g>
         </svg>
-        <aside class="menu" style="display: flex; flex-direction: column; flex-grow: 1;">
+        <aside class="menu">
             <p class="menu-label">
                 Servers
             </p>
             <ul class="menu-list guildList">
 
             </ul>
-            <div class="aside-footer" style="position: fixed; bottom: 0; width: 226px;">
+            <div class="aside-footer">
                 <p class="menu-label">
                     Settings
                 </p>
@@ -230,14 +255,14 @@
                       d="M0,192L60,170.7C120,149,240,107,360,96C480,85,600,107,720,138.7C840,171,960,213,1080,197.3C1200,181,1320,107,1380,69.3L1440,32L1440,0L1380,0C1320,0,1200,0,1080,0C960,0,840,0,720,0C600,0,480,0,360,0C240,0,120,0,60,0L0,0Z"></path>
             </g>
         </svg>
-        <aside class="menu" style="display: flex; flex-direction: column; flex-grow: 1;">
+        <aside class="menu">
             <p class="menu-label">
                 Servers
             </p>
             <ul class="menu-list guildList">
 
             </ul>
-            <div class="aside-footer" style="margin-top: auto;">
+            <div class="aside-footer">
                 <p class="menu-label">
                     Settings
                 </p>
@@ -257,16 +282,13 @@
 
     <!-- main content -->
     <div class="column is-main-content">
-        <p class="title pageTitle" style="margin-left: 12px;"></p>
+        <p class="title pageTitle"></p>
         <section id="welcome">
-            <div class="has-text-centered" style="height: 100%; padding-top: 30vh;">
+            <div class="has-text-centered">
                 <p class="title">Welcome!</p>
                 <p class="subtitle is-hidden-touch">Select an option from the side to get started</p>
                 <p class="subtitle is-hidden-desktop">Press the <span class="icon"><i class="fal fa-bars"></i></span> to get started</p>
             </div>
-        </section>
-        <section id="personal" class="is-hidden">
-            {% include "reminder_dashboard/reminder_dashboard_personal" %}
         </section>
         <section id="guild" class="is-hidden">
             {% include "reminder_dashboard/reminder_dashboard" %}
@@ -294,20 +316,26 @@
 
 <template id="embedFieldTemplate">
     <div data-inlined="1" class="embed-field-box">
-        <label class="is-sr-only" for="embedFieldTitle">Field Title</label>
-        <div style="display: flex;">
-            <textarea class="discord-field-title field-input message-input autoresize"
-                      placeholder="Field Title..." rows="1"
-                      maxlength="256" id="embedFieldTitle" name="embed_field_title[]"></textarea>
-            <button class="button is-small inline-btn" style="height: 100%; padding: 5px;"><i class="fas fa-arrows-h"></i></button>
+        <div class="is-flex">
+            <label>
+                <span class="is-sr-only">Field Title</span>
+                <textarea class="discord-field-title field-input message-input autoresize"
+                          placeholder="Field Title..." rows="1"
+                          maxlength="256" name="embed_field_title[]"></textarea>
+            </label>
+            <button class="button is-small inline-btn">
+                <span class="is-sr-only">Toggle field inline</span><i class="fas fa-arrows-h"></i>
+            </button>
         </div>
 
-        <label class="is-sr-only" for="embedFieldValue">Field Value</label>
-        <textarea
-                class="discord-field-value field-input message-input autoresize"
-                placeholder="Field Value..."
-                maxlength="1024" id="embedFieldValue" name="embed_field_value[]"
-                rows="1"></textarea>
+        <label>
+            <span class="is-sr-only">Field Value</span>
+            <textarea
+                    class="discord-field-value field-input message-input autoresize"
+                    placeholder="Field Value..."
+                    maxlength="1024" name="embed_field_value[]"
+                    rows="1"></textarea>
+        </label>
     </div>
 </template>
 
@@ -323,13 +351,12 @@
     {% include "reminder_dashboard/guild_reminder" %}
 </template>
 
-<template id="personalReminder">
-    {% include "reminder_dashboard/personal_reminder" %}
-</template>
+<script src="/static/js/iro.js"></script>
+<script src="/static/js/dtsel.js"></script>
 
 <script src="/static/js/interval.js"></script>
-<script src="/static/js/timezone.js"></script>
-<script src="/static/js/main.js"></script>
+<script src="/static/js/timezone.js" defer></script>
+<script src="/static/js/main.js" defer></script>
 
 </body>
 </html>

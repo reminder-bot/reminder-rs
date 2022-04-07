@@ -2,6 +2,10 @@
     font-family: "Ubuntu Bold", "Ubuntu", sans-serif;
 }
 
+button {
+    font-weight: 700;
+}
+
 /* override styles for when the div is collapsed */
 div.reminderContent.is-collapsed .column.discord-frame {
     display: none;
@@ -55,6 +59,11 @@ div.reminderContent.is-collapsed button.hide-box i {
 /* END */
 
 /* dashboard styles */
+button.inline-btn {
+    height: 100%;
+    padding: 5px;
+}
+
 button.change-color {
     position: absolute;
     left: calc(-1rem - 40px);
@@ -88,7 +97,7 @@ div.interval-group > button {
 }
 
 /* Interval inputs */
-div.interval-group > .interval-group-left > input {
+div.interval-group > .interval-group-left input {
     -webkit-appearance: none;
     border-style: none;
     background-color: #eee;
@@ -96,11 +105,11 @@ div.interval-group > .interval-group-left > input {
     font-family: monospace;
 }
 
-div.interval-group > .interval-group-left > input.w2 {
+div.interval-group > .interval-group-left input.w2 {
     width: 3ch;
 }
 
-div.interval-group > .interval-group-left > input.w3 {
+div.interval-group > .interval-group-left input.w3 {
     width: 6ch;
 }
 
@@ -153,6 +162,15 @@ span.patreon-color {
     color: #f96854;
 }
 
+p.pageTitle {
+    margin-left: 12px;
+}
+
+#welcome > div {
+    height: 100%;
+    padding-top: 30vh;
+}
+
 div#pageNavbar {
     background-color: #363636;
 }
@@ -188,6 +206,17 @@ div.dashboard-sidebar {
     padding-right: 0;
 }
 
+div.dashboard-sidebar:not(.mobile-sidebar) {
+    display: flex;
+    flex-direction: column;
+}
+
+div.dashboard-sidebar:not(.mobile-sidebar) .aside-footer {
+    position: fixed;
+    bottom: 0;
+    width: 226px;
+}
+
 div.mobile-sidebar {
     z-index: 100;
     min-height: 100vh;
@@ -197,8 +226,22 @@ div.mobile-sidebar {
     flex-direction: column;
 }
 
+#expandAll {
+    width: 60px;
+}
+
+div.mobile-sidebar .aside-footer {
+    margin-top: auto;
+}
+
 div.mobile-sidebar.is-active {
     display: flex;
+}
+
+aside.menu {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
 }
 
 div.dashboard-frame {
@@ -474,4 +517,41 @@ textarea, input {
         width: 16px;
         height: 16px;
     }
+}
+
+/* loader */
+#loader {
+    position: fixed;
+    background-color: rgba(255, 255, 255, 0.8);
+    width: 100vw;
+    z-index: 999;
+}
+
+#loader .title {
+    font-size: 6rem;
+}
+
+/* END */
+
+/* other stuff */
+
+.half-rem {
+    width: 0.5rem;
+}
+
+.pad-left {
+    width: 12px;
+}
+
+#dead {
+    display: none;
+}
+
+.colorpicker-container {
+    display: flex;
+    justify-content: center;
+}
+
+.create-reminder {
+    margin: 0 12px 12px 12px;
 }

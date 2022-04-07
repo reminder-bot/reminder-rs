@@ -11,7 +11,8 @@ use std::{collections::HashMap, env};
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 use rocket::{
     fs::FileServer,
-    serde::json::{json, Json, Value as JsonValue},
+    serde::json::{json, Value as JsonValue},
+    shield::Shield,
     tokio::sync::broadcast::Sender,
 };
 use rocket_dyn_templates::Template;
@@ -119,12 +120,15 @@ pub async fn initialize(
         .mount(
             "/dashboard",
             routes![
+                routes::dashboard::dashboard,
                 routes::dashboard::dashboard_home,
                 routes::dashboard::user::get_user_info,
                 routes::dashboard::user::update_user_info,
                 routes::dashboard::user::get_user_guilds,
                 routes::dashboard::guild::get_guild_channels,
                 routes::dashboard::guild::get_guild_roles,
+                routes::dashboard::guild::get_reminder_templates,
+                routes::dashboard::guild::create_reminder_template,
                 routes::dashboard::guild::create_reminder,
                 routes::dashboard::guild::get_reminders,
                 routes::dashboard::guild::edit_reminder,

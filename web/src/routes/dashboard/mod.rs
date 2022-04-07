@@ -22,8 +22,42 @@ fn name_default() -> String {
     "Reminder".to_string()
 }
 
+fn template_name_default() -> String {
+    "Template".to_string()
+}
+
 fn channel_default() -> u64 {
     0
+}
+
+fn id_default() -> u32 {
+    0
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ReminderTemplate {
+    #[serde(default = "id_default")]
+    id: u32,
+    #[serde(default = "id_default")]
+    guild_id: u32,
+    #[serde(default = "template_name_default")]
+    name: String,
+    attachment: Option<Vec<u8>>,
+    attachment_name: Option<String>,
+    avatar: Option<String>,
+    content: String,
+    embed_author: String,
+    embed_author_url: Option<String>,
+    embed_color: u32,
+    embed_description: String,
+    embed_footer: String,
+    embed_footer_url: Option<String>,
+    embed_image_url: Option<String>,
+    embed_thumbnail_url: Option<String>,
+    embed_title: String,
+    embed_fields: Option<Json<Vec<EmbedField>>>,
+    tts: bool,
+    username: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -234,6 +268,16 @@ async fn create_database_channel(
 
 #[get("/")]
 pub async fn dashboard_home(cookies: &CookieJar<'_>) -> Result<Template, Redirect> {
+    if cookies.get_private("userid").is_some() {
+        let map: HashMap<&str, String> = HashMap::new();
+        Ok(Template::render("dashboard", &map))
+    } else {
+        Err(Redirect::to("/login/discord"))
+    }
+}
+
+#[get("/<_>")]
+pub async fn dashboard(cookies: &CookieJar<'_>) -> Result<Template, Redirect> {
     if cookies.get_private("userid").is_some() {
         let map: HashMap<&str, String> = HashMap::new();
         Ok(Template::render("dashboard", &map))
