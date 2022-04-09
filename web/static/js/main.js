@@ -10,6 +10,7 @@ const $createReminder = document.querySelector("#reminderCreator");
 const $createReminderBtn = $createReminder.querySelector("button#createReminder");
 const $createTemplateBtn = $createReminder.querySelector("button#createTemplate");
 const $loadTemplateBtn = document.querySelector("button#load-template");
+const $deleteTemplateBtn = document.querySelector("button#delete-template");
 const $templateSelect = document.querySelector("select#templateSelect");
 
 let channels = [];
@@ -172,7 +173,7 @@ async function fetch_reminders(guild_id) {
 }
 
 async function serialize_reminder(node, mode) {
-    let interval, utc_time;
+    let interval, utc_time, expiration_time;
 
     if (mode !== "template") {
         interval = get_interval(node);
@@ -184,6 +185,15 @@ async function serialize_reminder(node, mode) {
             return { error: "Time provided invalid." };
         } else {
             utc_time = utc_time.toFormat("yyyy-LL-dd'T'HH:mm:ss");
+        }
+
+        expiration_time = luxon.DateTime.fromISO(
+            node.querySelector('input[name="time"]').value
+        ).setZone("UTC");
+        if (expiration_time.invalid) {
+            return { error: "Expiration provided invalid." };
+        } else {
+            expiration_time = expiration_time.toFormat("yyyy-LL-dd'T'HH:mm:ss");
         }
     }
 
@@ -253,7 +263,7 @@ async function serialize_reminder(node, mode) {
         ),
         embed_title: node.querySelector('textarea[name="embed_title"]').value,
         embed_fields: fields,
-        expires: null,
+        expires: expiration_time,
         interval_seconds: mode !== "template" ? interval.seconds : null,
         interval_months: mode !== "template" ? interval.months : null,
         name: node.querySelector('input[name="name"]').value,
@@ -314,6 +324,14 @@ function deserialize_reminder(reminder, frame, mode) {
             zone: "UTC",
         }).setZone(timezone);
         timeInput.value = localTime.toFormat("yyyy-LL-dd'T'HH:mm:ss");
+
+        if (reminder['expires']) {
+            let expiresInput = frame.querySelector('input[name="time"]');
+            let expiresTime = luxon.DateTime.fromISO(reminder["expires"], {
+                zone: "UTC",
+            }).setZone(timezone);
+            expiresInput.value = expiresTime.toFormat("yyyy-LL-dd'T'HH:mm:ss");
+        }
     }
 }
 
@@ -578,12 +596,6 @@ function set_channels(element) {
 
         newOption.value = channel.id;
         newOption.textContent = channel.name;
-        if (channel.webhook_avatar !== null) {
-            newOption.dataset["webhookAvatar"] = channel.webhook_avatar;
-        }
-        if (channel.webhook_name !== null) {
-            newOption.dataset["webhookName"] = channel.webhook_name;
-        }
 
         element.appendChild(newOption);
     }
@@ -659,6 +671,10 @@ $createReminderBtn.addEventListener("click", async () => {
 });
 
 $createTemplateBtn.addEventListener("click", async () => {
+    $createTemplateBtn.querySelector("span.icon > i").classList = [
+        "fas fa-spinner fa-spin",
+    ];
+
     let reminder = await serialize_reminder($createReminder, "template");
     let guild = guildId();
 
@@ -699,6 +715,25 @@ $loadTemplateBtn.addEventListener("click", (ev) => {
         "template"
     );
 });
+
+$deleteTemplateBtn.addEventListener("click", (ev) => {
+    fetch(`/dashboard/api/guild/${guildId()}/templates`, {
+        method: "DELETE",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({id: parseInt($templateSelect.value)}),
+    })
+        .then((response) => response.json())
+        .then((data) => {
+            if (data.error) {
+                show_error(data.error)
+            } else {
+                $templateSelect.querySelector(`option[value="${$templateSelect.value}"]`).remove();
+            }
+        })
+});
+
 
 document.querySelectorAll("textarea.autoresize").forEach((element) => {
     element.addEventListener("input", () => {

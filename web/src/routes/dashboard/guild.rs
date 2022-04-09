@@ -25,7 +25,7 @@ use crate::{
     },
     routes::dashboard::{
         create_database_channel, generate_uid, name_default, template_name_default, DeleteReminder,
-        PatchReminder, Reminder, ReminderTemplate,
+        DeleteReminderTemplate, PatchReminder, Reminder, ReminderTemplate,
     },
 };
 
@@ -59,6 +59,7 @@ pub async fn get_guild_channels(
 
             channels.sort_by(|(_, c1), (_, c2)| c1.position.cmp(&c2.position));
 
+            // todo change to map
             for (channel_id, channel) in channels {
                 let mut ch = ChannelInfo {
                     name: channel.name.to_string(),
@@ -66,29 +67,6 @@ pub async fn get_guild_channels(
                     webhook_avatar: None,
                     webhook_name: None,
                 };
-
-                if let Ok(webhook_details) = sqlx::query!(
-                    "SELECT webhook_id, webhook_token FROM channels WHERE channel = ?",
-                    channel.id.as_u64()
-                )
-                .fetch_one(pool.inner())
-                .await
-                {
-                    if let (Some(webhook_id), Some(webhook_token)) =
-                        (webhook_details.webhook_id, webhook_details.webhook_token)
-                    {
-                        let webhook_res =
-                            ctx.http.get_webhook_with_token(webhook_id, &webhook_token).await;
-
-                        if let Ok(webhook) = webhook_res {
-                            ch.webhook_avatar = webhook.avatar.map(|a| {
-                                format!("{}/{}/{}.webp?size=128", DISCORD_CDN, webhook_id, a)
-                            });
-
-                            ch.webhook_name = webhook.name;
-                        }
-                    }
-                }
 
                 channel_info.push(ch);
             }
@@ -256,6 +234,34 @@ pub async fn create_reminder_template(
             warn!("Could not fetch templates from {}: {:?}", id, e);
 
             json!({"error": "Could not get templates"})
+        }
+    }
+}
+
+#[delete("/api/guild/<id>/templates", data = "<delete_reminder_template>")]
+pub async fn delete_reminder_template(
+    id: u64,
+    delete_reminder_template: Json<DeleteReminderTemplate>,
+    cookies: &CookieJar<'_>,
+    ctx: &State<Context>,
+    pool: &State<Pool<MySql>>,
+) -> JsonValue {
+    check_authorization!(cookies, ctx.inner(), id);
+
+    match sqlx::query!(
+        "DELETE FROM reminder_template WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND id = ?",
+        id, delete_reminder_template.id
+    )
+    .fetch_all(pool.inner())
+    .await
+    {
+        Ok(_) => {
+            json!({})
+        }
+        Err(e) => {
+            warn!("Could not delete template from {}: {:?}", id, e);
+
+            json!({"error": "Could not delete template"})
         }
     }
 }

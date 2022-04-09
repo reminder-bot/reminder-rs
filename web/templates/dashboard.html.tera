@@ -6,7 +6,7 @@
     <meta charset="UTF-8">
     <meta name="yandex-verification" content="bb77b8681eb64a90"/>
     <meta name="google-site-verification" content="7h7UVTeEe0AOzHiH3cFtsqMULYGN-zCZdMT_YCkW1Ho"/>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src *; font-src fonts.gstatic.com 'self'">
+    <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src *; font-src fonts.gstatic.com 'self'"> -->
 
     <!-- favicon -->
     <link rel="apple-touch-icon" sizes="180x180"

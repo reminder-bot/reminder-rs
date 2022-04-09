@@ -12,7 +12,6 @@ use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, T
 use rocket::{
     fs::FileServer,
     serde::json::{json, Value as JsonValue},
-    shield::Shield,
     tokio::sync::broadcast::Sender,
 };
 use rocket_dyn_templates::Template;
@@ -51,6 +50,11 @@ async fn not_found() -> Template {
     Template::render("errors/404", &map)
 }
 
+#[catch(413)]
+async fn payload_too_large() -> JsonValue {
+    json!({"error": "Data too large.", "errors": ["Data too large."]})
+}
+
 #[catch(422)]
 async fn unprocessable_entity() -> JsonValue {
     json!({"error": "Invalid request.", "errors": ["Invalid request."]})
@@ -67,6 +71,13 @@ pub async fn initialize(
     serenity_context: Context,
     db_pool: Pool<Database>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Checking environment variables...");
+    env::var("OAUTH2_CLIENT_ID").expect("`OAUTH2_CLIENT_ID' not supplied");
+    env::var("OAUTH2_CLIENT_SECRET").expect("`OAUTH2_CLIENT_SECRET' not supplied");
+    env::var("OAUTH2_DISCORD_CALLBACK").expect("`OAUTH2_DISCORD_CALLBACK' not supplied");
+    env::var("PATREON_GUILD_ID").expect("`PATREON_GUILD' not supplied");
+    info!("Done!");
+
     let oauth2_client = BasicClient::new(
         ClientId::new(env::var("OAUTH2_CLIENT_ID")?),
         Some(ClientSecret::new(env::var("OAUTH2_CLIENT_SECRET")?)),
@@ -86,7 +97,8 @@ pub async fn initialize(
                 forbidden,
                 not_found,
                 internal_server_error,
-                unprocessable_entity
+                unprocessable_entity,
+                payload_too_large,
             ],
         )
         .manage(oauth2_client)
@@ -129,6 +141,7 @@ pub async fn initialize(
                 routes::dashboard::guild::get_guild_roles,
                 routes::dashboard::guild::get_reminder_templates,
                 routes::dashboard::guild::create_reminder_template,
+                routes::dashboard::guild::delete_reminder_template,
                 routes::dashboard::guild::create_reminder,
                 routes::dashboard::guild::get_reminders,
                 routes::dashboard::guild::edit_reminder,

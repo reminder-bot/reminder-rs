@@ -60,6 +60,11 @@ pub struct ReminderTemplate {
     username: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct DeleteReminderTemplate {
+    id: u32,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct EmbedField {
     title: String,
@@ -69,6 +74,7 @@ pub struct EmbedField {
 
 #[derive(Serialize, Deserialize)]
 pub struct Reminder {
+    #[serde(with = "base64s")]
     attachment: Option<Vec<u8>>,
     attachment_name: Option<String>,
     avatar: Option<String>,
@@ -189,6 +195,29 @@ mod string {
     }
 }
 
+mod base64s {
+    use serde::{de, Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(value: &Option<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if let Some(opt) = value {
+            serializer.collect_str(&base64::encode(opt))
+        } else {
+            serializer.serialize_none()
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let string = String::deserialize(deserializer)?;
+        Some(base64::decode(string).map_err(de::Error::custom)).transpose()
+    }
+}
+
 #[derive(Deserialize)]
 pub struct DeleteReminder {
     uid: String,
@@ -199,6 +228,8 @@ async fn create_database_channel(
     channel: ChannelId,
     pool: impl Executor<'_, Database = Database> + Copy,
 ) -> Result<u32, crate::Error> {
+    println!("{:?}", channel);
+
     let row =
         sqlx::query!("SELECT webhook_token, webhook_id FROM channels WHERE channel = ?", channel.0)
             .fetch_one(pool)
@@ -239,11 +270,7 @@ async fn create_database_channel(
                  webhook_id,
                  webhook_token,
                  channel
-                ) VALUES (
-                 webhook_id = ?,
-                 webhook_token = ?,
-                 channel = ?
-                )",
+                ) VALUES (?, ?, ?)",
                 webhook.id.0,
                 webhook.token,
                 channel.0

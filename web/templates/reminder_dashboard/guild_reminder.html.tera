@@ -112,7 +112,7 @@
         </article>
     </div>
     <div class="column settings">
-        <div class="columns is-mobile">
+        <div class="columns is-mobile reminder-topbar">
             <div class="column">
                 <div class="field">
                     <div class="control">
@@ -128,33 +128,39 @@
             </div>
         </div>
 
-        <div class="field channel-field">
-            <div class="collapses">
-                <label class="label" for="channelOption">Channel</label>
-            </div>
-            <div class="control has-icons-left">
-                <div class="select">
-                    <select name="channel" class="channel-selector">
-                    </select>
+        <div class="columns">
+            <div class="column">
+                <div class="field channel-field">
+                    <div class="collapses">
+                        <label class="label" for="channelOption">Channel*</label>
+                    </div>
+                    <div class="control has-icons-left">
+                        <div class="select">
+                            <select name="channel" class="channel-selector">
+                            </select>
+                        </div>
+                        <div class="icon is-small is-left">
+                            <i class="fas fa-hashtag"></i>
+                        </div>
+                    </div>
                 </div>
-                <div class="icon is-small is-left">
-                    <i class="fas fa-hashtag"></i>
+            </div>
+            <div class="column">
+                <div class="field">
+                    <div class="control">
+                        <label class="label collapses">
+                            Time*
+                            <input class="input" type="datetime-local" step="1" name="time">
+                        </label>
+                    </div>
                 </div>
             </div>
+        </div>
 
         <div class="collapses">
             <div class="field">
-                <div class="control">
-                    <label class="label">
-                        Time
-                        <input class="input" type="datetime-local" step="1" name="time">
-                    </label>
-                </div>
-            </div>
-
-            <div class="field">
                 <a class="intervalLabel"><label class="label">Interval <i class="fas fa-chevron-down"></i></label></a>
-                <div class="control intervalSelector">
+                <div class="control intervalSelector" style="min-width: 400px;" >
                     <div class="input interval-group">
                         <div class="interval-group-left">
                             <label>
@@ -180,6 +186,15 @@
                         </div>
                         <button class="clear"><span class="is-sr-only">Clear interval</span><span class="icon"><i class="fas fa-trash"></i></span></button>
                     </div>
+                </div>
+            </div>
+
+            <div class="field">
+                <div class="control">
+                    <label class="label">
+                        Expiration
+                        <input class="input" type="datetime-local" step="1" name="expiration">
+                    </label>
                 </div>
             </div>
 
@@ -213,21 +228,20 @@
 
             <span class="pad-left"></span>
             {% if creating %}
-                <button class="button is-outlined show-modal" data-modal="chooseTemplateModal">
-                    Load Template
+                <button class="button is-success" id="createReminder">
+                    <span>Create Reminder</span> <span class="icon"><i class="fas fa-sparkles"></i></span>
                 </button>
                 <button class="button is-success is-outlined" id="createTemplate">
                     <span>Create Template</span> <span class="icon"><i class="fas fa-file-spreadsheet"></i></span>
                 </button>
-                <button class="button is-success" id="createReminder">
-                    <span>Create Reminder</span> <span class="icon"><i class="fas fa-sparkles"></i></span>
+                <button class="button is-outlined show-modal is-pulled-right" data-modal="chooseTemplateModal">
+                    Load Template
                 </button>
             {% else %}
-                <button class="button is-primary save-btn">
+                <button class="button is-success save-btn">
                     <span>Save</span> <span class="icon"><i class="fas fa-save"></i></span>
                 </button>
                 <button class="button is-warning disable-enable">
-                    <span class="is-sr-only">Text content filled by CSS</span>
                 </button>
                 <button class="button is-danger delete-reminder">
                     Delete

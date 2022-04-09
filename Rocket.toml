@@ -2,6 +2,7 @@
 address = "0.0.0.0"
 port = 5000
 template_dir = "web/templates"
+limits = { json = "10MiB" }
 
 [debug]
 secret_key = "tR8krio5FXTnnyIZNiJDXPondz0kI1v6X6BXZcBGIRY="

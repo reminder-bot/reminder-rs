@@ -34,7 +34,7 @@ div.reminderContent.is-collapsed .channel-field {
     order: 1;
 }
 
-div.reminderContent.is-collapsed .columns {
+div.reminderContent.is-collapsed .reminder-topbar {
     display: inline-flex;
     margin-bottom: 0px;
     flex-grow: 1;
@@ -554,4 +554,12 @@ textarea, input {
 
 .create-reminder {
     margin: 0 12px 12px 12px;
+}
+
+.button.is-success:not(.is-outlined) {
+    color: white;
+}
+
+.button.is-outlined.is-success {
+    background-color: white;
 }
