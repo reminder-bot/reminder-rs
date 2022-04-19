@@ -563,3 +563,16 @@ textarea, input {
 .button.is-outlined.is-success {
     background-color: white;
 }
+
+.is-locked {
+    pointer-events: none;
+    opacity: 0.4;
+}
+
+.is-locked .foreground {
+    pointer-events: auto;
+}
+
+.is-locked .field:last-of-type {
+    display: none;
+}

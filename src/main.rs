@@ -194,7 +194,7 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
             })
         })
         .options(options)
-        .client_settings(move |client_builder| client_builder.intents(GatewayIntents::GUILDS))
+        .intents(GatewayIntents::GUILDS)
         .run_autosharded()
         .await?;
 

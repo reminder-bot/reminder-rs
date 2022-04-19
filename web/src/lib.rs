@@ -137,6 +137,7 @@ pub async fn initialize(
                 routes::dashboard::user::get_user_info,
                 routes::dashboard::user::update_user_info,
                 routes::dashboard::user::get_user_guilds,
+                routes::dashboard::guild::get_guild_patreon,
                 routes::dashboard::guild::get_guild_channels,
                 routes::dashboard::guild::get_guild_roles,
                 routes::dashboard::guild::get_reminder_templates,

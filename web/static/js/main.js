@@ -17,6 +17,8 @@ let channels = [];
 let roles = [];
 let templates = {};
 
+let globalPatreon = false;
+
 function guildId() {
     return document.querySelector(".guildList a.is-active").dataset["guild"];
 }
@@ -221,6 +223,10 @@ async function serialize_reminder(node, mode) {
     if (node.querySelector('input[name="attachment"]').files.length > 0) {
         let file = node.querySelector('input[name="attachment"]').files[0];
 
+        if (file.size >= 8 * 1024 * 1024) {
+            return { error: "File too large." };
+        }
+
         attachment = await new Promise((resolve) => {
             let fileReader = new FileReader();
             fileReader.onload = (e) => resolve(fileReader.result);
@@ -240,6 +246,34 @@ async function serialize_reminder(node, mode) {
         enabled = true;
     }
 
+    const content = node.querySelector('textarea[name="content"]').value;
+    const embed_author_url = has_source(node.querySelector("img.embed_author_url").src);
+    const embed_author = node.querySelector('textarea[name="embed_author"]').value;
+    const embed_description = node.querySelector(
+        'textarea[name="embed_description"]'
+    ).value;
+    const embed_footer = node.querySelector('textarea[name="embed_footer"]').value;
+    const embed_footer_url = has_source(node.querySelector("img.embed_footer_url").src);
+    const embed_image_url = has_source(node.querySelector("img.embed_image_url").src);
+    const embed_thumbnail_url = has_source(
+        node.querySelector("img.embed_thumbnail_url").src
+    );
+    const embed_title = node.querySelector('textarea[name="embed_title"]').value;
+
+    if (
+        attachment === null &&
+        content.length == 0 &&
+        embed_author_url === null &&
+        embed_author.length == 0 &&
+        embed_description.length == 0 &&
+        embed_footer.length == 0 &&
+        embed_footer_url === null &&
+        embed_image_url === null &&
+        embed_thumbnail_url === null
+    ) {
+        return { error: "Reminder needs content." };
+    }
+
     return {
         // if we're creating a reminder, ignore this field
         uid: uid,
@@ -250,18 +284,16 @@ async function serialize_reminder(node, mode) {
         attachment_name: attachment_name,
         avatar: has_source(node.querySelector("img.discord-avatar").src),
         channel: node.querySelector("select.channel-selector").value,
-        content: node.querySelector('textarea[name="content"]').value,
-        embed_author_url: has_source(node.querySelector("img.embed_author_url").src),
-        embed_author: node.querySelector('textarea[name="embed_author"]').value,
+        content: content,
+        embed_author_url: embed_author_url,
+        embed_author: embed_author,
         embed_color: color,
-        embed_description: node.querySelector('textarea[name="embed_description"]').value,
-        embed_footer: node.querySelector('textarea[name="embed_footer"]').value,
-        embed_footer_url: has_source(node.querySelector("img.embed_footer_url").src),
-        embed_image_url: has_source(node.querySelector("img.embed_image_url").src),
-        embed_thumbnail_url: has_source(
-            node.querySelector("img.embed_thumbnail_url").src
-        ),
-        embed_title: node.querySelector('textarea[name="embed_title"]').value,
+        embed_description: embed_description,
+        embed_footer: embed_footer,
+        embed_footer_url: embed_footer_url,
+        embed_image_url: embed_image_url,
+        embed_thumbnail_url: embed_thumbnail_url,
+        embed_title: embed_title,
         embed_fields: fields,
         expires: expiration_time,
         interval_seconds: mode !== "template" ? interval.seconds : null,
@@ -325,7 +357,7 @@ function deserialize_reminder(reminder, frame, mode) {
         }).setZone(timezone);
         timeInput.value = localTime.toFormat("yyyy-LL-dd'T'HH:mm:ss");
 
-        if (reminder['expires']) {
+        if (reminder["expires"]) {
             let expiresInput = frame.querySelector('input[name="time"]');
             let expiresTime = luxon.DateTime.fromISO(reminder["expires"], {
                 zone: "UTC",
@@ -521,6 +553,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 show_error(data.error);
             } else {
                 if (data.timezone !== null) botTimezone = data.timezone;
+
+                globalPatreon = data.patreon;
 
                 update_times();
             }
@@ -722,18 +756,19 @@ $deleteTemplateBtn.addEventListener("click", (ev) => {
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({id: parseInt($templateSelect.value)}),
+        body: JSON.stringify({ id: parseInt($templateSelect.value) }),
     })
         .then((response) => response.json())
         .then((data) => {
             if (data.error) {
-                show_error(data.error)
+                show_error(data.error);
             } else {
-                $templateSelect.querySelector(`option[value="${$templateSelect.value}"]`).remove();
+                $templateSelect
+                    .querySelector(`option[value="${$templateSelect.value}"]`)
+                    .remove();
             }
-        })
+        });
 });
-
 
 document.querySelectorAll("textarea.autoresize").forEach((element) => {
     element.addEventListener("input", () => {
@@ -782,16 +817,6 @@ document.addEventListener("remindersLoaded", () => {
                 const fileName = element.parentElement.querySelector(".file-label");
                 fileName.textContent = element.files[0].name;
             }
-        });
-    });
-
-    const $showInterval = document.querySelectorAll("a.intervalLabel");
-
-    $showInterval.forEach((element) => {
-        element.addEventListener("click", () => {
-            element.querySelector("i").classList.toggle("fa-chevron-right");
-            element.querySelector("i").classList.toggle("fa-chevron-down");
-            element.nextElementSibling.classList.toggle("is-hidden");
         });
     });
 

@@ -75,7 +75,7 @@ async fn check_self_permissions(ctx: Context<'_>) -> bool {
             })
             .flatten()
             .map_or((false, false, false), |p| {
-                (p.read_messages(), p.send_messages(), p.embed_links())
+                (p.view_channel(), p.send_messages(), p.embed_links())
             });
 
         if manage_webhooks && send_messages && embed_links {

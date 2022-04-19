@@ -158,43 +158,45 @@
         </div>
 
         <div class="collapses">
-            <div class="field">
-                <a class="intervalLabel"><label class="label">Interval <i class="fas fa-chevron-down"></i></label></a>
-                <div class="control intervalSelector" style="min-width: 400px;" >
-                    <div class="input interval-group">
-                        <div class="interval-group-left">
-                            <label>
-                                <span class="is-sr-only">Interval months</span>
-                                <input class="w2" type="text" pattern="\d*" name="interval_months" maxlength="2" placeholder=""> <span class="half-rem"></span> months, <span class="half-rem"></span>
-                            </label>
-                            <label>
-                                <span class="is-sr-only">Interval days</span>
-                                <input class="w3" type="text" pattern="\d*" name="interval_days" maxlength="4" placeholder=""> <span class="half-rem"></span> days, <span class="half-rem"></span>
-                            </label>
-                            <label>
-                                <span class="is-sr-only">Interval hours</span>
-                                <input class="w2" type="text" pattern="\d*" name="interval_hours" maxlength="2" placeholder="HH">:
-                            </label>
-                            <label>
-                                <span class="is-sr-only">Interval minutes</span>
-                                <input class="w2" type="text" pattern="\d*" name="interval_minutes" maxlength="2" placeholder="MM">:
-                            </label>
-                            <label>
-                                <span class="is-sr-only">Interval seconds</span>
-                                <input class="w2" type="text" pattern="\d*" name="interval_seconds" maxlength="2" placeholder="SS">
-                            </label>
+            <div class="is-locked">
+                <div class="field">
+                    <label class="label">Interval <a class="foreground" href="/help/interval"><i class="fas fa-question-circle"></i></a></label>
+                    <div class="control intervalSelector" style="min-width: 400px;" >
+                        <div class="input interval-group">
+                            <div class="interval-group-left">
+                                <label>
+                                    <span class="is-sr-only">Interval months</span>
+                                    <input class="w2" type="text" pattern="\d*" name="interval_months" maxlength="2" placeholder=""> <span class="half-rem"></span> months, <span class="half-rem"></span>
+                                </label>
+                                <label>
+                                    <span class="is-sr-only">Interval days</span>
+                                    <input class="w3" type="text" pattern="\d*" name="interval_days" maxlength="4" placeholder=""> <span class="half-rem"></span> days, <span class="half-rem"></span>
+                                </label>
+                                <label>
+                                    <span class="is-sr-only">Interval hours</span>
+                                    <input class="w2" type="text" pattern="\d*" name="interval_hours" maxlength="2" placeholder="HH">:
+                                </label>
+                                <label>
+                                    <span class="is-sr-only">Interval minutes</span>
+                                    <input class="w2" type="text" pattern="\d*" name="interval_minutes" maxlength="2" placeholder="MM">:
+                                </label>
+                                <label>
+                                    <span class="is-sr-only">Interval seconds</span>
+                                    <input class="w2" type="text" pattern="\d*" name="interval_seconds" maxlength="2" placeholder="SS">
+                                </label>
+                            </div>
+                            <button class="clear"><span class="is-sr-only">Clear interval</span><span class="icon"><i class="fas fa-trash"></i></span></button>
                         </div>
-                        <button class="clear"><span class="is-sr-only">Clear interval</span><span class="icon"><i class="fas fa-trash"></i></span></button>
                     </div>
                 </div>
-            </div>
 
-            <div class="field">
-                <div class="control">
-                    <label class="label">
-                        Expiration
-                        <input class="input" type="datetime-local" step="1" name="expiration">
-                    </label>
+                <div class="field">
+                    <div class="control">
+                        <label class="label">
+                            Expiration
+                            <input class="input" type="datetime-local" step="1" name="expiration">
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -226,27 +228,29 @@
                 </div>
             </div>
 
-            <span class="pad-left"></span>
-            {% if creating %}
-                <button class="button is-success" id="createReminder">
-                    <span>Create Reminder</span> <span class="icon"><i class="fas fa-sparkles"></i></span>
-                </button>
-                <button class="button is-success is-outlined" id="createTemplate">
-                    <span>Create Template</span> <span class="icon"><i class="fas fa-file-spreadsheet"></i></span>
-                </button>
-                <button class="button is-outlined show-modal is-pulled-right" data-modal="chooseTemplateModal">
-                    Load Template
-                </button>
-            {% else %}
-                <button class="button is-success save-btn">
-                    <span>Save</span> <span class="icon"><i class="fas fa-save"></i></span>
-                </button>
-                <button class="button is-warning disable-enable">
-                </button>
-                <button class="button is-danger delete-reminder">
-                    Delete
-                </button>
-            {% endif %}
+            <div>
+                <span class="pad-left"></span>
+                {% if creating %}
+                    <button class="button is-success" id="createReminder">
+                        <span>Create Reminder</span> <span class="icon"><i class="fas fa-sparkles"></i></span>
+                    </button>
+                    <button class="button is-success is-outlined" id="createTemplate">
+                        <span>Create Template</span> <span class="icon"><i class="fas fa-file-spreadsheet"></i></span>
+                    </button>
+                    <button class="button is-outlined show-modal is-pulled-right" data-modal="chooseTemplateModal">
+                        Load Template
+                    </button>
+                {% else %}
+                    <button class="button is-success save-btn">
+                        <span>Save</span> <span class="icon"><i class="fas fa-save"></i></span>
+                    </button>
+                    <button class="button is-warning disable-enable">
+                    </button>
+                    <button class="button is-danger delete-reminder">
+                        Delete
+                    </button>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>

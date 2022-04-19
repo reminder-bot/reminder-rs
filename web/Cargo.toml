@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 rocket = { git = "https://github.com/SergioBenitez/Rocket", branch = "master", features = ["tls", "secrets", "json"] }
 rocket_dyn_templates = { git = "https://github.com/SergioBenitez/Rocket", branch = "master", features = ["tera"] }
-serenity = { git = "https://github.com/serenity-rs/serenity", branch = "next", default-features = false, features = ["builder", "cache", "client", "gateway", "http", "model", "utils", "rustls_backend"] }
+serenity = { version = "0.11.1", default-features = false, features = ["builder", "cache", "client", "gateway", "http", "model", "utils", "rustls_backend"] }
 oauth2 = "4"
 log = "0.4"
 reqwest = "0.11"

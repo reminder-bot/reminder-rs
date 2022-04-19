@@ -1,3 +1,5 @@
+use std::env;
+
 use base64;
 use chrono::Utc;
 use rocket::{
@@ -10,7 +12,7 @@ use serenity::{
     client::Context,
     model::{
         channel::GuildChannel,
-        id::{ChannelId, GuildId},
+        id::{ChannelId, GuildId, RoleId},
     },
 };
 use sqlx::{MySql, Pool};
@@ -18,10 +20,10 @@ use sqlx::{MySql, Pool};
 use crate::{
     check_guild_subscription, check_subscription,
     consts::{
-        DAY, DISCORD_CDN, MAX_CONTENT_LENGTH, MAX_EMBED_AUTHOR_LENGTH,
-        MAX_EMBED_DESCRIPTION_LENGTH, MAX_EMBED_FIELDS, MAX_EMBED_FIELD_TITLE_LENGTH,
-        MAX_EMBED_FIELD_VALUE_LENGTH, MAX_EMBED_FOOTER_LENGTH, MAX_EMBED_TITLE_LENGTH,
-        MAX_URL_LENGTH, MAX_USERNAME_LENGTH, MIN_INTERVAL,
+        DAY, MAX_CONTENT_LENGTH, MAX_EMBED_AUTHOR_LENGTH, MAX_EMBED_DESCRIPTION_LENGTH,
+        MAX_EMBED_FIELDS, MAX_EMBED_FIELD_TITLE_LENGTH, MAX_EMBED_FIELD_VALUE_LENGTH,
+        MAX_EMBED_FOOTER_LENGTH, MAX_EMBED_TITLE_LENGTH, MAX_URL_LENGTH, MAX_USERNAME_LENGTH,
+        MIN_INTERVAL,
     },
     routes::dashboard::{
         create_database_channel, generate_uid, name_default, template_name_default, DeleteReminder,
@@ -37,19 +39,45 @@ struct ChannelInfo {
     webhook_name: Option<String>,
 }
 
-#[get("/api/guild/<id>/channels")]
-pub async fn get_guild_channels(
+#[get("/api/guild/<id>/patreon")]
+pub async fn get_guild_patreon(
     id: u64,
     cookies: &CookieJar<'_>,
     ctx: &State<Context>,
-    pool: &State<Pool<MySql>>,
 ) -> JsonValue {
     check_authorization!(cookies, ctx.inner(), id);
 
     match GuildId(id).to_guild_cached(ctx.inner()) {
         Some(guild) => {
-            let mut channel_info = vec![];
+            let member_res = GuildId(env::var("PATREON_GUILD_ID").unwrap().parse().unwrap())
+                .member(&ctx.inner(), guild.owner_id)
+                .await;
 
+            let patreon = member_res.map_or(false, |member| {
+                member
+                    .roles
+                    .contains(&RoleId(env::var("PATREON_ROLE_ID").unwrap().parse().unwrap()))
+            });
+
+            json!({ "patreon": patreon })
+        }
+
+        None => {
+            json!({"error": "Bot not in guild"})
+        }
+    }
+}
+
+#[get("/api/guild/<id>/channels")]
+pub async fn get_guild_channels(
+    id: u64,
+    cookies: &CookieJar<'_>,
+    ctx: &State<Context>,
+) -> JsonValue {
+    check_authorization!(cookies, ctx.inner(), id);
+
+    match GuildId(id).to_guild_cached(ctx.inner()) {
+        Some(guild) => {
             let mut channels = guild
                 .channels
                 .iter()
@@ -59,17 +87,15 @@ pub async fn get_guild_channels(
 
             channels.sort_by(|(_, c1), (_, c2)| c1.position.cmp(&c2.position));
 
-            // todo change to map
-            for (channel_id, channel) in channels {
-                let mut ch = ChannelInfo {
+            let channel_info = channels
+                .iter()
+                .map(|(channel_id, channel)| ChannelInfo {
                     name: channel.name.to_string(),
                     id: channel_id.to_string(),
                     webhook_avatar: None,
                     webhook_name: None,
-                };
-
-                channel_info.push(ch);
-            }
+                })
+                .collect::<Vec<ChannelInfo>>();
 
             json!(channel_info)
         }
