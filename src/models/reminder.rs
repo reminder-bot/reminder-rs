@@ -37,7 +37,7 @@ pub struct Reminder {
     pub uid: String,
     pub channel: u64,
     pub utc_time: NaiveDateTime,
-    pub interval: Option<u32>,
+    pub interval_seconds: Option<u32>,
     pub expires: Option<NaiveDateTime>,
     pub enabled: bool,
     pub content: String,
@@ -57,7 +57,7 @@ SELECT
     reminders.uid,
     channels.channel,
     reminders.utc_time,
-    reminders.interval,
+    reminders.interval_seconds,
     reminders.expires,
     reminders.enabled,
     reminders.content,
@@ -101,7 +101,7 @@ SELECT
     reminders.uid,
     channels.channel,
     reminders.utc_time,
-    reminders.interval,
+    reminders.interval_seconds,
     reminders.expires,
     reminders.enabled,
     reminders.content,
@@ -157,7 +157,7 @@ SELECT
     reminders.uid,
     channels.channel,
     reminders.utc_time,
-    reminders.interval,
+    reminders.interval_seconds,
     reminders.expires,
     reminders.enabled,
     reminders.content,
@@ -189,7 +189,7 @@ SELECT
     reminders.uid,
     channels.channel,
     reminders.utc_time,
-    reminders.interval,
+    reminders.interval_seconds,
     reminders.expires,
     reminders.enabled,
     reminders.content,
@@ -222,7 +222,7 @@ SELECT
     reminders.uid,
     channels.channel,
     reminders.utc_time,
-    reminders.interval,
+    reminders.interval_seconds,
     reminders.expires,
     reminders.enabled,
     reminders.content,
@@ -264,7 +264,7 @@ WHERE
             TimeDisplayType::Relative => format!("<t:{}:R>", self.utc_time.timestamp()),
         };
 
-        if let Some(interval) = self.interval {
+        if let Some(interval) = self.interval_seconds {
             format!(
                 "'{}' *{}* **{}**, repeating every **{}** (set by {})",
                 self.display_content(),

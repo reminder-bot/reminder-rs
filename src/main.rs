@@ -11,13 +11,13 @@ mod time_parser;
 use serenity::{
     async_trait,
     cache::Cache,
-    client::{bridge::gateway::GatewayIntents, Client},
+    client::Client,
     futures::TryFutureExt,
     http::{client::Http, CacheHttp},
     model::{
         channel::GuildChannel,
         channel::Message,
-        guild::{Guild, GuildUnavailable},
+        guild::Guild,
         id::{GuildId, UserId},
         interactions::Interaction,
     },
@@ -48,9 +48,11 @@ use tokio::sync::RwLock;
 
 use chrono::Utc;
 use chrono_tz::Tz;
+use serenity::model::guild::UnavailableGuild;
 use serenity::model::prelude::{
     InteractionApplicationCommandCallbackDataFlags, InteractionResponseType,
 };
+use serenity::prelude::GatewayIntents;
 
 struct GuildDataCache;
 
@@ -232,7 +234,7 @@ DELETE FROM channels WHERE channel = ?
     async fn guild_delete(
         &self,
         ctx: Context,
-        deleted_guild: GuildUnavailable,
+        deleted_guild: UnavailableGuild,
         _guild: Option<Guild>,
     ) {
         let pool = ctx
@@ -301,7 +303,7 @@ DELETE FROM guilds WHERE guild = ?
                                                 1,
                                             );
 
-                                        d.create_embed(|e| e.title(lm.get(&user_data.language, "timezone/set_p_title"))
+                                        d.embed(|e| e.title(lm.get(&user_data.language, "timezone/set_p_title"))
                                             .color(*THEME_COLOR)
                                             .description(content)
                                             .footer(|f| f.text(footer_text)))
@@ -325,7 +327,7 @@ DELETE FROM guilds WHERE guild = ?
                                 .create_interaction_response(&ctx, |r| {
                                     r.kind(InteractionResponseType::ChannelMessageWithSource)
                                         .interaction_response_data(|d| {
-                                            d.create_embed(|e| {
+                                            d.embed(|e| {
                                                 e.title(
                                                     lm.get(&user_data.language, "lang/set_p_title"),
                                                 )
@@ -355,7 +357,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment");
 
-    let http = Http::new_with_token(&token);
+    let http = Http::new(&token);
 
     let logged_in_id = http
         .get_current_user()
@@ -414,8 +416,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let framework_arc = Arc::new(framework);
 
-    let mut client = Client::builder(&token)
-        .intents(if dm_enabled {
+    let mut client = Client::builder(
+        &token,
+        if dm_enabled {
             GatewayIntents::GUILD_MESSAGES
                 | GatewayIntents::GUILDS
                 | GatewayIntents::GUILD_MESSAGE_REACTIONS
@@ -425,12 +428,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             GatewayIntents::GUILD_MESSAGES
                 | GatewayIntents::GUILDS
                 | GatewayIntents::GUILD_MESSAGE_REACTIONS
-        })
-        .application_id(application_id.0)
-        .event_handler(Handler)
-        .framework_arc(framework_arc.clone())
-        .await
-        .expect("Error occurred creating client");
+        },
+    )
+    .application_id(application_id.0)
+    .event_handler(Handler)
+    .framework_arc(framework_arc.clone())
+    .await
+    .expect("Error occurred creating client");
 
     {
         let guild_data_cache = dashmap::DashMap::new();

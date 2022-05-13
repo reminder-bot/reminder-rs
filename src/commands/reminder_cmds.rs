@@ -8,9 +8,9 @@ use serenity::{
         channel::{Channel, GuildChannel},
         guild::Guild,
         id::{ChannelId, GuildId, UserId},
-        misc::Mentionable,
         webhook::Webhook,
     },
+    prelude::Mentionable,
     Result as SerenityResult,
 };
 
@@ -770,7 +770,7 @@ INSERT INTO reminders (
     `embed_color`,
     `channel_id`,
     `utc_time`,
-    `interval`,
+    `interval_seconds`,
     `set_by`,
     `expires`
 ) VALUES (
@@ -1393,7 +1393,7 @@ INSERT INTO reminders (
     channel_id,
     `utc_time`,
     expires,
-    `interval`,
+    `interval_seconds`,
     set_by
 ) VALUES (
     ?,
