@@ -673,6 +673,12 @@ pub async fn remind(
                                         .style(ButtonStyle::Danger)
                                         .custom_id(undo_button.to_custom_id())
                                 })
+                                .create_button(|b| {
+                                    b.emoji(ReactionType::Unicode("📝".to_string()))
+                                        .label("Edit")
+                                        .style(ButtonStyle::Link)
+                                        .url("https://reminder-bot.com/dashboard")
+                                })
                             })
                         })
                     })
