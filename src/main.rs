@@ -419,13 +419,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut client = Client::builder(
         &token,
         if dm_enabled {
-            GatewayIntents::GUILD_MESSAGES
+            GatewayIntents::MESSAGE_CONTENT
+                | GatewayIntents::GUILD_MESSAGES
                 | GatewayIntents::GUILDS
                 | GatewayIntents::GUILD_MESSAGE_REACTIONS
                 | GatewayIntents::DIRECT_MESSAGES
                 | GatewayIntents::DIRECT_MESSAGE_REACTIONS
         } else {
-            GatewayIntents::GUILD_MESSAGES
+            GatewayIntents::MESSAGE_CONTENT
+                | GatewayIntents::GUILD_MESSAGES
                 | GatewayIntents::GUILDS
                 | GatewayIntents::GUILD_MESSAGE_REACTIONS
         },
