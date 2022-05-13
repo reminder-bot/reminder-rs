@@ -11,10 +11,10 @@ async fn macro_check(ctx: Context<'_>) -> bool {
                 if let Some(command_macro) = lock.get_mut(&(guild_id, ctx.author().id)) {
                     if command_macro.commands.len() >= MACRO_MAX_COMMANDS {
                         let _ = ctx.send(|m| {
-                                m.ephemeral(true).content(
-                                    format!("{} commands already recorded. Please use `/macro finish` to end recording.", MACRO_MAX_COMMANDS),
-                                )
-                            })
+                            m.ephemeral(true).content(
+                                format!("{} commands already recorded. Please use `/macro finish` to end recording.", MACRO_MAX_COMMANDS),
+                            )
+                        })
                             .await;
                     } else {
                         let recorded = RecordedCommand {
@@ -30,19 +30,13 @@ async fn macro_check(ctx: Context<'_>) -> bool {
                             .await;
                     }
 
-                    false
-                } else {
-                    true
+                    return false;
                 }
-            } else {
-                true
             }
-        } else {
-            true
         }
-    } else {
-        true
     }
+
+    true
 }
 
 async fn check_self_permissions(ctx: Context<'_>) -> bool {
@@ -56,14 +50,13 @@ async fn check_self_permissions(ctx: Context<'_>) -> bool {
         let (view_channel, send_messages, embed_links) = ctx
             .channel_id()
             .to_channel_cached(&ctx.discord())
-            .map(|c| {
+            .and_then(|c| {
                 if let Channel::Guild(channel) = c {
                     channel.permissions_for_user(&ctx.discord(), user_id).ok()
                 } else {
                     None
                 }
             })
-            .flatten()
             .map_or((false, false, false), |p| {
                 (p.view_channel(), p.send_messages(), p.embed_links())
             });

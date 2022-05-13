@@ -336,7 +336,7 @@ pub fn show_todo_page(
                                 opt.create_option(|o| {
                                     o.label(format!("Mark {} complete", count + first_num))
                                         .value(id)
-                                        .description(disp.split_once(" ").unwrap_or(("", "")).1)
+                                        .description(disp.split_once(' ').unwrap_or(("", "")).1)
                                 });
                             }
 

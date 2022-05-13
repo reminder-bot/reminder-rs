@@ -3,14 +3,20 @@ pub(crate) mod pager;
 use std::io::Cursor;
 
 use chrono_tz::Tz;
-use poise::serenity::{
-    builder::CreateEmbed,
-    client::Context,
-    model::{
-        channel::Channel,
-        interactions::{message_component::MessageComponentInteraction, InteractionResponseType},
-        prelude::InteractionApplicationCommandCallbackDataFlags,
+use log::warn;
+use poise::{
+    serenity::{
+        builder::CreateEmbed,
+        client::Context,
+        model::{
+            channel::Channel,
+            interactions::{
+                message_component::MessageComponentInteraction, InteractionResponseType,
+            },
+            prelude::InteractionApplicationCommandCallbackDataFlags,
+        },
     },
+    serenity_prelude as serenity,
 };
 use rmp_serde::Serializer;
 use serde::{Deserialize, Serialize};
@@ -38,6 +44,7 @@ pub enum ComponentDataModel {
     DelSelector(DelSelector),
     TodoSelector(TodoSelector),
     MacroPager(MacroPager),
+    UndoReminder(UndoReminder),
 }
 
 impl ComponentDataModel {
@@ -334,6 +341,70 @@ WHERE guilds.guild = ?",
                     })
                     .await;
             }
+            ComponentDataModel::UndoReminder(undo_reminder) => {
+                if component.user.id == undo_reminder.user_id {
+                    let reminder =
+                        Reminder::from_id(&data.database, undo_reminder.reminder_id).await;
+
+                    if let Some(reminder) = reminder {
+                        match reminder.delete(&data.database).await {
+                            Ok(()) => {
+                                let _ = component
+                                    .create_interaction_response(&ctx, |f| {
+                                        f.kind(InteractionResponseType::UpdateMessage)
+                                            .interaction_response_data(|d| {
+                                                d.embed(|e| {
+                                                    e.title("Reminder Canceled")
+                                                        .description(
+                                                            "This reminder has been canceled.",
+                                                        )
+                                                        .color(*THEME_COLOR)
+                                                })
+                                                .components(|c| c)
+                                            })
+                                    })
+                                    .await;
+                            }
+                            Err(e) => {
+                                warn!("Error canceling reminder: {:?}", e);
+
+                                let _ = component
+                                    .create_interaction_response(&ctx, |f| {
+                                        f.kind(InteractionResponseType::ChannelMessageWithSource)
+                                            .interaction_response_data(|d| {
+                                                d.content(
+                                                    "The reminder could not be canceled: it may have already been deleted. Check `/del`!")
+                                                    .ephemeral(true)
+                                            })
+                                    })
+                                    .await;
+                            }
+                        }
+                    } else {
+                        let _ = component
+                            .create_interaction_response(&ctx, |f| {
+                                f.kind(InteractionResponseType::ChannelMessageWithSource)
+                                    .interaction_response_data(|d| {
+                                        d.content(
+                                            "The reminder could not be canceled: it may have already been deleted. Check `/del`!")
+                                            .ephemeral(true)
+                                    })
+                            })
+                            .await;
+                    }
+                } else {
+                    let _ = component
+                        .create_interaction_response(&ctx, |f| {
+                            f.kind(InteractionResponseType::ChannelMessageWithSource)
+                                .interaction_response_data(|d| {
+                                    d.content(
+                                        "Only the user who performed the command can use this button.")
+                                        .ephemeral(true)
+                                })
+                        })
+                        .await;
+                }
+            }
         }
     }
 }
@@ -350,4 +421,10 @@ pub struct TodoSelector {
     pub user_id: Option<u64>,
     pub channel_id: Option<u64>,
     pub guild_id: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UndoReminder {
+    pub user_id: serenity::UserId,
+    pub reminder_id: u32,
 }

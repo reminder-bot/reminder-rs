@@ -211,14 +211,12 @@ pub async fn natural_parser(time: &str, timezone: &str) -> Option<i64> {
         .output()
         .await
         .ok()
-        .map(|inner| {
+        .and_then(|inner| {
             if inner.status.success() {
                 Some(from_utf8(&*inner.stdout).unwrap().parse::<i64>().unwrap())
             } else {
                 None
             }
         })
-        .flatten()
-        .map(|inner| if inner < 0 { None } else { Some(inner) })
-        .flatten()
+        .and_then(|inner| if inner < 0 { None } else { Some(inner) })
 }

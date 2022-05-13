@@ -9,13 +9,14 @@ use chrono_tz::Tz;
 use num_integer::Integer;
 use poise::{
     serenity::{builder::CreateEmbed, model::channel::Channel},
+    serenity_prelude::{ButtonStyle, ReactionType},
     CreateReply,
 };
 
 use crate::{
     component_models::{
         pager::{DelPager, LookPager, Pager},
-        ComponentDataModel, DelSelector,
+        ComponentDataModel, DelSelector, UndoReminder,
     },
     consts::{
         EMBED_DESCRIPTION_MAX_LENGTH, HOUR, MINUTE, REGEX_CHANNEL_USER, SELECT_MAX_ENTRIES,
@@ -500,18 +501,16 @@ pub async fn start_timer(
     if count >= 25 {
         ctx.say("You already have 25 timers. Please delete some timers before creating a new one")
             .await?;
-    } else {
-        if name.len() <= 32 {
-            Timer::create(&name, owner, &ctx.data().database).await;
+    } else if name.len() <= 32 {
+        Timer::create(&name, owner, &ctx.data().database).await;
 
-            ctx.say("Created a new timer").await?;
-        } else {
-            ctx.say(format!(
-                "Please name your timer something shorted (max. 32 characters, you used {})",
-                name.len()
-            ))
-            .await?;
-        }
+        ctx.say("Created a new timer").await?;
+    } else {
+        ctx.say(format!(
+            "Please name your timer something shorted (max. 32 characters, you used {})",
+            name.len()
+        ))
+        .await?;
     }
 
     Ok(())
@@ -589,8 +588,7 @@ pub async fn remind(
             };
 
             let scopes = {
-                let list =
-                    channels.map(|arg| parse_mention_list(&arg.to_string())).unwrap_or_default();
+                let list = channels.map(|arg| parse_mention_list(&arg)).unwrap_or_default();
 
                 if list.is_empty() {
                     if ctx.guild_id().is_some() {
@@ -610,7 +608,7 @@ pub async fn remind(
                 {
                     (
                         parse_duration(repeat)
-                            .or_else(|_| parse_duration(&format!("1 {}", repeat.to_string())))
+                            .or_else(|_| parse_duration(&format!("1 {}", repeat)))
                             .ok(),
                         {
                             if let Some(arg) = &expires {
@@ -653,15 +651,41 @@ pub async fn remind(
 
                 let (errors, successes) = builder.build().await;
 
-                let embed = create_response(successes, errors, time);
+                let embed = create_response(&successes, &errors, time);
 
-                ctx.send(|m| {
-                    m.embed(|c| {
-                        *c = embed;
-                        c
+                if successes.len() == 1 {
+                    let reminder = successes.iter().next().map(|(r, _)| r.id).unwrap();
+                    let undo_button = ComponentDataModel::UndoReminder(UndoReminder {
+                        user_id: ctx.author().id,
+                        reminder_id: reminder,
+                    });
+
+                    ctx.send(|m| {
+                        m.embed(|c| {
+                            *c = embed;
+                            c
+                        })
+                        .components(|c| {
+                            c.create_action_row(|r| {
+                                r.create_button(|b| {
+                                    b.emoji(ReactionType::Unicode("🔕".to_string()))
+                                        .label("Cancel")
+                                        .style(ButtonStyle::Danger)
+                                        .custom_id(undo_button.to_custom_id())
+                                })
+                            })
+                        })
                     })
-                })
-                .await?;
+                    .await?;
+                } else {
+                    ctx.send(|m| {
+                        m.embed(|c| {
+                            *c = embed;
+                            c
+                        })
+                    })
+                    .await?;
+                }
             }
         }
         None => {
@@ -673,8 +697,8 @@ pub async fn remind(
 }
 
 fn create_response(
-    successes: HashSet<ReminderScope>,
-    errors: HashSet<ReminderError>,
+    successes: &HashSet<(Reminder, ReminderScope)>,
+    errors: &HashSet<ReminderError>,
     time: i64,
 ) -> CreateEmbed {
     let success_part = match successes.len() {
@@ -682,7 +706,8 @@ fn create_response(
         n => format!(
             "Reminder{s} for {locations} set for <t:{offset}:R>",
             s = if n > 1 { "s" } else { "" },
-            locations = successes.iter().map(|l| l.mention()).collect::<Vec<String>>().join(", "),
+            locations =
+                successes.iter().map(|(_, l)| l.mention()).collect::<Vec<String>>().join(", "),
             offset = time
         ),
     };

@@ -71,7 +71,7 @@ pub async fn info(ctx: Context<'_>) -> Result<(), Error> {
         .send(|m| {
             m.ephemeral(true).embed(|e| {
                 e.title("Info")
-                    .description(format!(
+                    .description(
                         "Help: `/help`
 
 **Welcome to Reminder Bot!**
@@ -81,7 +81,7 @@ Find me on https://discord.jellywx.com and on https://github.com/JellyWX :)
 
 Invite the bot: https://invite.reminder-bot.com/
 Use our dashboard: https://reminder-bot.com/",
-                    ))
+                    )
                     .footer(footer)
                     .color(*THEME_COLOR)
             })

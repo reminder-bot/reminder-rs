@@ -1,3 +1,5 @@
+use std::collections::hash_map::Entry;
+
 use chrono::offset::Utc;
 use chrono_tz::{Tz, TZ_VARIANTS};
 use levenshtein::levenshtein;
@@ -52,7 +54,7 @@ pub async fn timezone(
                             .description(format!(
                                 "Timezone has been set to **{}**. Your current time should be `{}`",
                                 timezone,
-                                now.format("%H:%M").to_string()
+                                now.format("%H:%M")
                             ))
                             .color(*THEME_COLOR)
                     })
@@ -75,10 +77,7 @@ pub async fn timezone(
                 let fields = filtered_tz.iter().map(|tz| {
                     (
                         tz.to_string(),
-                        format!(
-                            "🕗 `{}`",
-                            Utc::now().with_timezone(tz).format("%H:%M").to_string()
-                        ),
+                        format!("🕗 `{}`", Utc::now().with_timezone(tz).format("%H:%M")),
                         true,
                     )
                 });
@@ -98,11 +97,7 @@ pub async fn timezone(
         }
     } else {
         let popular_timezones_iter = ctx.data().popular_timezones.iter().map(|t| {
-            (
-                t.to_string(),
-                format!("🕗 `{}`", Utc::now().with_timezone(t).format("%H:%M").to_string()),
-                true,
-            )
+            (t.to_string(), format!("🕗 `{}`", Utc::now().with_timezone(t).format("%H:%M")), true)
         });
 
         ctx.send(|m| {
@@ -142,7 +137,7 @@ WHERE
     )
     .fetch_all(&ctx.data().database)
     .await
-    .unwrap_or(vec![])
+    .unwrap_or_default()
     .iter()
     .map(|s| s.name.clone())
     .collect()
@@ -200,14 +195,11 @@ Please select a unique name for your macro.",
         let okay = {
             let mut lock = ctx.data().recording_macros.write().await;
 
-            if lock.contains_key(&(guild_id, ctx.author().id)) {
-                false
-            } else {
-                lock.insert(
-                    (guild_id, ctx.author().id),
-                    CommandMacro { guild_id, name, description, commands: vec![] },
-                );
+            if let Entry::Vacant(e) = lock.entry((guild_id, ctx.author().id)) {
+                e.insert(CommandMacro { guild_id, name, description, commands: vec![] });
                 true
+            } else {
+                false
             }
         };
 

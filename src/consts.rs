@@ -36,15 +36,11 @@ lazy_static! {
     );
     pub static ref CNC_GUILD: Option<u64> =
         env::var("CNC_GUILD").map(|var| var.parse::<u64>().ok()).ok().flatten();
-    pub static ref MIN_INTERVAL: i64 = env::var("MIN_INTERVAL")
-        .ok()
-        .map(|inner| inner.parse::<i64>().ok())
-        .flatten()
-        .unwrap_or(600);
+    pub static ref MIN_INTERVAL: i64 =
+        env::var("MIN_INTERVAL").ok().and_then(|inner| inner.parse::<i64>().ok()).unwrap_or(600);
     pub static ref MAX_TIME: i64 = env::var("MAX_TIME")
         .ok()
-        .map(|inner| inner.parse::<i64>().ok())
-        .flatten()
+        .and_then(|inner| inner.parse::<i64>().ok())
         .unwrap_or(60 * 60 * 24 * 365 * 50);
     pub static ref LOCAL_TIMEZONE: String =
         env::var("LOCAL_TIMEZONE").unwrap_or_else(|_| "UTC".to_string());

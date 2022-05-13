@@ -75,7 +75,7 @@ impl fmt::Display for Error {
         match self {
             Error::InvalidCharacter(offset) => write!(f, "invalid character at {}", offset),
             Error::NumberExpected(offset) => write!(f, "expected number at {}", offset),
-            Error::UnknownUnit { unit, value, .. } if &unit == &"" => {
+            Error::UnknownUnit { unit, value, .. } if unit.is_empty() => {
                 write!(f, "time unit needed, for example {0}sec or {0}ms", value,)
             }
             Error::UnknownUnit { unit, .. } => {
@@ -162,11 +162,11 @@ impl<'a> Parser<'a> {
         };
         let mut nsec = self.current.2 + nsec;
         if nsec > 1_000_000_000 {
-            sec = sec + nsec / 1_000_000_000;
+            sec += nsec / 1_000_000_000;
             nsec %= 1_000_000_000;
         }
-        sec = self.current.1 + sec;
-        month = self.current.0 + month;
+        sec += self.current.1;
+        month += self.current.0;
 
         self.current = (month, sec, nsec);
 

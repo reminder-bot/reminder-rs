@@ -42,7 +42,7 @@ pub async fn listener(
                         };
                     });
                 } else {
-                    warn!("Not running postman")
+                    warn!("Not running postman");
                 }
 
                 if !run_settings.contains("web") {
@@ -50,7 +50,7 @@ pub async fn listener(
                         reminder_web::initialize(kill_tx, ctx2, pool2).await.unwrap();
                     });
                 } else {
-                    warn!("Not running web")
+                    warn!("Not running web");
                 }
 
                 data.is_loop_running.swap(true, Ordering::Relaxed);
@@ -114,14 +114,13 @@ pub async fn listener(
                 .execute(&data.database)
                 .await;
         }
-        poise::Event::InteractionCreate { interaction } => match interaction {
-            Interaction::MessageComponent(component) => {
+        poise::Event::InteractionCreate { interaction } => {
+            if let Interaction::MessageComponent(component) = interaction {
                 let component_model = ComponentDataModel::from_custom_id(&component.data.custom_id);
 
                 component_model.act(ctx, data, component).await;
             }
-            _ => {}
-        },
+        }
         _ => {}
     }
 

@@ -1,4 +1,5 @@
 #![feature(int_roundings)]
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -23,7 +24,7 @@ use std::{
 use chrono_tz::Tz;
 use dotenv::dotenv;
 use poise::serenity::model::{
-    gateway::{Activity, GatewayIntents},
+    gateway::GatewayIntents,
     id::{GuildId, UserId},
 };
 use sqlx::{MySql, Pool};
@@ -52,7 +53,7 @@ pub struct Data {
     broadcast: Sender<()>,
 }
 
-impl std::fmt::Debug for Data {
+impl Debug for Data {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Data {{ .. }}")
     }

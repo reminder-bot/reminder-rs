@@ -5,11 +5,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Context, Data, Error};
 
-fn default_none<U, E>() -> Option<
-    for<'a> fn(
-        poise::ApplicationContext<'a, U, E>,
-    ) -> poise::BoxFuture<'a, Result<(), poise::FrameworkError<'a, U, E>>>,
-> {
+type Func<U, E> = for<'a> fn(
+    poise::ApplicationContext<'a, U, E>,
+) -> poise::BoxFuture<'a, Result<(), poise::FrameworkError<'a, U, E>>>;
+
+fn default_none<U, E>() -> Option<Func<U, E>> {
     None
 }
 
@@ -17,11 +17,7 @@ fn default_none<U, E>() -> Option<
 pub struct RecordedCommand<U, E> {
     #[serde(skip)]
     #[serde(default = "default_none::<U, E>")]
-    pub action: Option<
-        for<'a> fn(
-            poise::ApplicationContext<'a, U, E>,
-        ) -> poise::BoxFuture<'a, Result<(), poise::FrameworkError<'a, U, E>>>,
-    >,
+    pub action: Option<Func<U, E>>,
     pub command_name: String,
     pub options: Vec<ApplicationCommandInteractionDataOption>,
 }
@@ -59,7 +55,7 @@ SELECT * FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND
             .iter()
             .find(|c| c.identifying_name == recorded_command.command_name);
 
-        recorded_command.action = command.map(|c| c.slash_action).flatten().clone();
+        recorded_command.action = command.map(|c| c.slash_action).flatten();
     }
 
     let command_macro = CommandMacro {

@@ -4,6 +4,8 @@ pub mod errors;
 mod helper;
 pub mod look_flags;
 
+use std::hash::{Hash, Hasher};
+
 use chrono::{NaiveDateTime, TimeZone};
 use chrono_tz::Tz;
 use poise::{
@@ -32,11 +34,22 @@ pub struct Reminder {
     pub set_by: Option<u64>,
 }
 
+impl Hash for Reminder {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.uid.hash(state);
+    }
+}
+
+impl PartialEq<Self> for Reminder {
+    fn eq(&self, other: &Self) -> bool {
+        self.uid == other.uid
+    }
+}
+
+impl Eq for Reminder {}
+
 impl Reminder {
-    pub async fn from_uid(
-        pool: impl Executor<'_, Database = Database>,
-        uid: String,
-    ) -> Option<Self> {
+    pub async fn from_uid(pool: impl Executor<'_, Database = Database>, uid: &str) -> Option<Self> {
         sqlx::query_as_unchecked!(
             Self,
             "
@@ -66,6 +79,42 @@ WHERE
     reminders.uid = ?
             ",
             uid
+        )
+        .fetch_one(pool)
+        .await
+        .ok()
+    }
+
+    pub async fn from_id(pool: impl Executor<'_, Database = Database>, id: u32) -> Option<Self> {
+        sqlx::query_as_unchecked!(
+            Self,
+            "
+SELECT
+    reminders.id,
+    reminders.uid,
+    channels.channel,
+    reminders.utc_time,
+    reminders.interval_seconds,
+    reminders.interval_months,
+    reminders.expires,
+    reminders.enabled,
+    reminders.content,
+    reminders.embed_description,
+    users.user AS set_by
+FROM
+    reminders
+INNER JOIN
+    channels
+ON
+    reminders.channel_id = channels.id
+LEFT JOIN
+    users
+ON
+    reminders.set_by = users.id
+WHERE
+    reminders.id = ?
+            ",
+            id
         )
         .fetch_one(pool)
         .await
@@ -240,6 +289,13 @@ WHERE
         .unwrap()
     }
 
+    pub async fn delete(
+        &self,
+        db: impl Executor<'_, Database = Database>,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!("DELETE FROM reminders WHERE uid = ?", self.uid).execute(db).await.map(|_| ())
+    }
+
     pub fn display_content(&self) -> &str {
         if self.content.is_empty() {
             &self.embed_description
@@ -254,10 +310,7 @@ WHERE
             count + 1,
             self.display_content(),
             self.channel,
-            timezone
-                .timestamp(self.utc_time.timestamp(), 0)
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string()
+            timezone.timestamp(self.utc_time.timestamp(), 0).format("%Y-%m-%d %H:%M:%S")
         )
     }
 

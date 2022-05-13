@@ -126,7 +126,7 @@ INSERT INTO reminders (
                     .await
                     .unwrap();
 
-                    Ok(Reminder::from_uid(&self.pool, self.uid).await.unwrap())
+                    Ok(Reminder::from_uid(&self.pool, &self.uid).await.unwrap())
                 }
             }
 
@@ -207,7 +207,7 @@ impl<'a> MultiReminderBuilder<'a> {
         self.scopes = scopes;
     }
 
-    pub async fn build(self) -> (HashSet<ReminderError>, HashSet<ReminderScope>) {
+    pub async fn build(self) -> (HashSet<ReminderError>, HashSet<(Reminder, ReminderScope)>) {
         let mut errors = HashSet::new();
 
         let mut ok_locs = HashSet::new();
@@ -309,8 +309,8 @@ impl<'a> MultiReminderBuilder<'a> {
                         };
 
                         match builder.build().await {
-                            Ok(_) => {
-                                ok_locs.insert(scope);
+                            Ok(r) => {
+                                ok_locs.insert((r, scope));
                             }
                             Err(e) => {
                                 errors.insert(e);

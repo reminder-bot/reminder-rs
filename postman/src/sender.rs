@@ -58,10 +58,10 @@ fn fmt_displacement(format: &str, seconds: u64) -> String {
 
 pub fn substitute(string: &str) -> String {
     let new = TIMEFROM_REGEX.replace(string, |caps: &Captures| {
-        let final_time = caps.name("time").unwrap().as_str();
-        let format = caps.name("format").unwrap().as_str();
+        let final_time = caps.name("time").map(|m| m.as_str().parse::<i64>().ok()).flatten();
+        let format = caps.name("format").map(|m| m.as_str());
 
-        if let Ok(final_time) = final_time.parse::<i64>() {
+        if let (Some(final_time), Some(format)) = (final_time, format) {
             let dt = NaiveDateTime::from_timestamp(final_time, 0);
             let now = Utc::now().naive_utc();
 
@@ -81,13 +81,11 @@ pub fn substitute(string: &str) -> String {
 
     TIMENOW_REGEX
         .replace(&new, |caps: &Captures| {
-            let timezone = caps.name("timezone").unwrap().as_str();
+            let timezone = caps.name("timezone").map(|m| m.as_str().parse::<Tz>().ok()).flatten();
+            let format = caps.name("format").map(|m| m.as_str());
 
-            println!("{}", timezone);
-
-            if let Ok(tz) = timezone.parse::<Tz>() {
-                let format = caps.name("format").unwrap().as_str();
-                let now = Utc::now().with_timezone(&tz);
+            if let (Some(timezone), Some(format)) = (timezone, format) {
+                let now = Utc::now().with_timezone(&timezone);
 
                 now.format(format).to_string()
             } else {
@@ -122,7 +120,7 @@ impl Embed {
         pool: impl Executor<'_, Database = Database> + Copy,
         id: u32,
     ) -> Option<Self> {
-        let mut embed = sqlx::query_as!(
+        match sqlx::query_as!(
             Self,
             r#"
             SELECT
@@ -142,21 +140,29 @@ impl Embed {
         )
         .fetch_one(pool)
         .await
-        .unwrap();
+        {
+            Ok(mut embed) => {
+                embed.title = substitute(&embed.title);
+                embed.description = substitute(&embed.description);
+                embed.footer = substitute(&embed.footer);
 
-        embed.title = substitute(&embed.title);
-        embed.description = substitute(&embed.description);
-        embed.footer = substitute(&embed.footer);
+                embed.fields.iter_mut().for_each(|mut field| {
+                    field.title = substitute(&field.title);
+                    field.value = substitute(&field.value);
+                });
 
-        embed.fields.iter_mut().for_each(|mut field| {
-            field.title = substitute(&field.title);
-            field.value = substitute(&field.value);
-        });
+                if embed.has_content() {
+                    Some(embed)
+                } else {
+                    None
+                }
+            }
 
-        if embed.has_content() {
-            Some(embed)
-        } else {
-            None
+            Err(e) => {
+                warn!("Error loading embed from reminder: {:?}", e);
+
+                None
+            }
         }
     }
 
@@ -251,9 +257,9 @@ pub struct Reminder {
 
 impl Reminder {
     pub async fn fetch_reminders(pool: impl Executor<'_, Database = Database> + Copy) -> Vec<Self> {
-        sqlx::query_as_unchecked!(
+        match sqlx::query_as!(
             Reminder,
-            "
+            r#"
 SELECT
     reminders.`id` AS id,
 
@@ -261,20 +267,20 @@ SELECT
     channels.`webhook_id` AS webhook_id,
     channels.`webhook_token` AS webhook_token,
 
-    channels.`paused` AS channel_paused,
-    channels.`paused_until` AS channel_paused_until,
-    reminders.`enabled` AS enabled,
+    channels.`paused` AS "channel_paused:_",
+    channels.`paused_until` AS "channel_paused_until:_",
+    reminders.`enabled` AS "enabled:_",
 
-    reminders.`tts` AS tts,
-    reminders.`pin` AS pin,
+    reminders.`tts` AS "tts:_",
+    reminders.`pin` AS "pin:_",
     reminders.`content` AS content,
     reminders.`attachment` AS attachment,
     reminders.`attachment_name` AS attachment_name,
 
-    reminders.`utc_time` AS 'utc_time',
+    reminders.`utc_time` AS "utc_time:_",
     reminders.`timezone` AS timezone,
-    reminders.`restartable` AS restartable,
-    reminders.`expires` AS expires,
+    reminders.`restartable` AS "restartable:_",
+    reminders.`expires` AS "expires:_",
     reminders.`interval_seconds` AS 'interval_seconds',
     reminders.`interval_months` AS 'interval_months',
 
@@ -288,18 +294,26 @@ ON
     reminders.channel_id = channels.id
 WHERE
     reminders.`utc_time` < NOW()
-            ",
+            "#,
         )
         .fetch_all(pool)
         .await
-        .unwrap()
-        .into_iter()
-        .map(|mut rem| {
-            rem.content = substitute(&rem.content);
+        {
+            Ok(reminders) => reminders
+                .into_iter()
+                .map(|mut rem| {
+                    rem.content = substitute(&rem.content);
 
-            rem
-        })
-        .collect::<Vec<Self>>()
+                    rem
+                })
+                .collect::<Vec<Self>>(),
+
+            Err(e) => {
+                warn!("Could not fetch reminders: {:?}", e);
+
+                vec![]
+            }
+        }
     }
 
     async fn reset_webhook(&self, pool: impl Executor<'_, Database = Database> + Copy) {
@@ -319,7 +333,7 @@ UPDATE channels SET webhook_id = NULL, webhook_token = NULL WHERE channel = ?
             let mut updated_reminder_time = self.utc_time;
 
             if let Some(interval) = self.interval_months {
-                let row = sqlx::query!(
+                match sqlx::query!(
                     // use the second date_add to force return value to datetime
                     "SELECT DATE_ADD(DATE_ADD(?, INTERVAL ? MONTH), INTERVAL 0 SECOND) AS new_time",
                     updated_reminder_time,
@@ -327,9 +341,25 @@ UPDATE channels SET webhook_id = NULL, webhook_token = NULL WHERE channel = ?
                 )
                 .fetch_one(pool)
                 .await
-                .unwrap();
+                {
+                    Ok(row) => match row.new_time {
+                        Some(datetime) => {
+                            updated_reminder_time = datetime;
+                        }
+                        None => {
+                            warn!("Could not update interval by months: got NULL");
 
-                updated_reminder_time = row.new_time.unwrap();
+                            updated_reminder_time += Duration::days(30);
+                        }
+                    },
+
+                    Err(e) => {
+                        warn!("Could not update interval by months: {:?}", e);
+
+                        // naively fallback to adding 30 days
+                        updated_reminder_time += Duration::days(30);
+                    }
+                }
             }
 
             if let Some(interval) = self.interval_seconds {
@@ -538,7 +568,7 @@ UPDATE `channels` SET paused = 0, paused_until = NULL WHERE `channel` = ?
                 error!("Error sending {:?}: {:?}", self, e);
 
                 if let Error::Http(error) = e {
-                    if error.status_code() == Some(StatusCode::from_u16(404).unwrap()) {
+                    if error.status_code() == Some(StatusCode::NOT_FOUND) {
                         error!("Seeing channel is deleted. Removing reminder");
                         self.force_delete(pool).await;
                     } else {
