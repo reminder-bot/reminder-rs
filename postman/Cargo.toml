@@ -12,21 +12,7 @@ chrono = "0.4"
 chrono-tz = { version = "0.5", features = ["serde"] }
 lazy_static = "1.4"
 num-integer = "0.1"
-sqlx = { version = "0.5.10", features = ["runtime-tokio-rustls", "macros", "mysql", "bigdecimal", "chrono"]}
-
-[dependencies.serenity]
-git = "https://github.com/serenity-rs/serenity"
-branch = "next"
-default-features = false
-features = [
-    "builder",
-    "client",
-    "cache",
-    "gateway",
-    "http",
-    "model",
-    "utils",
-    "rustls_backend",
-    "collector",
-    "unstable_discord_api"
-]
+serde = "1.0"
+serde_json = "1.0"
+sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "macros", "mysql", "bigdecimal", "chrono", "json"]}
+serenity = { version = "0.11.1", default-features = false, features = ["builder", "cache", "client", "gateway", "http", "model", "utils", "rustls_backend"] }

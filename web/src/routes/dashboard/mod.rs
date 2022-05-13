@@ -1,19 +1,80 @@
+use std::collections::HashMap;
+
 use chrono::naive::NaiveDateTime;
-use rocket::http::CookieJar;
-use rocket::response::Redirect;
+use rand::{rngs::OsRng, seq::IteratorRandom};
+use rocket::{http::CookieJar, response::Redirect};
 use rocket_dyn_templates::Template;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use serenity::{http::Http, model::id::ChannelId};
+use sqlx::{types::Json, Executor};
+
+use crate::{
+    consts::{CHARACTERS, DEFAULT_AVATAR},
+    Database, Error,
+};
 
 pub mod guild;
 pub mod user;
+
+type Unset<T> = Option<T>;
 
 fn name_default() -> String {
     "Reminder".to_string()
 }
 
+fn template_name_default() -> String {
+    "Template".to_string()
+}
+
+fn channel_default() -> u64 {
+    0
+}
+
+fn id_default() -> u32 {
+    0
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ReminderTemplate {
+    #[serde(default = "id_default")]
+    id: u32,
+    #[serde(default = "id_default")]
+    guild_id: u32,
+    #[serde(default = "template_name_default")]
+    name: String,
+    attachment: Option<Vec<u8>>,
+    attachment_name: Option<String>,
+    avatar: Option<String>,
+    content: String,
+    embed_author: String,
+    embed_author_url: Option<String>,
+    embed_color: u32,
+    embed_description: String,
+    embed_footer: String,
+    embed_footer_url: Option<String>,
+    embed_image_url: Option<String>,
+    embed_thumbnail_url: Option<String>,
+    embed_title: String,
+    embed_fields: Option<Json<Vec<EmbedField>>>,
+    tts: bool,
+    username: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct DeleteReminderTemplate {
+    id: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct EmbedField {
+    title: String,
+    value: String,
+    inline: bool,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Reminder {
+    #[serde(with = "base64s")]
     attachment: Option<Vec<u8>>,
     attachment_name: Option<String>,
     avatar: Option<String>,
@@ -29,25 +90,90 @@ pub struct Reminder {
     embed_image_url: Option<String>,
     embed_thumbnail_url: Option<String>,
     embed_title: String,
-    enabled: i8,
+    embed_fields: Option<Json<Vec<EmbedField>>>,
+    enabled: bool,
     expires: Option<NaiveDateTime>,
     interval_seconds: Option<u32>,
     interval_months: Option<u32>,
     #[serde(default = "name_default")]
     name: String,
-    pin: i8,
-    restartable: i8,
-    tts: i8,
+    pin: bool,
+    restartable: bool,
+    tts: bool,
     #[serde(default)]
     uid: String,
     username: Option<String>,
     utc_time: NaiveDateTime,
 }
 
+#[derive(Deserialize)]
+pub struct PatchReminder {
+    uid: String,
+    #[serde(default)]
+    attachment: Unset<Option<String>>,
+    #[serde(default)]
+    attachment_name: Unset<Option<String>>,
+    #[serde(default)]
+    avatar: Unset<Option<String>>,
+    #[serde(default = "channel_default")]
+    #[serde(with = "string")]
+    channel: u64,
+    #[serde(default)]
+    content: Unset<String>,
+    #[serde(default)]
+    embed_author: Unset<String>,
+    #[serde(default)]
+    embed_author_url: Unset<Option<String>>,
+    #[serde(default)]
+    embed_color: Unset<u32>,
+    #[serde(default)]
+    embed_description: Unset<String>,
+    #[serde(default)]
+    embed_footer: Unset<String>,
+    #[serde(default)]
+    embed_footer_url: Unset<Option<String>>,
+    #[serde(default)]
+    embed_image_url: Unset<Option<String>>,
+    #[serde(default)]
+    embed_thumbnail_url: Unset<Option<String>>,
+    #[serde(default)]
+    embed_title: Unset<String>,
+    #[serde(default)]
+    embed_fields: Unset<Json<Vec<EmbedField>>>,
+    #[serde(default)]
+    enabled: Unset<bool>,
+    #[serde(default)]
+    expires: Unset<Option<NaiveDateTime>>,
+    #[serde(default)]
+    interval_seconds: Unset<Option<u32>>,
+    #[serde(default)]
+    interval_months: Unset<Option<u32>>,
+    #[serde(default)]
+    name: Unset<String>,
+    #[serde(default)]
+    pin: Unset<bool>,
+    #[serde(default)]
+    restartable: Unset<bool>,
+    #[serde(default)]
+    tts: Unset<bool>,
+    #[serde(default)]
+    username: Unset<Option<String>>,
+    #[serde(default)]
+    utc_time: Unset<NaiveDateTime>,
+}
+
+pub fn generate_uid() -> String {
+    let mut generator: OsRng = Default::default();
+
+    (0..64)
+        .map(|_| CHARACTERS.chars().choose(&mut generator).unwrap().to_owned().to_string())
+        .collect::<Vec<String>>()
+        .join("")
+}
+
 // https://github.com/serde-rs/json/issues/329#issuecomment-305608405
 mod string {
-    use std::fmt::Display;
-    use std::str::FromStr;
+    use std::{fmt::Display, str::FromStr};
 
     use serde::{de, Deserialize, Deserializer, Serializer};
 
@@ -69,13 +195,116 @@ mod string {
     }
 }
 
+mod base64s {
+    use serde::{de, Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(value: &Option<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if let Some(opt) = value {
+            serializer.collect_str(&base64::encode(opt))
+        } else {
+            serializer.serialize_none()
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let string = String::deserialize(deserializer)?;
+        Some(base64::decode(string).map_err(de::Error::custom)).transpose()
+    }
+}
+
 #[derive(Deserialize)]
 pub struct DeleteReminder {
     uid: String,
 }
 
+async fn create_database_channel(
+    ctx: impl AsRef<Http>,
+    channel: ChannelId,
+    pool: impl Executor<'_, Database = Database> + Copy,
+) -> Result<u32, crate::Error> {
+    println!("{:?}", channel);
+
+    let row =
+        sqlx::query!("SELECT webhook_token, webhook_id FROM channels WHERE channel = ?", channel.0)
+            .fetch_one(pool)
+            .await;
+
+    match row {
+        Ok(row) => {
+            if row.webhook_token.is_none() || row.webhook_id.is_none() {
+                let webhook = channel
+                    .create_webhook_with_avatar(&ctx, "Reminder", DEFAULT_AVATAR.clone())
+                    .await
+                    .map_err(|e| Error::Serenity(e))?;
+
+                sqlx::query!(
+                    "UPDATE channels SET webhook_id = ?, webhook_token = ? WHERE channel = ?",
+                    webhook.id.0,
+                    webhook.token,
+                    channel.0
+                )
+                .execute(pool)
+                .await
+                .map_err(|e| Error::SQLx(e))?;
+            }
+
+            Ok(())
+        }
+
+        Err(sqlx::Error::RowNotFound) => {
+            // create webhook
+            let webhook = channel
+                .create_webhook_with_avatar(&ctx, "Reminder", DEFAULT_AVATAR.clone())
+                .await
+                .map_err(|e| Error::Serenity(e))?;
+
+            // create database entry
+            sqlx::query!(
+                "INSERT INTO channels (
+                 webhook_id,
+                 webhook_token,
+                 channel
+                ) VALUES (?, ?, ?)",
+                webhook.id.0,
+                webhook.token,
+                channel.0
+            )
+            .execute(pool)
+            .await
+            .map_err(|e| Error::SQLx(e))?;
+
+            Ok(())
+        }
+
+        Err(e) => Err(Error::SQLx(e)),
+    }?;
+
+    let row = sqlx::query!("SELECT id FROM channels WHERE channel = ?", channel.0)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| Error::SQLx(e))?;
+
+    Ok(row.id)
+}
+
 #[get("/")]
 pub async fn dashboard_home(cookies: &CookieJar<'_>) -> Result<Template, Redirect> {
+    if cookies.get_private("userid").is_some() {
+        let map: HashMap<&str, String> = HashMap::new();
+        Ok(Template::render("dashboard", &map))
+    } else {
+        Err(Redirect::to("/login/discord"))
+    }
+}
+
+#[get("/<_>")]
+pub async fn dashboard(cookies: &CookieJar<'_>) -> Result<Template, Redirect> {
     if cookies.get_private("userid").is_some() {
         let map: HashMap<&str, String> = HashMap::new();
         Ok(Template::render("dashboard", &map))

@@ -1,33 +1,73 @@
-use serenity::{client::Context, model::id::GuildId};
+use poise::serenity::model::{
+    id::GuildId, interactions::application_command::ApplicationCommandInteractionDataOption,
+};
+use serde::{Deserialize, Serialize};
 
-use crate::{framework::CommandOptions, SQLPool};
+use crate::{Context, Data, Error};
 
-pub struct CommandMacro {
+fn default_none<U, E>() -> Option<
+    for<'a> fn(
+        poise::ApplicationContext<'a, U, E>,
+    ) -> poise::BoxFuture<'a, Result<(), poise::FrameworkError<'a, U, E>>>,
+> {
+    None
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct RecordedCommand<U, E> {
+    #[serde(skip)]
+    #[serde(default = "default_none::<U, E>")]
+    pub action: Option<
+        for<'a> fn(
+            poise::ApplicationContext<'a, U, E>,
+        ) -> poise::BoxFuture<'a, Result<(), poise::FrameworkError<'a, U, E>>>,
+    >,
+    pub command_name: String,
+    pub options: Vec<ApplicationCommandInteractionDataOption>,
+}
+
+pub struct CommandMacro<U, E> {
     pub guild_id: GuildId,
     pub name: String,
     pub description: Option<String>,
-    pub commands: Vec<CommandOptions>,
+    pub commands: Vec<RecordedCommand<U, E>>,
 }
 
-impl CommandMacro {
-    pub async fn from_guild(ctx: &Context, guild_id: impl Into<GuildId>) -> Vec<Self> {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-        let guild_id = guild_id.into();
+pub async fn guild_command_macro(
+    ctx: &Context<'_>,
+    name: &str,
+) -> Option<CommandMacro<Data, Error>> {
+    let row = sqlx::query!(
+        "
+SELECT * FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?
+        ",
+        ctx.guild_id().unwrap().0,
+        name
+    )
+    .fetch_one(&ctx.data().database)
+    .await
+    .ok()?;
 
-        sqlx::query!(
-            "SELECT * FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?)",
-            guild_id.0
-        )
-        .fetch_all(&pool)
-        .await
-        .unwrap()
-        .iter()
-        .map(|row| Self {
-            guild_id,
-            name: row.name.clone(),
-            description: row.description.clone(),
-            commands: serde_json::from_str(&row.commands).unwrap(),
-        })
-        .collect::<Vec<Self>>()
+    let mut commands: Vec<RecordedCommand<Data, Error>> =
+        serde_json::from_str(&row.commands).unwrap();
+
+    for recorded_command in &mut commands {
+        let command = &ctx
+            .framework()
+            .options()
+            .commands
+            .iter()
+            .find(|c| c.identifying_name == recorded_command.command_name);
+
+        recorded_command.action = command.map(|c| c.slash_action).flatten().clone();
     }
+
+    let command_macro = CommandMacro {
+        guild_id: ctx.guild_id().unwrap(),
+        name: row.name,
+        description: row.description,
+        commands,
+    };
+
+    Some(command_macro)
 }

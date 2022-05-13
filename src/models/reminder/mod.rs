@@ -6,15 +6,15 @@ pub mod look_flags;
 
 use chrono::{NaiveDateTime, TimeZone};
 use chrono_tz::Tz;
-use serenity::{
-    client::Context,
-    model::id::{ChannelId, GuildId, UserId},
+use poise::{
+    serenity::model::id::{ChannelId, GuildId, UserId},
+    serenity_prelude::Cache,
 };
-use sqlx::MySqlPool;
+use sqlx::Executor;
 
 use crate::{
     models::reminder::look_flags::{LookFlags, TimeDisplayType},
-    SQLPool,
+    Database,
 };
 
 #[derive(Debug, Clone)]
@@ -33,7 +33,10 @@ pub struct Reminder {
 }
 
 impl Reminder {
-    pub async fn from_uid(pool: &MySqlPool, uid: String) -> Option<Self> {
+    pub async fn from_uid(
+        pool: impl Executor<'_, Database = Database>,
+        uid: String,
+    ) -> Option<Self> {
         sqlx::query_as_unchecked!(
             Self,
             "
@@ -70,12 +73,10 @@ WHERE
     }
 
     pub async fn from_channel<C: Into<ChannelId>>(
-        ctx: &Context,
+        pool: impl Executor<'_, Database = Database>,
         channel_id: C,
         flags: &LookFlags,
     ) -> Vec<Self> {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
         let enabled = if flags.show_disabled { "0,1" } else { "1" };
         let channel_id = channel_id.into();
 
@@ -113,16 +114,19 @@ ORDER BY
             channel_id.as_u64(),
             enabled,
         )
-        .fetch_all(&pool)
+        .fetch_all(pool)
         .await
         .unwrap()
     }
 
-    pub async fn from_guild(ctx: &Context, guild_id: Option<GuildId>, user: UserId) -> Vec<Self> {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
+    pub async fn from_guild(
+        cache: impl AsRef<Cache>,
+        pool: impl Executor<'_, Database = Database>,
+        guild_id: Option<GuildId>,
+        user: UserId,
+    ) -> Vec<Self> {
         if let Some(guild_id) = guild_id {
-            let guild_opt = guild_id.to_guild_cached(&ctx);
+            let guild_opt = guild_id.to_guild_cached(cache);
 
             if let Some(guild) = guild_opt {
                 let channels = guild
@@ -163,7 +167,7 @@ WHERE
                 ",
                     channels
                 )
-                .fetch_all(&pool)
+                .fetch_all(pool)
                 .await
             } else {
                 sqlx::query_as_unchecked!(
@@ -196,7 +200,7 @@ WHERE
                 ",
                     guild_id.as_u64()
                 )
-                .fetch_all(&pool)
+                .fetch_all(pool)
                 .await
             }
         } else {
@@ -230,7 +234,7 @@ WHERE
             ",
                 user.as_u64()
             )
-            .fetch_all(&pool)
+            .fetch_all(pool)
             .await
         }
         .unwrap()

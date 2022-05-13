@@ -24,7 +24,6 @@
     <link rel="stylesheet" href="/static/css/fa.css">
     <link rel="stylesheet" href="/static/css/font.css">
     <link rel="stylesheet" href="/static/css/style.css">
-
 </head>
 <body>
     {% if flashed_message %}
@@ -37,7 +36,7 @@
         <div class="navbar-brand">
             <a class="navbar-item" href="/">
                 <figure class="image">
-                    <img src="/static/img/logo_flat.jpg" alt="Reminder Bot Logo" class="is-rounded" style="width: auto;">
+                    <img src="/static/img/logo_flat.webp" alt="Reminder Bot Logo" class="is-rounded" style="width: auto;">
                 </figure>
             </a>
 
@@ -49,14 +48,17 @@
         </div>
         <div class="navbar-menu">
             <div class="navbar-start">
-                <a class="navbar-item">
+                <a class="navbar-item" href="https://invite.reminder-bot.com">
                     <i class="fas fa-plus"></i>
                 </a>
-                <a class="navbar-item">
+                <a class="navbar-item" href="https://github.com/jellywx">
                     <i class="fab fa-github"></i>
                 </a>
-                <a class="navbar-item">
+                <a class="navbar-item" href="https://discord.jellywx.com">
                     <i class="fab fa-discord"></i>
+                </a>
+                <a class="navbar-item" href="/help">
+                    <i class="fas fa-book"></i>
                 </a>
             </div>
 
@@ -64,7 +66,7 @@
                 <div class="navbar-item">
                     <a class="button is-rounded is-light" href="/dashboard">
                         <p>
-                            Dashboard <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            <span>Dashboard</span> <span class="icon"><i class="fas fa-chevron-right"></i></span>
                         </p>
                     </a>
                 </div>
@@ -72,14 +74,17 @@
         </div>
 
         <div class="navbar-menu is-hidden-desktop" id="pageNavbar">
-            <a class="navbar-item">
+            <a class="navbar-item" href="https://invite.reminder-bot.com">
                 <i class="fas fa-plus"></i>
             </a>
-            <a class="navbar-item">
+            <a class="navbar-item" href="https://github.com/jellywx">
                 <i class="fab fa-github"></i>
             </a>
-            <a class="navbar-item">
+            <a class="navbar-item" href="https://discord.jellywx.com">
                 <i class="fab fa-discord"></i>
+            </a>
+            <a class="navbar-item" href="/help">
+                <i class="fas fa-book"></i>
             </a>
 
             <div class="navbar-item">
@@ -109,7 +114,7 @@
                 <div class="hero-foot has-text-centered">
                     <a class="button is-size-4 is-rounded is-success" href="https://invite.reminder-bot.com">
                         <p class="is-size-4">
-                            Add to your Server <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            <span>Add to your Server</span> <span class="icon"><i class="fas fa-chevron-right"></i></span>
                         </p>
                     </a>
                 </div>
@@ -117,7 +122,7 @@
                 <div class="hero-foot has-text-centered">
                     <a class="button is-size-4 is-rounded is-primary" href="https://discord.jellywx.com">
                         <p class="is-size-4">
-                            Join Discord <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            <span>Join Discord</span> <span class="icon"><i class="fas fa-chevron-right"></i></span>
                         </p>
                     </a>
                 </div>
@@ -125,7 +130,7 @@
                 <div class="hero-foot has-text-centered">
                     <a class="button is-size-4 is-rounded is-light" href="/oauth/login">
                         <p class="is-size-4">
-                            Login with Discord <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            <span>Login with Discord</span> <span class="icon"><i class="fas fa-chevron-right"></i></span>
                         </p>
                     </a>
                 </div>
@@ -153,9 +158,6 @@
                 <a href="https://patreon.com/jellywx"><strong>Patreon</strong></a> | <a href="https://discord.jellywx.com"><strong>Discord</strong></a> | <a href="https://github.com/JellyWX"><strong>GitHub</strong></a>
                 <br>
                 or, <a href="mailto:jude@jellywx.com">Email me</a>
-                <br>
-                <span class="icon"><i class="fab fa-monero"></i></span>
-                <strong>XMR</strong> 49oP6DzzEzdC6VkxE6hGoLSRw5awvEx5cGGXH327tck15LWk8SFgLUAjS2yZqssMWN3JPRraR68ApHi4GGSLtCDmLbF7euH
             </p>
         </div>
     </footer>

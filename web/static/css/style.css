@@ -2,12 +2,122 @@
     font-family: "Ubuntu Bold", "Ubuntu", sans-serif;
 }
 
+button {
+    font-weight: 700;
+}
+
+/* override styles for when the div is collapsed */
+div.reminderContent.is-collapsed .column.discord-frame {
+    display: none;
+}
+
+div.reminderContent.is-collapsed .collapses {
+    display: none;
+}
+
+div.reminderContent.is-collapsed .invert-collapses {
+    display: inline-flex;
+}
+
+div.reminderContent .invert-collapses {
+    display: none;
+}
+
+div.reminderContent.is-collapsed .settings {
+    display: flex;
+    flex-direction: row;
+    padding-bottom: 0;
+}
+
+div.reminderContent.is-collapsed .channel-field {
+    display: inline-flex;
+    order: 1;
+}
+
+div.reminderContent.is-collapsed .reminder-topbar {
+    display: inline-flex;
+    margin-bottom: 0px;
+    flex-grow: 1;
+    order: 2;
+}
+
+div.reminderContent.is-collapsed input[name="name"] {
+    display: inline-flex;
+    flex-grow: 1;
+    border: none;
+    font-weight: 700;
+    background: none;
+}
+
+div.reminderContent.is-collapsed button.hide-box {
+    display: inline-flex;
+}
+
+div.reminderContent.is-collapsed button.hide-box i {
+    transform: rotate(90deg);
+}
+/* END */
+
+/* dashboard styles */
+button.inline-btn {
+    height: 100%;
+    padding: 5px;
+}
+
+button.change-color {
+    position: absolute;
+    left: calc(-1rem - 40px);
+}
+
+button.disable-enable[data-action="enable"]:after {
+    content: "Enable";
+}
+
+button.disable-enable[data-action="disable"]:after {
+    content: "Disable";
+}
+
+.media-content {
+    overflow-x: visible;
+}
+
+div.discord-embed {
+    position: relative;
+}
+
 div.reminderContent {
     padding: 2px;
     background-color: #f5f5f5;
     border-radius: 8px;
     margin: 8px;
 }
+
+div.interval-group > button {
+    margin-left: auto;
+}
+
+/* Interval inputs */
+div.interval-group > .interval-group-left input {
+    -webkit-appearance: none;
+    border-style: none;
+    background-color: #eee;
+    font-size: 1rem;
+    font-family: monospace;
+}
+
+div.interval-group > .interval-group-left input.w2 {
+    width: 3ch;
+}
+
+div.interval-group > .interval-group-left input.w3 {
+    width: 6ch;
+}
+
+div.interval-group {
+    display: flex;
+    flex-direction: row;
+}
+/* !Interval inputs */
 
 .left-pad {
     padding-left: 1rem;
@@ -52,6 +162,15 @@ span.patreon-color {
     color: #f96854;
 }
 
+p.pageTitle {
+    margin-left: 12px;
+}
+
+#welcome > div {
+    height: 100%;
+    padding-top: 30vh;
+}
+
 div#pageNavbar {
     background-color: #363636;
 }
@@ -71,7 +190,7 @@ img.rounded-corners {
 
 div.brand {
     text-align: center;
-    height: 48px;
+    height: 52px;
     background-color: #8fb677;
 }
 
@@ -87,22 +206,59 @@ div.dashboard-sidebar {
     padding-right: 0;
 }
 
+div.dashboard-sidebar:not(.mobile-sidebar) {
+    display: flex;
+    flex-direction: column;
+}
+
+div.dashboard-sidebar:not(.mobile-sidebar) .aside-footer {
+    position: fixed;
+    bottom: 0;
+    width: 226px;
+}
+
 div.mobile-sidebar {
     z-index: 100;
-    height: 100vh;
+    min-height: 100vh;
     position: absolute;
     top: 0;
     display: none;
     flex-direction: column;
 }
 
+#expandAll {
+    width: 60px;
+}
+
+div.mobile-sidebar .aside-footer {
+    margin-top: auto;
+}
+
 div.mobile-sidebar.is-active {
     display: flex;
+}
+
+aside.menu {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
 }
 
 div.dashboard-frame {
     min-height: 100vh;
     margin-bottom: 0 !important;
+}
+
+.embed-field-box[data-inlined="0"] .inline-btn > i {
+    transform: rotate(90deg);
+}
+
+.embed-field-box[data-inlined="0"] {
+    min-width: 100%;
+}
+
+.embed-field-box[data-inlined="1"] {
+    min-width: auto;
 }
 
 .menu a {
@@ -254,7 +410,6 @@ textarea, input {
     border-radius: 4px;
     border-left: 4px solid #fff;
     background-color: #2f3136;
-    width: 500px;
 }
 
 .embed-author-box {
@@ -340,36 +495,6 @@ textarea, input {
     flex-wrap: wrap;
 }
 
-.icon-toggle {
-    color: #fff;
-    opacity: 0.2;
-}
-
-.preview-toggle {
-    color: #fcb620;
-    opacity: 0.2;
-}
-
-a.level-item.preview-toggle:hover {
-    color: #fcb620;
-}
-
-.preview-toggle.is-active {
-    opacity: 1;
-}
-
-a.level-item.icon-toggle:hover {
-    color: inherit;
-}
-
-a.level-item:hover {
-    color: rgb(55, 127, 242)
-}
-
-.icon-toggle.is-active {
-    opacity: 1;
-}
-
 .channel-select {
     font-size: 1.125rem;
     margin-bottom: 4px;
@@ -380,4 +505,74 @@ a.level-item:hover {
     width: auto;
     border-radius: 2px;
     border-bottom: 1px solid #fff;
+}
+
+@media only screen and (max-width: 768px) {
+    .customizable.thumbnail img {
+        width: 60px;
+        height: 60px;
+    }
+
+    .customizable.is-24x24 img {
+        width: 16px;
+        height: 16px;
+    }
+}
+
+/* loader */
+#loader {
+    position: fixed;
+    background-color: rgba(255, 255, 255, 0.8);
+    width: 100vw;
+    z-index: 999;
+}
+
+#loader .title {
+    font-size: 6rem;
+}
+
+/* END */
+
+/* other stuff */
+
+.half-rem {
+    width: 0.5rem;
+}
+
+.pad-left {
+    width: 12px;
+}
+
+#dead {
+    display: none;
+}
+
+.colorpicker-container {
+    display: flex;
+    justify-content: center;
+}
+
+.create-reminder {
+    margin: 0 12px 12px 12px;
+}
+
+.button.is-success:not(.is-outlined) {
+    color: white;
+}
+
+.button.is-outlined.is-success {
+    background-color: white;
+}
+
+.is-locked {
+    pointer-events: none;
+    opacity: 0.4;
+}
+
+.is-locked .foreground {
+    pointer-events: auto;
+}
+
+.is-locked .field:last-of-type {
+    display: none;
 }

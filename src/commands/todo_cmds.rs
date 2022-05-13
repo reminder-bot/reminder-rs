@@ -1,5 +1,4 @@
-use regex_command_attr::command;
-use serenity::client::Context;
+use poise::CreateReply;
 
 use crate::{
     component_models::{
@@ -7,134 +6,218 @@ use crate::{
         ComponentDataModel, TodoSelector,
     },
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, SELECT_MAX_ENTRIES, THEME_COLOR},
-    framework::{CommandInvoke, CommandOptions, CreateGenericResponse},
-    hooks::CHECK_GUILD_PERMISSIONS_HOOK,
-    SQLPool,
+    Context, Error,
 };
 
-#[command]
-#[description("Manage todo lists")]
-#[subcommandgroup("server")]
-#[description("Manage the server todo list")]
-#[subcommand("add")]
-#[description("Add an item to the server todo list")]
-#[arg(
-    name = "task",
-    description = "The task to add to the todo list",
-    kind = "String",
-    required = true
+/// Manage todo lists
+#[poise::command(
+    slash_command,
+    rename = "todo",
+    identifying_name = "todo_base",
+    default_member_permissions = "MANAGE_GUILD"
 )]
-#[subcommand("view")]
-#[description("View and remove from the server todo list")]
-#[subcommandgroup("channel")]
-#[description("Manage the channel todo list")]
-#[subcommand("add")]
-#[description("Add to the channel todo list")]
-#[arg(
-    name = "task",
-    description = "The task to add to the todo list",
-    kind = "String",
-    required = true
+pub async fn todo_base(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// Manage the server todo list
+#[poise::command(
+    slash_command,
+    rename = "server",
+    guild_only = true,
+    identifying_name = "todo_guild_base",
+    default_member_permissions = "MANAGE_GUILD"
 )]
-#[subcommand("view")]
-#[description("View and remove from the channel todo list")]
-#[subcommandgroup("user")]
-#[description("Manage your personal todo list")]
-#[subcommand("add")]
-#[description("Add to your personal todo list")]
-#[arg(
-    name = "task",
-    description = "The task to add to the todo list",
-    kind = "String",
-    required = true
+pub async fn todo_guild_base(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// Add an item to the server todo list
+#[poise::command(
+    slash_command,
+    rename = "add",
+    guild_only = true,
+    identifying_name = "todo_guild_add",
+    default_member_permissions = "MANAGE_GUILD"
 )]
-#[subcommand("view")]
-#[description("View and remove from your personal todo list")]
-#[hook(CHECK_GUILD_PERMISSIONS_HOOK)]
-async fn todo(ctx: &Context, invoke: &mut CommandInvoke, args: CommandOptions) {
-    if invoke.guild_id().is_none() && args.subcommand_group != Some("user".to_string()) {
-        let _ = invoke
-            .respond(
-                &ctx,
-                CreateGenericResponse::new().content("Please use `/todo user` in direct messages"),
-            )
-            .await;
-    } else {
-        let pool = ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
+pub async fn todo_guild_add(
+    ctx: Context<'_>,
+    #[description = "The task to add to the todo list"] task: String,
+) -> Result<(), Error> {
+    sqlx::query!(
+        "INSERT INTO todos (guild_id, value)
+VALUES ((SELECT id FROM guilds WHERE guild = ?), ?)",
+        ctx.guild_id().unwrap().0,
+        task
+    )
+    .execute(&ctx.data().database)
+    .await
+    .unwrap();
 
-        let keys = match args.subcommand_group.as_ref().unwrap().as_str() {
-            "server" => (None, None, invoke.guild_id().map(|g| g.0)),
-            "channel" => (None, Some(invoke.channel_id().0), invoke.guild_id().map(|g| g.0)),
-            _ => (Some(invoke.author_id().0), None, None),
-        };
+    ctx.say("Item added to todo list").await?;
 
-        match args.get("task") {
-            Some(task) => {
-                let task = task.to_string();
+    Ok(())
+}
 
-                sqlx::query!(
-                    "INSERT INTO todos (user_id, channel_id, guild_id, value) VALUES ((SELECT id FROM users WHERE user = ?), (SELECT id FROM channels WHERE channel = ?), (SELECT id FROM guilds WHERE guild = ?), ?)",
-                    keys.0,
-                    keys.1,
-                    keys.2,
-                    task
-                )
-                .execute(&pool)
-                .await
-                .unwrap();
-
-                let _ = invoke
-                    .respond(&ctx, CreateGenericResponse::new().content("Item added to todo list"))
-                    .await;
-            }
-            None => {
-                let values = if let Some(uid) = keys.0 {
-                    sqlx::query!(
-                        "SELECT todos.id, value FROM todos
-INNER JOIN users ON todos.user_id = users.id
-WHERE users.user = ?",
-                        uid,
-                    )
-                    .fetch_all(&pool)
-                    .await
-                    .unwrap()
-                    .iter()
-                    .map(|row| (row.id as usize, row.value.clone()))
-                    .collect::<Vec<(usize, String)>>()
-                } else if let Some(cid) = keys.1 {
-                    sqlx::query!(
-                        "SELECT todos.id, value FROM todos
-INNER JOIN channels ON todos.channel_id = channels.id
-WHERE channels.channel = ?",
-                        cid,
-                    )
-                    .fetch_all(&pool)
-                    .await
-                    .unwrap()
-                    .iter()
-                    .map(|row| (row.id as usize, row.value.clone()))
-                    .collect::<Vec<(usize, String)>>()
-                } else {
-                    sqlx::query!(
-                        "SELECT todos.id, value FROM todos
+/// View and remove from the server todo list
+#[poise::command(
+    slash_command,
+    rename = "view",
+    guild_only = true,
+    identifying_name = "todo_guild_view",
+    default_member_permissions = "MANAGE_GUILD"
+)]
+pub async fn todo_guild_view(ctx: Context<'_>) -> Result<(), Error> {
+    let values = sqlx::query!(
+        "SELECT todos.id, value FROM todos
 INNER JOIN guilds ON todos.guild_id = guilds.id
 WHERE guilds.guild = ?",
-                        keys.2,
-                    )
-                    .fetch_all(&pool)
-                    .await
-                    .unwrap()
-                    .iter()
-                    .map(|row| (row.id as usize, row.value.clone()))
-                    .collect::<Vec<(usize, String)>>()
-                };
+        ctx.guild_id().unwrap().0,
+    )
+    .fetch_all(&ctx.data().database)
+    .await
+    .unwrap()
+    .iter()
+    .map(|row| (row.id as usize, row.value.clone()))
+    .collect::<Vec<(usize, String)>>();
 
-                let resp = show_todo_page(&values, 0, keys.0, keys.1, keys.2);
+    let resp = show_todo_page(&values, 0, None, None, ctx.guild_id().map(|g| g.0));
 
-                invoke.respond(&ctx, resp).await.unwrap();
-            }
-        }
-    }
+    ctx.send(|r| {
+        *r = resp;
+        r
+    })
+    .await?;
+
+    Ok(())
+}
+
+/// Manage the channel todo list
+#[poise::command(
+    slash_command,
+    rename = "channel",
+    guild_only = true,
+    identifying_name = "todo_channel_base",
+    default_member_permissions = "MANAGE_GUILD"
+)]
+pub async fn todo_channel_base(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// Add an item to the channel todo list
+#[poise::command(
+    slash_command,
+    rename = "add",
+    guild_only = true,
+    identifying_name = "todo_channel_add",
+    default_member_permissions = "MANAGE_GUILD"
+)]
+pub async fn todo_channel_add(
+    ctx: Context<'_>,
+    #[description = "The task to add to the todo list"] task: String,
+) -> Result<(), Error> {
+    sqlx::query!(
+        "INSERT INTO todos (guild_id, channel_id, value)
+VALUES ((SELECT id FROM guilds WHERE guild = ?), (SELECT id FROM channels WHERE channel = ?), ?)",
+        ctx.guild_id().unwrap().0,
+        ctx.channel_id().0,
+        task
+    )
+    .execute(&ctx.data().database)
+    .await
+    .unwrap();
+
+    ctx.say("Item added to todo list").await?;
+
+    Ok(())
+}
+
+/// View and remove from the channel todo list
+#[poise::command(
+    slash_command,
+    rename = "view",
+    guild_only = true,
+    identifying_name = "todo_channel_view",
+    default_member_permissions = "MANAGE_GUILD"
+)]
+pub async fn todo_channel_view(ctx: Context<'_>) -> Result<(), Error> {
+    let values = sqlx::query!(
+        "SELECT todos.id, value FROM todos
+INNER JOIN channels ON todos.channel_id = channels.id
+WHERE channels.channel = ?",
+        ctx.channel_id().0,
+    )
+    .fetch_all(&ctx.data().database)
+    .await
+    .unwrap()
+    .iter()
+    .map(|row| (row.id as usize, row.value.clone()))
+    .collect::<Vec<(usize, String)>>();
+
+    let resp =
+        show_todo_page(&values, 0, None, Some(ctx.channel_id().0), ctx.guild_id().map(|g| g.0));
+
+    ctx.send(|r| {
+        *r = resp;
+        r
+    })
+    .await?;
+
+    Ok(())
+}
+
+/// Manage your personal todo list
+#[poise::command(slash_command, rename = "user", identifying_name = "todo_user_base")]
+pub async fn todo_user_base(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// Add an item to your personal todo list
+#[poise::command(slash_command, rename = "add", identifying_name = "todo_user_add")]
+pub async fn todo_user_add(
+    ctx: Context<'_>,
+    #[description = "The task to add to the todo list"] task: String,
+) -> Result<(), Error> {
+    sqlx::query!(
+        "INSERT INTO todos (user_id, value)
+VALUES ((SELECT id FROM users WHERE user = ?), ?)",
+        ctx.author().id.0,
+        task
+    )
+    .execute(&ctx.data().database)
+    .await
+    .unwrap();
+
+    ctx.say("Item added to todo list").await?;
+
+    Ok(())
+}
+
+/// View and remove from your personal todo list
+#[poise::command(slash_command, rename = "view", identifying_name = "todo_user_view")]
+pub async fn todo_user_view(ctx: Context<'_>) -> Result<(), Error> {
+    let values = sqlx::query!(
+        "SELECT todos.id, value FROM todos
+INNER JOIN users ON todos.user_id = users.id
+WHERE users.user = ?",
+        ctx.author().id.0,
+    )
+    .fetch_all(&ctx.data().database)
+    .await
+    .unwrap()
+    .iter()
+    .map(|row| (row.id as usize, row.value.clone()))
+    .collect::<Vec<(usize, String)>>();
+
+    let resp = show_todo_page(&values, 0, Some(ctx.author().id.0), None, None);
+
+    ctx.send(|r| {
+        *r = resp;
+        r
+    })
+    .await?;
+
+    Ok(())
 }
 
 pub fn max_todo_page(todo_values: &[(usize, String)]) -> usize {
@@ -164,7 +247,7 @@ pub fn show_todo_page(
     user_id: Option<u64>,
     channel_id: Option<u64>,
     guild_id: Option<u64>,
-) -> CreateGenericResponse {
+) -> CreateReply {
     let pager = TodoPager::new(page, user_id, channel_id, guild_id);
 
     let pages = max_todo_page(todo_values);
@@ -219,17 +302,23 @@ pub fn show_todo_page(
     };
 
     if todo_ids.is_empty() {
-        CreateGenericResponse::new().embed(|e| {
+        let mut reply = CreateReply::default();
+
+        reply.embed(|e| {
             e.title(format!("{} Todo List", title))
                 .description("Todo List Empty!")
                 .footer(|f| f.text(format!("Page {} of {}", page + 1, pages)))
                 .color(*THEME_COLOR)
-        })
+        });
+
+        reply
     } else {
         let todo_selector =
             ComponentDataModel::TodoSelector(TodoSelector { page, user_id, channel_id, guild_id });
 
-        CreateGenericResponse::new()
+        let mut reply = CreateReply::default();
+
+        reply
             .embed(|e| {
                 e.title(format!("{} Todo List", title))
                     .description(display)
@@ -255,6 +344,8 @@ pub fn show_todo_page(
                         })
                     })
                 })
-            })
+            });
+
+        reply
     }
 }

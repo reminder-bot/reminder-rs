@@ -2,8 +2,7 @@ use std::{collections::HashSet, fmt::Display};
 
 use chrono::{Duration, NaiveDateTime, Utc};
 use chrono_tz::Tz;
-use serenity::{
-    client::Context,
+use poise::serenity::{
     http::CacheHttp,
     model::{
         channel::GuildChannel,
@@ -15,15 +14,14 @@ use serenity::{
 use sqlx::MySqlPool;
 
 use crate::{
-    consts,
-    consts::{DAY, MAX_TIME, MIN_INTERVAL},
+    consts::{DAY, DEFAULT_AVATAR, MAX_TIME, MIN_INTERVAL},
     interval_parser::Interval,
     models::{
         channel_data::ChannelData,
         reminder::{content::Content, errors::ReminderError, helper::generate_uid, Reminder},
         user_data::UserData,
     },
-    SQLPool,
+    Context,
 };
 
 async fn create_webhook(
@@ -31,7 +29,7 @@ async fn create_webhook(
     channel: GuildChannel,
     name: impl Display,
 ) -> SerenityResult<Webhook> {
-    channel.create_webhook_with_avatar(ctx.http(), name, consts::DEFAULT_AVATAR.clone()).await
+    channel.create_webhook_with_avatar(ctx.http(), name, DEFAULT_AVATAR.clone()).await
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -145,7 +143,7 @@ pub struct MultiReminderBuilder<'a> {
     expires: Option<NaiveDateTime>,
     content: Content,
     set_by: Option<u32>,
-    ctx: &'a Context,
+    ctx: &'a Context<'a>,
     guild_id: Option<GuildId>,
 }
 
@@ -210,8 +208,6 @@ impl<'a> MultiReminderBuilder<'a> {
     }
 
     pub async fn build(self) -> (HashSet<ReminderError>, HashSet<ReminderScope>) {
-        let pool = self.ctx.data.read().await.get::<SQLPool>().cloned().unwrap();
-
         let mut errors = HashSet::new();
 
         let mut ok_locs = HashSet::new();
@@ -225,12 +221,17 @@ impl<'a> MultiReminderBuilder<'a> {
             for scope in self.scopes {
                 let db_channel_id = match scope {
                     ReminderScope::User(user_id) => {
-                        if let Ok(user) = UserId(user_id).to_user(&self.ctx).await {
-                            let user_data =
-                                UserData::from_user(&user, &self.ctx, &pool).await.unwrap();
+                        if let Ok(user) = UserId(user_id).to_user(&self.ctx.discord()).await {
+                            let user_data = UserData::from_user(
+                                &user,
+                                &self.ctx.discord(),
+                                &self.ctx.data().database,
+                            )
+                            .await
+                            .unwrap();
 
                             if let Some(guild_id) = self.guild_id {
-                                if guild_id.member(&self.ctx, user).await.is_err() {
+                                if guild_id.member(&self.ctx.discord(), user).await.is_err() {
                                     Err(ReminderError::InvalidTag)
                                 } else {
                                     Ok(user_data.dm_channel)
@@ -243,26 +244,36 @@ impl<'a> MultiReminderBuilder<'a> {
                         }
                     }
                     ReminderScope::Channel(channel_id) => {
-                        let channel = ChannelId(channel_id).to_channel(&self.ctx).await.unwrap();
+                        let channel =
+                            ChannelId(channel_id).to_channel(&self.ctx.discord()).await.unwrap();
 
                         if let Some(guild_channel) = channel.clone().guild() {
                             if Some(guild_channel.guild_id) != self.guild_id {
                                 Err(ReminderError::InvalidTag)
                             } else {
                                 let mut channel_data =
-                                    ChannelData::from_channel(&channel, &pool).await.unwrap();
+                                    ChannelData::from_channel(&channel, &self.ctx.data().database)
+                                        .await
+                                        .unwrap();
 
                                 if channel_data.webhook_id.is_none()
                                     || channel_data.webhook_token.is_none()
                                 {
-                                    match create_webhook(&self.ctx, guild_channel, "Reminder").await
+                                    match create_webhook(
+                                        &self.ctx.discord(),
+                                        guild_channel,
+                                        "Reminder",
+                                    )
+                                    .await
                                     {
                                         Ok(webhook) => {
                                             channel_data.webhook_id =
                                                 Some(webhook.id.as_u64().to_owned());
                                             channel_data.webhook_token = webhook.token;
 
-                                            channel_data.commit_changes(&pool).await;
+                                            channel_data
+                                                .commit_changes(&self.ctx.data().database)
+                                                .await;
 
                                             Ok(channel_data.id)
                                         }
@@ -282,7 +293,7 @@ impl<'a> MultiReminderBuilder<'a> {
                 match db_channel_id {
                     Ok(c) => {
                         let builder = ReminderBuilder {
-                            pool: pool.clone(),
+                            pool: self.ctx.data().database.clone(),
                             uid: generate_uid(),
                             channel: c,
                             utc_time: self.utc_time,

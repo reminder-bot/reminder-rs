@@ -1,9 +1,10 @@
 pub mod dashboard;
 pub mod login;
 
+use std::collections::HashMap;
+
 use rocket::request::FlashMessage;
 use rocket_dyn_templates::Template;
-use std::collections::HashMap;
 
 #[get("/")]
 pub async fn index(flash: Option<FlashMessage<'_>>) -> Template {
@@ -44,8 +45,44 @@ pub async fn terms() -> Template {
     Template::render("terms", &map)
 }
 
-#[get("/help")]
+#[get("/")]
 pub async fn help() -> Template {
     let map: HashMap<&str, String> = HashMap::new();
     Template::render("help", &map)
+}
+
+#[get("/timezone")]
+pub async fn help_timezone() -> Template {
+    let map: HashMap<&str, String> = HashMap::new();
+    Template::render("support/timezone", &map)
+}
+
+#[get("/create_reminder")]
+pub async fn help_create_reminder() -> Template {
+    let map: HashMap<&str, String> = HashMap::new();
+    Template::render("support/create_reminder", &map)
+}
+
+#[get("/delete_reminder")]
+pub async fn help_delete_reminder() -> Template {
+    let map: HashMap<&str, String> = HashMap::new();
+    Template::render("support/delete_reminder", &map)
+}
+
+#[get("/timers")]
+pub async fn help_timers() -> Template {
+    let map: HashMap<&str, String> = HashMap::new();
+    Template::render("support/timers", &map)
+}
+
+#[get("/todo_lists")]
+pub async fn help_todo_lists() -> Template {
+    let map: HashMap<&str, String> = HashMap::new();
+    Template::render("support/todo_lists", &map)
+}
+
+#[get("/macros")]
+pub async fn help_macros() -> Template {
+    let map: HashMap<&str, String> = HashMap::new();
+    Template::render("support/macros", &map)
 }

@@ -1,14 +1,98 @@
 {% extends "base" %}
 
-{% set title = "Commands" %}
-{% set page_title = "Commands" %}
+{% block init %}
+    {% set title = "Support" %}
+
+    {% set page_title = "Support Articles" %}
+    {% set page_subtitle = "Can't find what you're looking for? Join our Discord!" %}
+    {% set show_contact = true %}
+{% endblock %}
 
 {% block content %}
 
-    <section class="section">
-        <div class="container">
-            <h2 class="title">Information Commands</h2>
+    <div class="inset-content" >
+        <div class="tile is-ancestor">
+            <div class="tile is-parent">
+                <article class="tile is-child notification">
+                    <p class="title">Timezone</p>
+                    <p class="subtitle">Learn how to configure your timezone</p>
+                    <div class="content has-text-centered">
+                        <a class="button is-size-4 is-rounded is-light" href="/help/timezone">
+                            <p class="is-size-4">
+                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            </p>
+                        </a>
+                    </div>
+                </article>
+            </div>
+            <div class="tile is-parent">
+                <article class="tile is-child notification">
+                    <p class="title">Creating reminders</p>
+                    <p class="subtitle">Learn to create reminders for your server</p>
+                    <div class="content has-text-centered">
+                        <a class="button is-size-4 is-rounded is-light" href="/help/create_reminder">
+                            <p class="is-size-4">
+                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            </p>
+                        </a>
+                    </div>
+                </article>
+            </div>
+            <div class="tile is-parent is-vertical">
+                <article class="tile is-child notification">
+                    <p class="title">Delete reminders</p>
+                    <p class="subtitle">Learn to delete reminders that you've created</p>
+                    <div class="content has-text-centered">
+                        <a class="button is-size-4 is-rounded is-light" href="/help/delete_reminder">
+                            <p class="is-size-4">
+                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            </p>
+                        </a>
+                    </div>
+                </article>
+            </div>
         </div>
-    </section>
+        <div class="tile is-ancestor">
+            <div class="tile is-parent">
+                <article class="tile is-child notification">
+                    <p class="title">Timers</p>
+                    <p class="subtitle">Learn to manage timers</p>
+                    <div class="content has-text-centered">
+                        <a class="button is-size-4 is-rounded is-light" href="/help/timers">
+                            <p class="is-size-4">
+                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            </p>
+                        </a>
+                    </div>
+                </article>
+            </div>
+            <div class="tile is-parent">
+                <article class="tile is-child notification">
+                    <p class="title">Todo Lists</p>
+                    <p class="subtitle">Learn to manage various todo lists</p>
+                    <div class="content has-text-centered">
+                        <a class="button is-size-4 is-rounded is-light" href="/help/todo_lists">
+                            <p class="is-size-4">
+                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            </p>
+                        </a>
+                    </div>
+                </article>
+            </div>
+            <div class="tile is-parent is-vertical">
+                <article class="tile is-child notification">
+                    <p class="title">Macros</p>
+                    <p class="subtitle">Learn how to create combination commands called macros, to suit advanced use cases</p>
+                    <div class="content has-text-centered">
+                        <a class="button is-size-4 is-rounded is-light" href="/help/macros">
+                            <p class="is-size-4">
+                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            </p>
+                        </a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </div>
 
 {% endblock %}

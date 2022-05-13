@@ -12,7 +12,7 @@
 
     <section class="section">
         <div class="container">
-            <h2 class="title">User Data</h2>
+            <h2 class="title">User data</h2>
             <p class="is-size-5 pl-6">
                 This website uses some necessary cookies and session data to operate. None of this can be disabled, since
                 it is all necessary for the site to function. <strong>However,</strong> it is worth mentioning that all of
@@ -38,7 +38,7 @@
 
     <section class="section">
         <div class="container">
-            <h2 class="title">Session Storage</h2>
+            <h2 class="title">Session storage</h2>
             <p class="is-size-5 pl-6">
                 Session data are data that is stored just for the active browser session. Session storage is read and
                 written by our server and cannot be modified on your computer.
@@ -51,7 +51,7 @@
 
     <section class="section">
         <div class="container">
-            <h2 class="title">How Can We Trust You?</h2>
+            <h2 class="title">How can we trust you?</h2>
             <p class="is-size-5 pl-6">
                 Feel free to audit this website. Go to our <a href="https://github.com/reminder-bot">GitHub</a> to get started, or just press <kbd>F12</kbd>
             </p>
