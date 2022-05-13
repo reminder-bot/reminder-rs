@@ -2,13 +2,20 @@
 Reminder Bot for Discord.
 
 ## How do I use it?
-We offer a hosted version of the bot. You can invite it with: **https://invite.reminder-bot.com**. The catch is that repeating 
+I offer a hosted version of the bot. You can invite it with: **https://invite.reminder-bot.com**. The catch is that repeating 
 reminders are paid on the hosted version of the bot. Keep reading if you want to host it yourself.
 
 You'll need rustc and cargo for compilation. To run, you'll need Python 3 still (due to no suitable replacement for dateparser in Rust)
 
 ### Compiling
-Reminder Bot can be built by running `cargo build --release` in the top level directory. It is necessary to create a folder called 'assets' containing an image file with its name specified in the environment as `WEBHOOK_AVATAR`, of dimensions 128x128px to be used as the webhook avatar.
+Install build requirements: 
+`sudo apt install gcc gcc-multilib cmake libssl-dev build-essential`
+
+Install Rust from https://rustup.rs
+
+Reminder Bot can then be built by running `cargo build --release` in the top level directory. It is necessary to create a 
+folder called 'assets' containing an image file with its name specified in the environment as `WEBHOOK_AVATAR`, of 
+dimensions 128x128px to be used as the webhook avatar.
 
 #### Compilation environment variables
 These environment variables must be provided when compiling the bot
