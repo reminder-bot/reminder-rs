@@ -171,8 +171,6 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
         .token(discord_token)
         .user_data_setup(move |ctx, _bot, framework| {
             Box::pin(async move {
-                ctx.set_activity(Activity::watching("for /remind")).await;
-
                 register_application_commands(
                     ctx,
                     framework,

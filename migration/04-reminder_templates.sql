@@ -32,3 +32,20 @@ CREATE TABLE reminder_template (
 );
 
 ALTER TABLE reminders ADD COLUMN embed_fields JSON;
+
+update reminders
+    inner join embed_fields as E
+    on E.reminder_id = reminders.id
+set embed_fields = (
+    select JSON_ARRAYAGG(
+        JSON_OBJECT(
+            'title', E.title,
+            'value', E.value,
+            'inline',
+            if(inline = 1, cast(TRUE as json), cast(FALSE as json))
+            )
+        )
+    from embed_fields
+    group by reminder_id
+    having reminder_id = reminders.id
+    );

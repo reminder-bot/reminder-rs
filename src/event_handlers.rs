@@ -14,6 +14,9 @@ pub async fn listener(
     data: &Data,
 ) -> Result<(), Error> {
     match event {
+        poise::Event::Ready { .. } => {
+            ctx.set_activity(serenity::Activity::watching("for /remind")).await;
+        }
         poise::Event::CacheReady { .. } => {
             info!("Cache Ready! Preparing extra processes");
 
