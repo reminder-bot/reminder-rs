@@ -186,12 +186,12 @@
     <div class="modal-background"></div>
     <div class="modal-card">
         <header class="modal-card-head">
-            <label class="modal-card-title" for="urlInput">Delete Reminder</label>
+            <label class="modal-card-title">Delete Reminder</label>
             <button class="delete close-modal" aria-label="close"></button>
         </header>
         <section class="modal-card-body">
             <p>
-                This reminder will be permenantly deleted. Are you sure?
+                This reminder will be permanently deleted. Are you sure?
             </p>
             <br>
             <div class="has-text-centered">

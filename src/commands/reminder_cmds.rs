@@ -39,7 +39,11 @@ use crate::{
 };
 
 /// Pause all reminders on the current channel until a certain time or indefinitely
-#[poise::command(slash_command, identifying_name = "pause")]
+#[poise::command(
+    slash_command,
+    identifying_name = "pause",
+    default_member_permissions = "MANAGE_GUILD"
+)]
 pub async fn pause(
     ctx: Context<'_>,
     #[description = "When to pause until"] until: Option<String>,
@@ -90,7 +94,11 @@ pub async fn pause(
 }
 
 /// Move all reminders in the current server by a certain amount of time. Times get added together
-#[poise::command(slash_command, identifying_name = "offset")]
+#[poise::command(
+    slash_command,
+    identifying_name = "offset",
+    default_member_permissions = "MANAGE_GUILD"
+)]
 pub async fn offset(
     ctx: Context<'_>,
     #[description = "Number of hours to offset by"] hours: Option<isize>,
@@ -147,7 +155,11 @@ WHERE FIND_IN_SET(channels.`channel`, ?)",
 }
 
 /// Nudge all future reminders on this channel by a certain amount (don't use for DST! See `/offset`)
-#[poise::command(slash_command, identifying_name = "nudge")]
+#[poise::command(
+    slash_command,
+    identifying_name = "nudge",
+    default_member_permissions = "MANAGE_GUILD"
+)]
 pub async fn nudge(
     ctx: Context<'_>,
     #[description = "Number of minutes to nudge new reminders by"] minutes: Option<isize>,
@@ -170,7 +182,11 @@ pub async fn nudge(
 }
 
 /// View reminders on a specific channel
-#[poise::command(slash_command, identifying_name = "look")]
+#[poise::command(
+    slash_command,
+    identifying_name = "look",
+    default_member_permissions = "MANAGE_GUILD"
+)]
 pub async fn look(
     ctx: Context<'_>,
     #[description = "Channel to view reminders on"] channel: Option<Channel>,
@@ -260,7 +276,12 @@ pub async fn look(
 }
 
 /// Delete reminders
-#[poise::command(slash_command, rename = "del", identifying_name = "delete")]
+#[poise::command(
+    slash_command,
+    rename = "del",
+    identifying_name = "delete",
+    default_member_permissions = "MANAGE_GUILD"
+)]
 pub async fn delete(ctx: Context<'_>) -> Result<(), Error> {
     let timezone = ctx.timezone().await;
 
@@ -422,13 +443,23 @@ fn time_difference(start_time: NaiveDateTime) -> String {
 }
 
 /// Manage timers
-#[poise::command(slash_command, rename = "timer", identifying_name = "timer_base")]
+#[poise::command(
+    slash_command,
+    rename = "timer",
+    identifying_name = "timer_base",
+    default_member_permissions = "MANAGE_GUILD"
+)]
 pub async fn timer_base(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
 /// List the timers in this server or DM channel
-#[poise::command(slash_command, rename = "list", identifying_name = "list_timer")]
+#[poise::command(
+    slash_command,
+    rename = "list",
+    identifying_name = "list_timer",
+    default_member_permissions = "MANAGE_GUILD"
+)]
 pub async fn list_timer(ctx: Context<'_>) -> Result<(), Error> {
     let owner = ctx.guild_id().map(|g| g.0).unwrap_or_else(|| ctx.author().id.0);
 
@@ -452,7 +483,12 @@ pub async fn list_timer(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Start a new timer from now
-#[poise::command(slash_command, rename = "start", identifying_name = "start_timer")]
+#[poise::command(
+    slash_command,
+    rename = "start",
+    identifying_name = "start_timer",
+    default_member_permissions = "MANAGE_GUILD"
+)]
 pub async fn start_timer(
     ctx: Context<'_>,
     #[description = "Name for the new timer"] name: String,
@@ -482,7 +518,12 @@ pub async fn start_timer(
 }
 
 /// Delete a timer
-#[poise::command(slash_command, rename = "delete", identifying_name = "delete_timer")]
+#[poise::command(
+    slash_command,
+    rename = "delete",
+    identifying_name = "delete_timer",
+    default_member_permissions = "MANAGE_GUILD"
+)]
 pub async fn delete_timer(
     ctx: Context<'_>,
     #[description = "Name of timer to delete"] name: String,
@@ -509,7 +550,11 @@ pub async fn delete_timer(
 }
 
 /// Create a new reminder
-#[poise::command(slash_command, identifying_name = "remind")]
+#[poise::command(
+    slash_command,
+    identifying_name = "remind",
+    default_member_permissions = "MANAGE_GUILD"
+)]
 pub async fn remind(
     ctx: Context<'_>,
     #[description = "A description of the time to set the reminder for"] time: String,

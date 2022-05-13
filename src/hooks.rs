@@ -2,16 +2,6 @@ use poise::serenity::model::channel::Channel;
 
 use crate::{consts::MACRO_MAX_COMMANDS, models::command_macro::RecordedCommand, Context, Error};
 
-pub async fn guild_only(ctx: Context<'_>) -> Result<bool, Error> {
-    if ctx.guild_id().is_some() {
-        Ok(true)
-    } else {
-        let _ = ctx.say("This command can only be used in servers").await;
-
-        Ok(false)
-    }
-}
-
 async fn macro_check(ctx: Context<'_>) -> bool {
     if let Context::Application(app_ctx) = ctx {
         if let Some(guild_id) = ctx.guild_id() {

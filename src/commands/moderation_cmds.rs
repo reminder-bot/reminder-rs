@@ -6,7 +6,6 @@ use poise::CreateReply;
 use crate::{
     component_models::pager::{MacroPager, Pager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
-    hooks::guild_only,
     models::{
         command_macro::{guild_command_macro, CommandMacro},
         CtxData,
@@ -153,7 +152,8 @@ WHERE
 #[poise::command(
     slash_command,
     rename = "macro",
-    check = "guild_only",
+    guild_only = true,
+    default_member_permissions = "MANAGE_GUILD",
     identifying_name = "macro_base"
 )]
 pub async fn macro_base(_ctx: Context<'_>) -> Result<(), Error> {
@@ -164,7 +164,8 @@ pub async fn macro_base(_ctx: Context<'_>) -> Result<(), Error> {
 #[poise::command(
     slash_command,
     rename = "record",
-    check = "guild_only",
+    guild_only = true,
+    default_member_permissions = "MANAGE_GUILD",
     identifying_name = "record_macro"
 )]
 pub async fn record_macro(
@@ -244,7 +245,8 @@ Please use `/macro finish` to end this recording before starting another.",
 #[poise::command(
     slash_command,
     rename = "finish",
-    check = "guild_only",
+    guild_only = true,
+    default_member_permissions = "MANAGE_GUILD",
     identifying_name = "finish_macro"
 )]
 pub async fn finish_macro(ctx: Context<'_>) -> Result<(), Error> {
@@ -301,7 +303,8 @@ pub async fn finish_macro(ctx: Context<'_>) -> Result<(), Error> {
 #[poise::command(
     slash_command,
     rename = "list",
-    check = "guild_only",
+    guild_only = true,
+    default_member_permissions = "MANAGE_GUILD",
     identifying_name = "list_macro"
 )]
 pub async fn list_macro(ctx: Context<'_>) -> Result<(), Error> {
@@ -322,7 +325,8 @@ pub async fn list_macro(ctx: Context<'_>) -> Result<(), Error> {
 #[poise::command(
     slash_command,
     rename = "run",
-    check = "guild_only",
+    guild_only = true,
+    default_member_permissions = "MANAGE_GUILD",
     identifying_name = "run_macro"
 )]
 pub async fn run_macro(
@@ -365,7 +369,8 @@ pub async fn run_macro(
 #[poise::command(
     slash_command,
     rename = "delete",
-    check = "guild_only",
+    guild_only = true,
+    default_member_permissions = "MANAGE_GUILD",
     identifying_name = "delete_macro"
 )]
 pub async fn delete_macro(

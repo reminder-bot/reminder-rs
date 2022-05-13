@@ -6,12 +6,16 @@ use crate::{
         ComponentDataModel, TodoSelector,
     },
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, SELECT_MAX_ENTRIES, THEME_COLOR},
-    hooks::guild_only,
     Context, Error,
 };
 
 /// Manage todo lists
-#[poise::command(slash_command, rename = "todo", identifying_name = "todo_base")]
+#[poise::command(
+    slash_command,
+    rename = "todo",
+    identifying_name = "todo_base",
+    default_member_permissions = "MANAGE_GUILD"
+)]
 pub async fn todo_base(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
@@ -20,8 +24,9 @@ pub async fn todo_base(_ctx: Context<'_>) -> Result<(), Error> {
 #[poise::command(
     slash_command,
     rename = "server",
-    check = "guild_only",
-    identifying_name = "todo_guild_base"
+    guild_only = true,
+    identifying_name = "todo_guild_base",
+    default_member_permissions = "MANAGE_GUILD"
 )]
 pub async fn todo_guild_base(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
@@ -31,8 +36,9 @@ pub async fn todo_guild_base(_ctx: Context<'_>) -> Result<(), Error> {
 #[poise::command(
     slash_command,
     rename = "add",
-    check = "guild_only",
-    identifying_name = "todo_guild_add"
+    guild_only = true,
+    identifying_name = "todo_guild_add",
+    default_member_permissions = "MANAGE_GUILD"
 )]
 pub async fn todo_guild_add(
     ctx: Context<'_>,
@@ -57,8 +63,9 @@ VALUES ((SELECT id FROM guilds WHERE guild = ?), ?)",
 #[poise::command(
     slash_command,
     rename = "view",
-    check = "guild_only",
-    identifying_name = "todo_guild_view"
+    guild_only = true,
+    identifying_name = "todo_guild_view",
+    default_member_permissions = "MANAGE_GUILD"
 )]
 pub async fn todo_guild_view(ctx: Context<'_>) -> Result<(), Error> {
     let values = sqlx::query!(
@@ -89,8 +96,9 @@ WHERE guilds.guild = ?",
 #[poise::command(
     slash_command,
     rename = "channel",
-    check = "guild_only",
-    identifying_name = "todo_channel_base"
+    guild_only = true,
+    identifying_name = "todo_channel_base",
+    default_member_permissions = "MANAGE_GUILD"
 )]
 pub async fn todo_channel_base(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
@@ -100,8 +108,9 @@ pub async fn todo_channel_base(_ctx: Context<'_>) -> Result<(), Error> {
 #[poise::command(
     slash_command,
     rename = "add",
-    check = "guild_only",
-    identifying_name = "todo_channel_add"
+    guild_only = true,
+    identifying_name = "todo_channel_add",
+    default_member_permissions = "MANAGE_GUILD"
 )]
 pub async fn todo_channel_add(
     ctx: Context<'_>,
@@ -127,8 +136,9 @@ VALUES ((SELECT id FROM guilds WHERE guild = ?), (SELECT id FROM channels WHERE 
 #[poise::command(
     slash_command,
     rename = "view",
-    check = "guild_only",
-    identifying_name = "todo_channel_view"
+    guild_only = true,
+    identifying_name = "todo_channel_view",
+    default_member_permissions = "MANAGE_GUILD"
 )]
 pub async fn todo_channel_view(ctx: Context<'_>) -> Result<(), Error> {
     let values = sqlx::query!(
