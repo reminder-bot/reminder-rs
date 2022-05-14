@@ -7,7 +7,7 @@ use regex::{Captures, Regex};
 use serde::Deserialize;
 use serenity::{
     builder::CreateEmbed,
-    http::{CacheHttp, Http, StatusCode},
+    http::{CacheHttp, Http, HttpError, StatusCode},
     model::{
         channel::{Channel, Embed as SerenityEmbed},
         id::ChannelId,
@@ -569,10 +569,15 @@ UPDATE `channels` SET paused = 0, paused_until = NULL WHERE `channel` = ?
 
                 if let Error::Http(error) = e {
                     if error.status_code() == Some(StatusCode::NOT_FOUND) {
-                        error!("Seeing channel is deleted. Removing reminder");
+                        warn!("Seeing channel is deleted. Removing reminder");
                         self.force_delete(pool).await;
-                    } else {
-                        self.refresh(pool).await;
+                    } else if let HttpError::UnsuccessfulRequest(error) = *error {
+                        if error.error.code == 50007 {
+                            warn!("User cannot receive DMs");
+                            self.force_delete(pool).await;
+                        } else {
+                            self.refresh(pool).await;
+                        }
                     }
                 } else {
                     self.refresh(pool).await;

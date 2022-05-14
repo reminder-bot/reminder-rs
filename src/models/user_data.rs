@@ -71,7 +71,7 @@ INSERT IGNORE INTO channels (channel) VALUES (?)
 
                 sqlx::query!(
                     "
-INSERT INTO users (user, dm_channel, timezone) VALUES (?, (SELECT id FROM channels WHERE channel = ?), ?)
+INSERT INTO users (name, user, dm_channel, timezone) VALUES ('', ?, (SELECT id FROM channels WHERE channel = ?), ?)
                     ",
                     user_id.0,
                     dm_channel.id.0,
