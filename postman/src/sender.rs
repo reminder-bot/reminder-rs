@@ -257,7 +257,7 @@ pub struct Reminder {
 
 impl Reminder {
     pub async fn fetch_reminders(pool: impl Executor<'_, Database = Database> + Copy) -> Vec<Self> {
-        match sqlx::query_as!(
+        match sqlx::query_as_unchecked!(
             Reminder,
             r#"
 SELECT
@@ -267,20 +267,20 @@ SELECT
     channels.`webhook_id` AS webhook_id,
     channels.`webhook_token` AS webhook_token,
 
-    channels.`paused` AS "channel_paused:_",
-    channels.`paused_until` AS "channel_paused_until:_",
-    reminders.`enabled` AS "enabled:_",
+    channels.`paused` AS 'channel_paused',
+    channels.`paused_until` AS 'channel_paused_until',
+    reminders.`enabled` AS 'enabled',
 
-    reminders.`tts` AS "tts:_",
-    reminders.`pin` AS "pin:_",
+    reminders.`tts` AS tts,
+    reminders.`pin` AS pin,
     reminders.`content` AS content,
     reminders.`attachment` AS attachment,
     reminders.`attachment_name` AS attachment_name,
 
-    reminders.`utc_time` AS "utc_time:_",
+    reminders.`utc_time` AS 'utc_time',
     reminders.`timezone` AS timezone,
-    reminders.`restartable` AS "restartable:_",
-    reminders.`expires` AS "expires:_",
+    reminders.`restartable` AS restartable,
+    reminders.`expires` AS 'expires',
     reminders.`interval_seconds` AS 'interval_seconds',
     reminders.`interval_months` AS 'interval_months',
 
