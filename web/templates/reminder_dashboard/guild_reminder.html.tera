@@ -158,9 +158,9 @@
         </div>
 
         <div class="collapses">
-            <div class="is-locked">
+            <div class="patreon-only">
                 <div class="field">
-                    <label class="label">Interval <a class="foreground" href="/help/interval"><i class="fas fa-question-circle"></i></a></label>
+                    <label class="label">Interval <a class="foreground" href="/help/intervals"><i class="fas fa-question-circle"></i></a></label>
                     <div class="control intervalSelector" style="min-width: 400px;" >
                         <div class="input interval-group">
                             <div class="interval-group-left">
@@ -204,11 +204,6 @@
                 <div class="column has-text-centered">
                     <div class="is-boxed">
                         <label class="label">Enable TTS <input type="checkbox" name="tts"></label>
-                    </div>
-                </div>
-                <div class="column has-text-centered">
-                    <div class="is-boxed">
-                        <label class="label">Pin Message <input type="checkbox" name="pin"></label>
                     </div>
                 </div>
                 <div class="column has-text-centered">

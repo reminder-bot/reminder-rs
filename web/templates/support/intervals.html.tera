@@ -1,0 +1,70 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "Support" %}
+
+    {% set page_title = "Intervals" %}
+    {% set page_subtitle = "Interval reminders, or repeating reminders, are available to our Patreon supporters" %}
+{% endblock %}
+
+{% block content %}
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
+                <p class="title">Fixed intervals</p>
+                <p class="content">
+                    The main type of interval is the fixed interval. Fixed intervals are ideal for hourly, daily, or
+                    reminders repeating at any other fixed amount of time.
+                    <br>
+                    You can create fixed interval reminders via the dashboard or via the <code>/remind</code> command.
+                    When you have filled out the "time" and "content" on the command, press <kbd>tab</kbd>. Select the
+                    "interval" option. Then, write the interval you wish to use: for example, "1 day" for daily (starting
+                    at the time specified in "time").
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
+                <p class="title">Daylight savings</p>
+                <p class="content">
+                    If you live in a region that uses daylight savings (DST), then your interval reminders may become
+                    offset by an hour due to clock changes.
+                    <br>
+                    Reminder Bot offers a quick solution to this via the <code>/offset</code> command. This command
+                    moves all existing reminders on a server by a certain amount of time. You can use offset to move
+                    your reminders forward or backward by an hour when daylight savings happens.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
+                <p class="title">Monthly/yearly intervals</p>
+                <p class="content">
+                    Monthly or yearly intervals are configured the same as fixed intervals. Instead of a fixed time
+                    interval, these reminders repeat on a certain day each month or each year. This makes them ideal
+                    for marking certain dates.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
+                <p class="title">Interval expiration</p>
+                <p class="content">
+                    An expiration time can also be specified, both via commands and dashboard, for repeating reminders.
+                    This is optional, and if omitted, the reminder will repeat indefinitely.
+                </p>
+            </div>
+        </div>
+    </section>
+
+{% endblock %}

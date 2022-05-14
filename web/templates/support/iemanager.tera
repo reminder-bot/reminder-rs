@@ -1,0 +1,26 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "Support" %}
+
+    {% set page_title = "Import/Export" %}
+    {% set page_subtitle = "" %}
+{% endblock %}
+
+{% block content %}
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
+                <p class="title">Export your data</p>
+                <p class="content">
+                    You can create reminders with the <code>/remind</code> command.
+                    <br>
+                    Fill out the "time" and "content" fields. If you wish, press on "Optional" to view other options
+                    for the reminder.
+                </p>
+            </div>
+        </div>
+    </section>
+
+{% endblock %}

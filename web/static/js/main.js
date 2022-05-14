@@ -18,6 +18,7 @@ let roles = [];
 let templates = {};
 
 let globalPatreon = false;
+let guildPatreon = false;
 
 function guildId() {
     return document.querySelector(".guildList a.is-active").dataset["guild"];
@@ -76,6 +77,18 @@ function reset_guild_pane() {
     document
         .querySelectorAll("select.channel-selector option")
         .forEach((opt) => opt.remove());
+}
+
+async function fetch_patreon(guild_id) {
+    fetch(`/dashboard/api/guild/${guild_id}/patreon`)
+        .then((response) => response.json())
+        .then((data) => {
+            if (data.error) {
+                show_error(data.error);
+            } else {
+                return data.patreon;
+            }
+        });
 }
 
 function fetch_roles(guild_id) {
@@ -370,6 +383,10 @@ function deserialize_reminder(reminder, frame, mode) {
 document.addEventListener("guildSwitched", async (e) => {
     $loader.classList.remove("is-hidden");
 
+    document
+        .querySelectorAll(".patreon-only")
+        .forEach((el) => el.classList.add("is-locked"));
+
     let $anchor = document.querySelector(
         `.switch-pane[data-guild="${e.detail.guild_id}"]`
     );
@@ -378,6 +395,11 @@ document.addEventListener("guildSwitched", async (e) => {
     reset_guild_pane();
     $anchor.classList.add("is-active");
 
+    if (globalPatreon || (await fetch_patreon(e.detail.guild_id))) {
+        document
+            .querySelectorAll(".patreon-only")
+            .forEach((el) => el.classList.remove("is-locked"));
+    }
     fetch_roles(e.detail.guild_id);
     fetch_templates(e.detail.guild_id);
     await fetch_channels(e.detail.guild_id);

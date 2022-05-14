@@ -1,0 +1,22 @@
+{% extends "base" %}
+
+{% block init %}
+    {% set title = "Support" %}
+
+    {% set page_title = "Dashboard" %}
+    {% set page_subtitle = "" %}
+{% endblock %}
+
+{% block content %}
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
+                <p class="title">Accessing the dashboard</p>
+                <p class="content">
+                </p>
+            </div>
+        </div>
+    </section>
+
+{% endblock %}

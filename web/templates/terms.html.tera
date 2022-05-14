@@ -23,8 +23,8 @@
                 Reminder Bot or the Discord server.
                 <br>
                 <br>
-                The Terms of Service may be updated at any time, and should be considered a guideline for appropriate
-                behaviour.
+                The Terms of Service may be updated at any time. Notice will be provided via the Discord server. You
+                should consider the Terms of Service to be a guideline for appropriate behaviour.
             </p>
         </div>
     </section>
@@ -35,7 +35,8 @@
             <ul class="is-size-5 pl-6">
                 <li>Reasonably disclose potential exploits or bugs to me by email or by Discord private message</li>
                 <li>Do not use the bot to harass other Discord users</li>
-                <li>Do not use the bot to send more than 30 messages during a 60 second period</li>
+                <li>Do not use the bot to transmit malware or other illegal content</li>
+                <li>Do not use the bot to send more than 15 messages during a 60 second period</li>
             </ul>
         </div>
     </section>

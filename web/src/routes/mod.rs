@@ -86,3 +86,21 @@ pub async fn help_macros() -> Template {
     let map: HashMap<&str, String> = HashMap::new();
     Template::render("support/macros", &map)
 }
+
+#[get("/intervals")]
+pub async fn help_intervals() -> Template {
+    let map: HashMap<&str, String> = HashMap::new();
+    Template::render("support/intervals", &map)
+}
+
+#[get("/dashboard")]
+pub async fn help_dashboard() -> Template {
+    let map: HashMap<&str, String> = HashMap::new();
+    Template::render("support/dashboard", &map)
+}
+
+#[get("/iemanager")]
+pub async fn help_iemanager() -> Template {
+    let map: HashMap<&str, String> = HashMap::new();
+    Template::render("support/iemanager", &map)
+}

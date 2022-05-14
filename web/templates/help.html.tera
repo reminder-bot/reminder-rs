@@ -93,6 +93,65 @@
                 </article>
             </div>
         </div>
+        <div class="tile is-ancestor">
+            <div class="tile is-parent">
+                <article class="tile is-child notification">
+                    <p class="title">Intervals</p>
+                    <p class="subtitle">Learn about repeating reminders</p>
+                    <div class="content has-text-centered">
+                        <a class="button is-size-4 is-rounded is-light" href="/help/intervals">
+                            <p class="is-size-4">
+                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            </p>
+                        </a>
+                    </div>
+                </article>
+            </div>
+            <div class="tile is-parent">
+                <article class="tile is-child notification">
+                    <p class="title">Dashboard</p>
+                    <p class="subtitle">Learn to use the interactive web dashboard</p>
+                    <div class="content has-text-centered">
+                        <a class="button is-size-4 is-rounded is-light" href="/help/dashboard">
+                            <p class="is-size-4">
+                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            </p>
+                        </a>
+                    </div>
+                </article>
+            </div>
+            <div class="tile is-parent is-vertical">
+                <article class="tile is-child notification">
+                    <p class="title">Import/Export</p>
+                    <p class="subtitle">Learn how to import and export data from the dashboard</p>
+                    <div class="content has-text-centered">
+                        <a class="button is-size-4 is-rounded is-light" href="/help/macros">
+                            <p class="is-size-4">
+                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                            </p>
+                        </a>
+                    </div>
+                </article>
+            </div>
+        </div>
     </div>
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container has-text-centered">
+                <p class="title">Need more help?</p>
+                <p class="content">
+                    Feel free to come and ask us!
+                </p>
+            </div>
+        </div>
+        <div class="hero-foot has-text-centered">
+            <a class="button is-size-6 is-rounded is-primary" href="https://discord.jellywx.com">
+                <p class="is-size-6">
+                    Join Discord <span class="icon"><i class="fas fa-chevron-right"></i></span>
+                </p>
+            </a>
+        </div>
+    </section>
 
 {% endblock %}

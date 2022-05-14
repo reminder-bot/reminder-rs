@@ -36,6 +36,24 @@
     <section class="hero is-small">
         <div class="hero-body">
             <div class="container">
+                <p class="title">Deleting reminders you've just created</p>
+                <p class="content">
+                    If you made a mistake, you can quickly delete a reminder you made by pressing "Cancel"
+                    <br>
+                </p>
+                <figure>
+                    <img src="/static/img/support/delete_reminder/cancel-1.png" alt="Cancel button">
+                </figure>
+                <figure>
+                    <img src="/static/img/support/delete_reminder/cancel-2.png" alt="Reminder deleted">
+                </figure>
+            </div>
+        </div>
+    </section>
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
                 <p class="title">Deleting reminders via the dashboard</p>
                 <p class="content">
                     Reminders in servers can be deleted via the dashboard. First, select your server from the menu.
