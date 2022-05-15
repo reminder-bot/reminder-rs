@@ -97,7 +97,6 @@ pub struct Reminder {
     interval_months: Option<u32>,
     #[serde(default = "name_default")]
     name: String,
-    pin: bool,
     restartable: bool,
     tts: bool,
     #[serde(default)]
@@ -150,8 +149,6 @@ pub struct PatchReminder {
     interval_months: Unset<Option<u32>>,
     #[serde(default)]
     name: Unset<String>,
-    #[serde(default)]
-    pin: Unset<bool>,
     #[serde(default)]
     restartable: Unset<bool>,
     #[serde(default)]
@@ -213,8 +210,8 @@ mod base64s {
     where
         D: Deserializer<'de>,
     {
-        let string = String::deserialize(deserializer)?;
-        Some(base64::decode(string).map_err(de::Error::custom)).transpose()
+        let string = Option::<String>::deserialize(deserializer)?;
+        Some(string.map(|b| base64::decode(b).map_err(de::Error::custom))).flatten().transpose()
     }
 }
 

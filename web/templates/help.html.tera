@@ -125,7 +125,7 @@
                     <p class="title">Import/Export</p>
                     <p class="subtitle">Learn how to import and export data from the dashboard</p>
                     <div class="content has-text-centered">
-                        <a class="button is-size-4 is-rounded is-light" href="/help/macros">
+                        <a class="button is-size-4 is-rounded is-light" href="/help/iemanager">
                             <p class="is-size-4">
                                 Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
                             </p>

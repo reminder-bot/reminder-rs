@@ -14,8 +14,16 @@ const $deleteTemplateBtn = document.querySelector("button#delete-template");
 const $templateSelect = document.querySelector("select#templateSelect");
 
 let channels = [];
+let guildNames = {};
 let roles = [];
 let templates = {};
+let mentions = new Tribute({
+    values: [],
+    allowSpaces: true,
+    selectTemplate: (item) => {
+        return `<@&${item.original.value}>`;
+    },
+});
 
 let globalPatreon = false;
 let guildPatreon = false;
@@ -32,18 +40,6 @@ function intToColor(i) {
     return `#${i.toString(16).padStart(6, "0")}`;
 }
 
-function resize_textareas() {
-    document.querySelectorAll("textarea.autoresize").forEach((element) => {
-        element.style.height = "";
-        element.style.height = element.scrollHeight + 3 + "px";
-
-        element.addEventListener("input", () => {
-            element.style.height = "";
-            element.style.height = element.scrollHeight + 3 + "px";
-        });
-    });
-}
-
 function switch_pane(selector) {
     document.querySelectorAll("aside a").forEach((el) => {
         el.classList.remove("is-active");
@@ -53,8 +49,6 @@ function switch_pane(selector) {
     });
 
     document.getElementById(selector).classList.remove("is-hidden");
-
-    resize_textareas();
 }
 
 function update_select(sel) {
@@ -98,7 +92,16 @@ function fetch_roles(guild_id) {
             if (data.error) {
                 show_error(data.error);
             } else {
-                roles = data;
+                let values = Array.from(
+                    data.map((role) => {
+                        return {
+                            key: role.name,
+                            value: role.id,
+                        };
+                    })
+                );
+
+                mentions.collection[0].values = values;
             }
         });
 }
@@ -170,6 +173,8 @@ async function fetch_reminders(guild_id) {
 
                     newFrame.querySelector(".reminderContent").dataset["uid"] =
                         reminder["uid"];
+
+                    mentions.attach(newFrame.querySelector("textarea"));
 
                     deserialize_reminder(reminder, newFrame, "load");
 
@@ -312,7 +317,6 @@ async function serialize_reminder(node, mode) {
         interval_seconds: mode !== "template" ? interval.seconds : null,
         interval_months: mode !== "template" ? interval.months : null,
         name: node.querySelector('input[name="name"]').value,
-        pin: node.querySelector('input[name="pin"]').checked,
         tts: node.querySelector('input[name="tts"]').checked,
         username: node.querySelector('input[name="username"]').value,
         utc_time: utc_time,
@@ -400,6 +404,7 @@ document.addEventListener("guildSwitched", async (e) => {
             .querySelectorAll(".patreon-only")
             .forEach((el) => el.classList.remove("is-locked"));
     }
+
     fetch_roles(e.detail.guild_id);
     fetch_templates(e.detail.guild_id);
     await fetch_channels(e.detail.guild_id);
@@ -413,8 +418,6 @@ document.addEventListener("guildSwitched", async (e) => {
             update_select(e.target);
         });
     });
-
-    resize_textareas();
 
     $loader.classList.add("is-hidden");
 });
@@ -553,6 +556,8 @@ document.querySelectorAll(".show-modal").forEach((element) => {
 document.addEventListener("DOMContentLoaded", () => {
     $loader.classList.remove("is-hidden");
 
+    mentions.attach(document.querySelectorAll("textarea"));
+
     document.querySelectorAll(".navbar-burger").forEach((el) => {
         el.addEventListener("click", () => {
             const target = el.dataset["target"];
@@ -591,6 +596,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 const $template = document.getElementById("guildListEntry");
 
                 for (let guild of data) {
+                    guildNames[guild.id] = guild.name;
+
                     document.querySelectorAll(".guildList").forEach((element) => {
                         const $clone = $template.content.cloneNode(true);
                         const $anchor = $clone.querySelector("a");
@@ -607,11 +614,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                         $anchor.addEventListener("click", async (e) => {
                             e.preventDefault();
-                            window.history.pushState(
-                                {},
-                                "",
-                                `/dashboard/${guild.id}?name=${guild.name}`
-                            );
+                            window.history.pushState({}, "", `/dashboard/${guild.id}`);
                             const event = new CustomEvent("guildSwitched", {
                                 detail: {
                                     guild_name: guild.name,
@@ -629,8 +632,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 const matches = window.location.href.match(/dashboard\/(\d+)/);
                 if (matches) {
                     let id = matches[1];
-                    let name =
-                        new URLSearchParams(window.location.search).get("name") || id;
+                    let name = guildNames[id];
+
                     const event = new CustomEvent("guildSwitched", {
                         detail: {
                             guild_name: name,
@@ -923,7 +926,6 @@ document.addEventListener("DOMNodeInserted", () => {
     });
 
     check_embed_fields();
-    resize_textareas();
 });
 
 document.addEventListener("click", (ev) => {

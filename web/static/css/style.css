@@ -288,6 +288,10 @@ textarea, input {
     width: 100%;
 }
 
+input.default-width {
+    width: initial;
+}
+
 .message-input:placeholder-shown {
     border-top: none;
     border-left: none;
