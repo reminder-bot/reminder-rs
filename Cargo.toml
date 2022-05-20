@@ -3,6 +3,7 @@ name = "reminder_rs"
 version = "1.6.0"
 authors = ["jellywx <judesouthworth@pm.me>"]
 edition = "2018"
+workspaces = [".", "postman", "web", "entity", "migration"]
 
 [dependencies]
 poise = "0.2"
@@ -22,7 +23,6 @@ serde_repr = "0.1"
 rmp-serde = "0.15"
 rand = "0.7"
 levenshtein = "1.0"
-sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "macros", "mysql", "bigdecimal", "chrono"]}
 base64 = "0.13.0"
 
 [dependencies.postman]
