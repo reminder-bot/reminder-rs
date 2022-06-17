@@ -101,6 +101,7 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
             info_cmds::clock_context_menu(),
             info_cmds::dashboard(),
             moderation_cmds::timezone(),
+            moderation_cmds::webhook(),
             poise::Command {
                 subcommands: vec![
                     moderation_cmds::delete_macro(),
