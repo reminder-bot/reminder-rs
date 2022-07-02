@@ -6,6 +6,7 @@ use crate::{
         ComponentDataModel, TodoSelector,
     },
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, SELECT_MAX_ENTRIES, THEME_COLOR},
+    models::CtxData,
     Context, Error,
 };
 
@@ -116,6 +117,9 @@ pub async fn todo_channel_add(
     ctx: Context<'_>,
     #[description = "The task to add to the todo list"] task: String,
 ) -> Result<(), Error> {
+    // ensure channel is cached
+    let _ = ctx.channel_data().await;
+
     sqlx::query!(
         "INSERT INTO todos (guild_id, channel_id, value)
 VALUES ((SELECT id FROM guilds WHERE guild = ?), (SELECT id FROM channels WHERE channel = ?), ?)",
