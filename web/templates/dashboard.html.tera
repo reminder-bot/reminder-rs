@@ -177,38 +177,41 @@
         <section class="modal-card-body">
             <div class="control">
                 <div class="field">
-                    <input type="checkbox" class="default-width">
-                    <label>Reminders</label>
+                    <label>
+                        <input type="radio" class="default-width" name="exportSelect" value="reminders" checked>
+                        Reminders
+                    </label>
                 </div>
             </div>
             <div class="control">
                 <div class="field">
-                    <input type="checkbox" class="default-width">
-                    <label>Todo Lists</label>
+                    <label>
+                        <input type="radio" class="default-width" name="exportSelect" value="todos">
+                        Todo Lists
+                    </label>
                 </div>
             </div>
             <div class="control">
                 <div class="field">
-                    <input type="checkbox" class="default-width">
-                    <label>Timers</label>
+                    <label>
+                        <input type="radio" class="default-width" name="exportSelect" value="reminder_templates">
+                        Reminder templates
+                    </label>
                 </div>
             </div>
-            <div class="control">
-                <div class="field">
-                    <input type="checkbox" class="default-width">
-                    <label>Reminder templates</label>
-                </div>
-            </div>
-            <div class="control">
-                <div class="field">
-                    <input type="checkbox" class="default-width">
-                    <label>Macros</label>
-                </div>
-            </div>
+            <br>
             <div class="has-text-centered">
+                <div style="color: red; font-weight: bold;">
+                    By selecting "Import", you understand that this will overwrite existing data.
+                </div>
+                <div style="color: red">
+                    Please first read the <a href="/help/iemanager">support page</a>
+                </div>
                 <button class="button is-success is-outlined" id="import-data">Import Data</button>
                 <button class="button is-success" id="export-data">Export Data</button>
             </div>
+            <a id="downloader" download="export.csv" class="is-hidden"></a>
+            <input id="uploader" type="file" hidden></input>
         </section>
     </div>
     <button class="modal-close is-large close-modal" aria-label="close"></button>

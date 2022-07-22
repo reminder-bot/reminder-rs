@@ -150,6 +150,11 @@ pub async fn initialize(
                 routes::dashboard::guild::get_reminders,
                 routes::dashboard::guild::edit_reminder,
                 routes::dashboard::guild::delete_reminder,
+                routes::dashboard::export::export_reminders,
+                routes::dashboard::export::export_reminder_templates,
+                routes::dashboard::export::export_todos,
+                routes::dashboard::export::import_reminders,
+                routes::dashboard::export::import_todos,
             ],
         )
         .launch()

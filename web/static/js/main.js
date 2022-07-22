@@ -12,6 +12,10 @@ const $createTemplateBtn = $createReminder.querySelector("button#createTemplate"
 const $loadTemplateBtn = document.querySelector("button#load-template");
 const $deleteTemplateBtn = document.querySelector("button#delete-template");
 const $templateSelect = document.querySelector("select#templateSelect");
+const $exportBtn = document.querySelector("button#export-data");
+const $importBtn = document.querySelector("button#import-data");
+const $downloader = document.querySelector("a#downloader");
+const $uploader = document.querySelector("input#uploader");
 
 let channels = [];
 let guildNames = {};
@@ -670,6 +674,39 @@ function has_source(string) {
     }
 }
 
+$uploader.addEventListener("change", (ev) => {
+    const urlTail = document.querySelector('input[name="exportSelect"]:checked').value;
+
+    new Promise((resolve) => {
+        let fileReader = new FileReader();
+        fileReader.onload = (e) => resolve(fileReader.result);
+        fileReader.readAsDataURL($uploader.files[0]);
+    }).then((dataUrl) => {
+        fetch(`/dashboard/api/guild/${guildId()}/export/${urlTail}`, {
+            method: "PUT",
+            body: JSON.stringify({ body: dataUrl.split(",")[1] }),
+        }).then(() => {
+            delete $uploader.files[0];
+        });
+    });
+});
+
+$importBtn.addEventListener("click", () => {
+    $uploader.click();
+});
+
+$exportBtn.addEventListener("click", () => {
+    const urlTail = document.querySelector('input[name="exportSelect"]:checked').value;
+
+    fetch(`/dashboard/api/guild/${guildId()}/export/${urlTail}`)
+        .then((response) => response.json())
+        .then((data) => {
+            $downloader.href =
+                "data:text/plain;charset=utf-8," + encodeURIComponent(data.body);
+            $downloader.click();
+        });
+});
+
 $createReminderBtn.addEventListener("click", async () => {
     $createReminderBtn.querySelector("span.icon > i").classList = [
         "fas fa-spinner fa-spin",
@@ -834,7 +871,7 @@ document.addEventListener("remindersLoaded", () => {
         });
     });
 
-    const fileInput = document.querySelectorAll("input[type=file]");
+    const fileInput = document.querySelectorAll("input.file-input[type=file]");
 
     fileInput.forEach((element) => {
         element.addEventListener("change", () => {

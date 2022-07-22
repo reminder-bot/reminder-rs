@@ -20,11 +20,12 @@
                 <br>
                 Violating the Terms of Service may result in receiving a permanent ban from the Discord server,
                 permanent restriction on your usage of Reminder Bot, or removal of some or all of your content on
-                Reminder Bot or the Discord server.
+                Reminder Bot or the Discord server. None of these will necessarily be preceded or succeeded by a warning
+                or notice.
                 <br>
                 <br>
-                The Terms of Service may be updated at any time. Notice will be provided via the Discord server. You
-                should consider the Terms of Service to be a guideline for appropriate behaviour.
+                The Terms of Service may be updated. Notice will be provided via the Discord server. You
+                should consider the Terms of Service to be a strong for appropriate behaviour.
             </p>
         </div>
     </section>
@@ -37,6 +38,12 @@
                 <li>Do not use the bot to harass other Discord users</li>
                 <li>Do not use the bot to transmit malware or other illegal content</li>
                 <li>Do not use the bot to send more than 15 messages during a 60 second period</li>
+                <li>
+                    Do not attempt to circumvent restrictions imposed by the bot or website, including trying to access
+                    data of other users, circumvent Patreon restrictions, or uploading files and creating reminders that
+                    are too large for the bot to send or process. Some or all of these actions may be illegal in your
+                    country
+                </li>
             </ul>
         </div>
     </section>

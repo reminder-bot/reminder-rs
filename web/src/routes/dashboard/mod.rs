@@ -13,6 +13,7 @@ use crate::{
     Database, Error,
 };
 
+pub mod export;
 pub mod guild;
 pub mod user;
 
@@ -60,6 +61,28 @@ pub struct ReminderTemplate {
     username: Option<String>,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct ReminderTemplateCsv {
+    #[serde(default = "template_name_default")]
+    name: String,
+    attachment: Option<Vec<u8>>,
+    attachment_name: Option<String>,
+    avatar: Option<String>,
+    content: String,
+    embed_author: String,
+    embed_author_url: Option<String>,
+    embed_color: u32,
+    embed_description: String,
+    embed_footer: String,
+    embed_footer_url: Option<String>,
+    embed_image_url: Option<String>,
+    embed_thumbnail_url: Option<String>,
+    embed_title: String,
+    embed_fields: Option<String>,
+    tts: bool,
+    username: Option<String>,
+}
+
 #[derive(Deserialize)]
 pub struct DeleteReminderTemplate {
     id: u32,
@@ -101,6 +124,36 @@ pub struct Reminder {
     tts: bool,
     #[serde(default)]
     uid: String,
+    username: Option<String>,
+    utc_time: NaiveDateTime,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ReminderCsv {
+    #[serde(with = "base64s")]
+    attachment: Option<Vec<u8>>,
+    attachment_name: Option<String>,
+    avatar: Option<String>,
+    channel: u64,
+    content: String,
+    embed_author: String,
+    embed_author_url: Option<String>,
+    embed_color: u32,
+    embed_description: String,
+    embed_footer: String,
+    embed_footer_url: Option<String>,
+    embed_image_url: Option<String>,
+    embed_thumbnail_url: Option<String>,
+    embed_title: String,
+    embed_fields: Option<String>,
+    enabled: bool,
+    expires: Option<NaiveDateTime>,
+    interval_seconds: Option<u32>,
+    interval_months: Option<u32>,
+    #[serde(default = "name_default")]
+    name: String,
+    restartable: bool,
+    tts: bool,
     username: Option<String>,
     utc_time: NaiveDateTime,
 }
@@ -220,13 +273,22 @@ pub struct DeleteReminder {
     uid: String,
 }
 
+#[derive(Deserialize)]
+pub struct ImportBody {
+    body: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct TodoCsv {
+    value: String,
+    channel_id: Option<String>,
+}
+
 async fn create_database_channel(
     ctx: impl AsRef<Http>,
     channel: ChannelId,
     pool: impl Executor<'_, Database = Database> + Copy,
 ) -> Result<u32, crate::Error> {
-    println!("{:?}", channel);
-
     let row =
         sqlx::query!("SELECT webhook_token, webhook_id FROM channels WHERE channel = ?", channel.0)
             .fetch_one(pool)

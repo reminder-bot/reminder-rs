@@ -26,12 +26,8 @@ use serenity::model::prelude::AttachmentType;
 
 lazy_static! {
     pub static ref DEFAULT_AVATAR: AttachmentType<'static> = (
-        include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../assets/",
-            env!("WEBHOOK_AVATAR", "WEBHOOK_AVATAR not provided for compilation")
-        )) as &[u8],
-        env!("WEBHOOK_AVATAR"),
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../assets/webhook.jpg")) as &[u8],
+        "webhook.jpg",
     )
         .into();
     pub static ref SUBSCRIPTION_ROLES: HashSet<u64> = HashSet::from_iter(

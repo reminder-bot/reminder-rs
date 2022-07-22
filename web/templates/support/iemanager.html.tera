@@ -14,11 +14,73 @@
             <div class="container">
                 <p class="title">Export your data</p>
                 <p class="content">
-                    You can create reminders with the <code>/remind</code> command.
-                    <br>
-                    Fill out the "time" and "content" fields. If you wish, press on "Optional" to view other options
-                    for the reminder.
+                    You can export data associated with your server from the dashboard. The data will export as a CSV
+                    file. The CSV file can then be edited and imported to bulk edit server data.
                 </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container">
+                <p class="title">Import data</p>
+                <p class="content">
+                    You can import previous exports or modified exports. When importing a file, <strong>existing data
+                    will be overwritten</strong>.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="hero is-small">
+        <div class="hero-body">
+            <div class="container content">
+                <p class="title">Edit your data</p>
+                <p>
+                    The CSV can be edited either as a text file or in a spreadsheet editor such as LibreOffice Calc. To
+                    set up LibreOffice Calc for editing, do the following:
+                </p>
+                <ol>
+                    <li>
+                        Export data from dashboard.
+                        <figure>
+                            <img src="/static/img/support/iemanager/select_export.png" alt="Selecting export button">
+                        </figure>
+                    </li>
+                    <li>
+                        Open the file in LibreOffice. <strong>During the import dialogue, select "Format quoted field as text".</strong>
+                        <figure>
+                            <img src="/static/img/support/iemanager/format_text.png" alt="Selecting format button">
+                        </figure>
+                    </li>
+                    <li>
+                        Make edits to the spreadsheet. You can add, edit, and remove rows for reminders. Don't remove the title row.
+                        <figure>
+                            <img src="/static/img/support/iemanager/edit_spreadsheet.png" alt="Editing spreadsheet">
+                        </figure>
+                    </li>
+                    <li>
+                        Save the edited CSV file and import it on the dashboard.
+                        <figure>
+                            <img src="/static/img/support/iemanager/import.png" alt="Import new reminders">
+                        </figure>
+                    </li>
+                </ol>
+                Other spreadsheet tools can also be used to edit exports, as long as they are properly configured:
+                <ul>
+                    <li>
+                        <strong>Google Sheets</strong>: Create a new blank spreadsheet. Select <strong>File >> Import >> Upload >> export.csv</strong>.
+                        Use the following import settings:
+                        <figure>
+                            <img src="/static/img/support/iemanager/sheets_settings.png" alt="Google sheets import settings">
+                        </figure>
+                    </li>
+                    <li>
+                        <strong>Excel (including Excel Online)</strong>: Avoid using Excel. Excel will not correctly import channels, or give
+                        clear options to correct imports.
+                    </li>
+                </ul>
             </div>
         </div>
     </section>

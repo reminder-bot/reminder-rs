@@ -49,7 +49,7 @@
         <div class="container">
             <h2 class="title">Who your data is shared with</h2>
             <p class="is-size-5 pl-6">
-                Your data may also be guarded by the privacy policies of <strong>MEGA</strong>, our backup provider, and
+                Your data is also guarded by the privacy policies of <strong>MEGA</strong>, our backup provider, and
                 <strong>Hetzner</strong>, our hosting provider.
             </p>
         </div>
@@ -68,7 +68,7 @@
                 <br>
                 <br>
                 Reminders deleted with <strong>/del</strong> or via the dashboard are removed from the live database
-                instantly, but may persist in backups.
+                instantly, but may persist in backups for up to a year.
             </p>
         </div>
     </section>

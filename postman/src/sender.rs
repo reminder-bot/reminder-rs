@@ -226,7 +226,6 @@ impl Into<CreateEmbed> for Embed {
     }
 }
 
-#[derive(Debug)]
 pub struct Reminder {
     id: u32,
 
@@ -566,7 +565,7 @@ UPDATE `channels` SET paused = 0, paused_until = NULL WHERE `channel` = ?
             };
 
             if let Err(e) = result {
-                error!("Error sending {:?}: {:?}", self, e);
+                error!("Error sending reminder {}: {:?}", self.id, e);
 
                 if let Error::Http(error) = e {
                     if error.status_code() == Some(StatusCode::NOT_FOUND) {
