@@ -1,15 +1,29 @@
 use std::collections::HashMap;
 
-use chrono::naive::NaiveDateTime;
+use chrono::{naive::NaiveDateTime, Utc};
 use rand::{rngs::OsRng, seq::IteratorRandom};
-use rocket::{http::CookieJar, response::Redirect};
+use rocket::{
+    http::CookieJar,
+    response::Redirect,
+    serde::json::{json, Value as JsonValue},
+};
 use rocket_dyn_templates::Template;
 use serde::{Deserialize, Serialize};
-use serenity::{http::Http, model::id::ChannelId};
-use sqlx::{types::Json, Executor};
+use serenity::{
+    client::Context,
+    http::Http,
+    model::id::{ChannelId, GuildId, UserId},
+};
+use sqlx::{types::Json, Executor, MySql, Pool};
 
 use crate::{
-    consts::{CHARACTERS, DEFAULT_AVATAR},
+    check_guild_subscription, check_subscription,
+    consts::{
+        CHARACTERS, DAY, DEFAULT_AVATAR, MAX_CONTENT_LENGTH, MAX_EMBED_AUTHOR_LENGTH,
+        MAX_EMBED_DESCRIPTION_LENGTH, MAX_EMBED_FIELDS, MAX_EMBED_FIELD_TITLE_LENGTH,
+        MAX_EMBED_FIELD_VALUE_LENGTH, MAX_EMBED_FOOTER_LENGTH, MAX_EMBED_TITLE_LENGTH,
+        MAX_URL_LENGTH, MAX_USERNAME_LENGTH, MIN_INTERVAL,
+    },
     Database, Error,
 };
 
@@ -17,6 +31,7 @@ pub mod export;
 pub mod guild;
 pub mod user;
 
+pub type JsonResult = Result<JsonValue, JsonValue>;
 type Unset<T> = Option<T>;
 
 fn name_default() -> String {
@@ -134,7 +149,7 @@ pub struct ReminderCsv {
     attachment: Option<Vec<u8>>,
     attachment_name: Option<String>,
     avatar: Option<String>,
-    channel: u64,
+    channel: String,
     content: String,
     embed_author: String,
     embed_author_url: Option<String>,
@@ -282,6 +297,209 @@ pub struct ImportBody {
 pub struct TodoCsv {
     value: String,
     channel_id: Option<String>,
+}
+
+pub async fn create_reminder(
+    ctx: &Context,
+    pool: &Pool<MySql>,
+    guild_id: GuildId,
+    user_id: UserId,
+    reminder: Reminder,
+) -> JsonResult {
+    // validate channel
+    let channel = ChannelId(reminder.channel).to_channel_cached(&ctx);
+    let channel_exists = channel.is_some();
+
+    let channel_matches_guild =
+        channel.map_or(false, |c| c.guild().map_or(false, |c| c.guild_id == guild_id));
+
+    if !channel_matches_guild || !channel_exists {
+        warn!(
+            "Error in `create_reminder`: channel {} not found for guild {} (channel exists: {})",
+            reminder.channel, guild_id, channel_exists
+        );
+
+        return Err(json!({"error": "Channel not found"}));
+    }
+
+    let channel = create_database_channel(&ctx, ChannelId(reminder.channel), pool).await;
+
+    if let Err(e) = channel {
+        warn!("`create_database_channel` returned an error code: {:?}", e);
+
+        return Err(
+            json!({"error": "Failed to configure channel for reminders. Please check the bot permissions"}),
+        );
+    }
+
+    let channel = channel.unwrap();
+
+    // validate lengths
+    check_length!(MAX_CONTENT_LENGTH, reminder.content);
+    check_length!(MAX_EMBED_DESCRIPTION_LENGTH, reminder.embed_description);
+    check_length!(MAX_EMBED_TITLE_LENGTH, reminder.embed_title);
+    check_length!(MAX_EMBED_AUTHOR_LENGTH, reminder.embed_author);
+    check_length!(MAX_EMBED_FOOTER_LENGTH, reminder.embed_footer);
+    check_length_opt!(MAX_EMBED_FIELDS, reminder.embed_fields);
+    if let Some(fields) = &reminder.embed_fields {
+        for field in &fields.0 {
+            check_length!(MAX_EMBED_FIELD_VALUE_LENGTH, field.value);
+            check_length!(MAX_EMBED_FIELD_TITLE_LENGTH, field.title);
+        }
+    }
+    check_length_opt!(MAX_USERNAME_LENGTH, reminder.username);
+    check_length_opt!(
+        MAX_URL_LENGTH,
+        reminder.embed_footer_url,
+        reminder.embed_thumbnail_url,
+        reminder.embed_author_url,
+        reminder.embed_image_url,
+        reminder.avatar
+    );
+
+    // validate urls
+    check_url_opt!(
+        reminder.embed_footer_url,
+        reminder.embed_thumbnail_url,
+        reminder.embed_author_url,
+        reminder.embed_image_url,
+        reminder.avatar
+    );
+
+    // validate time and interval
+    if reminder.utc_time < Utc::now().naive_utc() {
+        return Err(json!({"error": "Time must be in the future"}));
+    }
+    if reminder.interval_seconds.is_some() || reminder.interval_months.is_some() {
+        if reminder.interval_months.unwrap_or(0) * 30 * DAY as u32
+            + reminder.interval_seconds.unwrap_or(0)
+            < *MIN_INTERVAL
+        {
+            return Err(json!({"error": "Interval too short"}));
+        }
+    }
+
+    // check patreon if necessary
+    if reminder.interval_seconds.is_some() || reminder.interval_months.is_some() {
+        if !check_guild_subscription(&ctx, guild_id).await
+            && !check_subscription(&ctx, user_id).await
+        {
+            return Err(json!({"error": "Patreon is required to set intervals"}));
+        }
+    }
+
+    // base64 decode error dropped here
+    let attachment_data = reminder.attachment.as_ref().map(|s| base64::decode(s).ok()).flatten();
+    let name = if reminder.name.is_empty() { name_default() } else { reminder.name.clone() };
+
+    let new_uid = generate_uid();
+
+    // write to db
+    match sqlx::query!(
+        "INSERT INTO reminders (
+         uid,
+         attachment,
+         attachment_name,
+         channel_id,
+         avatar,
+         content,
+         embed_author,
+         embed_author_url,
+         embed_color,
+         embed_description,
+         embed_footer,
+         embed_footer_url,
+         embed_image_url,
+         embed_thumbnail_url,
+         embed_title,
+         embed_fields,
+         enabled,
+         expires,
+         interval_seconds,
+         interval_months,
+         name,
+         restartable,
+         tts,
+         username,
+         `utc_time`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        new_uid,
+        attachment_data,
+        reminder.attachment_name,
+        channel,
+        reminder.avatar,
+        reminder.content,
+        reminder.embed_author,
+        reminder.embed_author_url,
+        reminder.embed_color,
+        reminder.embed_description,
+        reminder.embed_footer,
+        reminder.embed_footer_url,
+        reminder.embed_image_url,
+        reminder.embed_thumbnail_url,
+        reminder.embed_title,
+        reminder.embed_fields,
+        reminder.enabled,
+        reminder.expires,
+        reminder.interval_seconds,
+        reminder.interval_months,
+        name,
+        reminder.restartable,
+        reminder.tts,
+        reminder.username,
+        reminder.utc_time,
+    )
+    .execute(pool)
+    .await
+    {
+        Ok(_) => sqlx::query_as_unchecked!(
+            Reminder,
+            "SELECT
+             reminders.attachment,
+             reminders.attachment_name,
+             reminders.avatar,
+             channels.channel,
+             reminders.content,
+             reminders.embed_author,
+             reminders.embed_author_url,
+             reminders.embed_color,
+             reminders.embed_description,
+             reminders.embed_footer,
+             reminders.embed_footer_url,
+             reminders.embed_image_url,
+             reminders.embed_thumbnail_url,
+             reminders.embed_title,
+             reminders.embed_fields,
+             reminders.enabled,
+             reminders.expires,
+             reminders.interval_seconds,
+             reminders.interval_months,
+             reminders.name,
+             reminders.restartable,
+             reminders.tts,
+             reminders.uid,
+             reminders.username,
+             reminders.utc_time
+            FROM reminders
+            LEFT JOIN channels ON channels.id = reminders.channel_id
+            WHERE uid = ?",
+            new_uid
+        )
+        .fetch_one(pool)
+        .await
+        .map(|r| Ok(json!(r)))
+        .unwrap_or_else(|e| {
+            warn!("Failed to complete SQL query: {:?}", e);
+
+            Err(json!({"error": "Could not load reminder"}))
+        }),
+
+        Err(e) => {
+            warn!("Error in `create_reminder`: Could not execute query: {:?}", e);
+
+            Err(json!({"error": "Unknown error"}))
+        }
+    }
 }
 
 async fn create_database_channel(

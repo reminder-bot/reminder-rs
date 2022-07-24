@@ -1,7 +1,7 @@
 use csv::{QuoteStyle, WriterBuilder};
 use rocket::{
     http::CookieJar,
-    serde::json::{json, Json, Value as JsonValue},
+    serde::json::{json, serde_json, Json},
     State,
 };
 use serenity::{
@@ -10,7 +10,10 @@ use serenity::{
 };
 use sqlx::{MySql, Pool};
 
-use crate::routes::dashboard::{ImportBody, ReminderCsv, ReminderTemplateCsv, TodoCsv};
+use crate::routes::dashboard::{
+    create_reminder, generate_uid, ImportBody, JsonResult, Reminder, ReminderCsv,
+    ReminderTemplateCsv, TodoCsv,
+};
 
 #[get("/api/guild/<id>/export/reminders")]
 pub async fn export_reminders(
@@ -18,7 +21,7 @@ pub async fn export_reminders(
     cookies: &CookieJar<'_>,
     ctx: &State<Context>,
     pool: &State<Pool<MySql>>,
-) -> JsonValue {
+) -> JsonResult {
     check_authorization!(cookies, ctx.inner(), id);
 
     let mut csv_writer = WriterBuilder::new().quote_style(QuoteStyle::Always).from_writer(vec![]);
@@ -40,7 +43,7 @@ pub async fn export_reminders(
                  reminders.attachment,
                  reminders.attachment_name,
                  reminders.avatar,
-                 channels.channel,
+                 CONCAT('#', channels.channel) AS channel,
                  reminders.content,
                  reminders.embed_author,
                  reminders.embed_author_url,
@@ -77,21 +80,19 @@ pub async fn export_reminders(
 
                     match csv_writer.into_inner() {
                         Ok(inner) => match String::from_utf8(inner) {
-                            Ok(encoded) => {
-                                json!({ "body": encoded })
-                            }
+                            Ok(encoded) => Ok(json!({ "body": encoded })),
 
                             Err(e) => {
                                 warn!("Failed to write UTF-8: {:?}", e);
 
-                                json!({"error": "Failed to write UTF-8"})
+                                Err(json!({"error": "Failed to write UTF-8"}))
                             }
                         },
 
                         Err(e) => {
                             warn!("Failed to extract CSV: {:?}", e);
 
-                            json!({"error": "Failed to extract CSV"})
+                            Err(json!({"error": "Failed to extract CSV"}))
                         }
                     }
                 }
@@ -99,7 +100,7 @@ pub async fn export_reminders(
                 Err(e) => {
                     warn!("Failed to complete SQL query: {:?}", e);
 
-                    json!({"error": "Failed to query reminders"})
+                    Err(json!({"error": "Failed to query reminders"}))
                 }
             }
         }
@@ -107,7 +108,7 @@ pub async fn export_reminders(
         Err(e) => {
             warn!("Could not fetch channels from {}: {:?}", id, e);
 
-            json!({"error": "Failed to get guild channels"})
+            Err(json!({"error": "Failed to get guild channels"}))
         }
     }
 }
@@ -119,8 +120,11 @@ pub async fn import_reminders(
     body: Json<ImportBody>,
     ctx: &State<Context>,
     pool: &State<Pool<MySql>>,
-) -> JsonValue {
+) -> JsonResult {
     check_authorization!(cookies, ctx.inner(), id);
+
+    let user_id =
+        cookies.get_private("userid").map(|c| c.value().parse::<u64>().ok()).flatten().unwrap();
 
     match base64::decode(&body.body) {
         Ok(body) => {
@@ -128,19 +132,74 @@ pub async fn import_reminders(
 
             for result in reader.deserialize::<ReminderCsv>() {
                 match result {
-                    Ok(record) => {}
+                    Ok(record) => {
+                        let channel_id = record.channel.split_at(1).1;
+
+                        match channel_id.parse::<u64>() {
+                            Ok(channel_id) => {
+                                let reminder = Reminder {
+                                    attachment: record.attachment,
+                                    attachment_name: record.attachment_name,
+                                    avatar: record.avatar,
+                                    channel: channel_id,
+                                    content: record.content,
+                                    embed_author: record.embed_author,
+                                    embed_author_url: record.embed_author_url,
+                                    embed_color: record.embed_color,
+                                    embed_description: record.embed_description,
+                                    embed_footer: record.embed_footer,
+                                    embed_footer_url: record.embed_footer_url,
+                                    embed_image_url: record.embed_image_url,
+                                    embed_thumbnail_url: record.embed_thumbnail_url,
+                                    embed_title: record.embed_title,
+                                    embed_fields: record
+                                        .embed_fields
+                                        .map(|s| serde_json::from_str(&s).ok())
+                                        .flatten(),
+                                    enabled: record.enabled,
+                                    expires: record.expires,
+                                    interval_seconds: record.interval_seconds,
+                                    interval_months: record.interval_months,
+                                    name: record.name,
+                                    restartable: record.restartable,
+                                    tts: record.tts,
+                                    uid: generate_uid(),
+                                    username: record.username,
+                                    utc_time: record.utc_time,
+                                };
+
+                                create_reminder(
+                                    ctx.inner(),
+                                    pool.inner(),
+                                    GuildId(id),
+                                    UserId(user_id),
+                                    reminder,
+                                )
+                                .await?;
+                            }
+
+                            Err(_) => {
+                                return json_err!(format!(
+                                    "Failed to parse channel {}",
+                                    channel_id
+                                ));
+                            }
+                        }
+                    }
 
                     Err(e) => {
                         warn!("Couldn't deserialize CSV row: {:?}", e);
+
+                        return json_err!("Deserialize error. Aborted");
                     }
                 }
             }
 
-            json!({"error": "Not implemented"})
+            Ok(json!({}))
         }
 
         Err(_) => {
-            json!({"error": "Malformed base64"})
+            json_err!("Malformed base64")
         }
     }
 }
@@ -151,7 +210,7 @@ pub async fn export_todos(
     cookies: &CookieJar<'_>,
     ctx: &State<Context>,
     pool: &State<Pool<MySql>>,
-) -> JsonValue {
+) -> JsonResult {
     check_authorization!(cookies, ctx.inner(), id);
 
     let mut csv_writer = WriterBuilder::new().quote_style(QuoteStyle::Always).from_writer(vec![]);
@@ -174,28 +233,27 @@ pub async fn export_todos(
 
             match csv_writer.into_inner() {
                 Ok(inner) => match String::from_utf8(inner) {
-                    Ok(encoded) => {
-                        json!({ "body": encoded })
-                    }
+                    Ok(encoded) => Ok(json!({ "body": encoded })),
 
                     Err(e) => {
                         warn!("Failed to write UTF-8: {:?}", e);
 
-                        json!({"error": "Failed to write UTF-8"})
+                        json_err!("Failed to write UTF-8")
                     }
                 },
 
                 Err(e) => {
                     warn!("Failed to extract CSV: {:?}", e);
 
-                    json!({"error": "Failed to extract CSV"})
+                    json_err!("Failed to extract CSV")
                 }
             }
         }
+
         Err(e) => {
             warn!("Could not fetch templates from {}: {:?}", id, e);
 
-            json!({"error": "Failed to query templates"})
+            json_err!("Failed to query templates")
         }
     }
 }
@@ -207,7 +265,7 @@ pub async fn import_todos(
     body: Json<ImportBody>,
     ctx: &State<Context>,
     pool: &State<Pool<MySql>>,
-) -> JsonValue {
+) -> JsonResult {
     check_authorization!(cookies, ctx.inner(), id);
 
     let channels_res = GuildId(id).channels(&ctx.inner()).await;
@@ -231,17 +289,18 @@ pub async fn import_todos(
                                         if channels.contains_key(&ChannelId(channel_id)) {
                                             query_params.push((record.value, Some(channel_id), id));
                                         } else {
-                                            return json!({
-                                                "error":
-                                                    format!("Invalid channel ID {}", channel_id)
-                                            });
+                                            return json_err!(format!(
+                                                "Invalid channel ID {}",
+                                                channel_id
+                                            ));
                                         }
                                     }
 
                                     Err(_) => {
-                                        return json!({
-                                            "error": format!("Invalid channel ID {}", channel_id)
-                                        });
+                                        return json_err!(format!(
+                                            "Invalid channel ID {}",
+                                            channel_id
+                                        ));
                                     }
                                 }
                             }
@@ -254,7 +313,7 @@ pub async fn import_todos(
                         Err(e) => {
                             warn!("Couldn't deserialize CSV row: {:?}", e);
 
-                            return json!({"error": "Deserialize error. Aborted"});
+                            return json_err!("Deserialize error. Aborted");
                         }
                     }
                 }
@@ -279,27 +338,25 @@ pub async fn import_todos(
                 let res = query.execute(pool.inner()).await;
 
                 match res {
-                    Ok(_) => {
-                        json!({})
-                    }
+                    Ok(_) => Ok(json!({})),
 
                     Err(e) => {
                         warn!("Couldn't execute todo query: {:?}", e);
 
-                        json!({"error": "An unexpected error occured."})
+                        json_err!("An unexpected error occured.")
                     }
                 }
             }
 
             Err(_) => {
-                json!({"error": "Malformed base64"})
+                json_err!("Malformed base64")
             }
         },
 
         Err(e) => {
             warn!("Couldn't fetch channels for guild {}: {:?}", id, e);
 
-            json!({"error": "Couldn't fetch channels."})
+            json_err!("Couldn't fetch channels.")
         }
     }
 }
@@ -310,7 +367,7 @@ pub async fn export_reminder_templates(
     cookies: &CookieJar<'_>,
     ctx: &State<Context>,
     pool: &State<Pool<MySql>>,
-) -> JsonValue {
+) -> JsonResult {
     check_authorization!(cookies, ctx.inner(), id);
 
     let mut csv_writer = WriterBuilder::new().quote_style(QuoteStyle::Always).from_writer(vec![]);
@@ -348,28 +405,26 @@ pub async fn export_reminder_templates(
 
             match csv_writer.into_inner() {
                 Ok(inner) => match String::from_utf8(inner) {
-                    Ok(encoded) => {
-                        json!({ "body": encoded })
-                    }
+                    Ok(encoded) => Ok(json!({ "body": encoded })),
 
                     Err(e) => {
                         warn!("Failed to write UTF-8: {:?}", e);
 
-                        json!({"error": "Failed to write UTF-8"})
+                        json_err!("Failed to write UTF-8")
                     }
                 },
 
                 Err(e) => {
                     warn!("Failed to extract CSV: {:?}", e);
 
-                    json!({"error": "Failed to extract CSV"})
+                    json_err!("Failed to extract CSV")
                 }
             }
         }
         Err(e) => {
             warn!("Could not fetch templates from {}: {:?}", id, e);
 
-            json!({"error": "Failed to query templates"})
+            json_err!("Failed to query templates")
         }
     }
 }

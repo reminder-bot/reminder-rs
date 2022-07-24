@@ -1,10 +1,8 @@
 use std::env;
 
-use base64;
-use chrono::Utc;
 use rocket::{
     http::CookieJar,
-    serde::json::{json, Json, Value as JsonValue},
+    serde::json::{json, Json},
     State,
 };
 use serde::Serialize;
@@ -18,16 +16,14 @@ use serenity::{
 use sqlx::{MySql, Pool};
 
 use crate::{
-    check_guild_subscription, check_subscription,
     consts::{
-        DAY, MAX_CONTENT_LENGTH, MAX_EMBED_AUTHOR_LENGTH, MAX_EMBED_DESCRIPTION_LENGTH,
+        MAX_CONTENT_LENGTH, MAX_EMBED_AUTHOR_LENGTH, MAX_EMBED_DESCRIPTION_LENGTH,
         MAX_EMBED_FIELDS, MAX_EMBED_FIELD_TITLE_LENGTH, MAX_EMBED_FIELD_VALUE_LENGTH,
         MAX_EMBED_FOOTER_LENGTH, MAX_EMBED_TITLE_LENGTH, MAX_URL_LENGTH, MAX_USERNAME_LENGTH,
-        MIN_INTERVAL,
     },
     routes::dashboard::{
-        create_database_channel, generate_uid, name_default, template_name_default, DeleteReminder,
-        DeleteReminderTemplate, PatchReminder, Reminder, ReminderTemplate,
+        create_database_channel, create_reminder, template_name_default, DeleteReminder,
+        DeleteReminderTemplate, JsonResult, PatchReminder, Reminder, ReminderTemplate,
     },
 };
 
@@ -44,7 +40,7 @@ pub async fn get_guild_patreon(
     id: u64,
     cookies: &CookieJar<'_>,
     ctx: &State<Context>,
-) -> JsonValue {
+) -> JsonResult {
     check_authorization!(cookies, ctx.inner(), id);
 
     match GuildId(id).to_guild_cached(ctx.inner()) {
@@ -59,12 +55,10 @@ pub async fn get_guild_patreon(
                     .contains(&RoleId(env::var("PATREON_ROLE_ID").unwrap().parse().unwrap()))
             });
 
-            json!({ "patreon": patreon })
+            Ok(json!({ "patreon": patreon }))
         }
 
-        None => {
-            json!({"error": "Bot not in guild"})
-        }
+        None => json_err!("Bot not in guild"),
     }
 }
 
@@ -73,7 +67,7 @@ pub async fn get_guild_channels(
     id: u64,
     cookies: &CookieJar<'_>,
     ctx: &State<Context>,
-) -> JsonValue {
+) -> JsonResult {
     check_authorization!(cookies, ctx.inner(), id);
 
     match GuildId(id).to_guild_cached(ctx.inner()) {
@@ -97,12 +91,10 @@ pub async fn get_guild_channels(
                 })
                 .collect::<Vec<ChannelInfo>>();
 
-            json!(channel_info)
+            Ok(json!(channel_info))
         }
 
-        None => {
-            json!({"error": "Bot not in guild"})
-        }
+        None => json_err!("Bot not in guild"),
     }
 }
 
@@ -113,7 +105,7 @@ struct RoleInfo {
 }
 
 #[get("/api/guild/<id>/roles")]
-pub async fn get_guild_roles(id: u64, cookies: &CookieJar<'_>, ctx: &State<Context>) -> JsonValue {
+pub async fn get_guild_roles(id: u64, cookies: &CookieJar<'_>, ctx: &State<Context>) -> JsonResult {
     check_authorization!(cookies, ctx.inner(), id);
 
     let roles_res = ctx.cache.guild_roles(id);
@@ -125,12 +117,12 @@ pub async fn get_guild_roles(id: u64, cookies: &CookieJar<'_>, ctx: &State<Conte
                 .map(|(_, r)| RoleInfo { id: r.id.to_string(), name: r.name.to_string() })
                 .collect::<Vec<RoleInfo>>();
 
-            json!(roles)
+            Ok(json!(roles))
         }
         None => {
             warn!("Could not fetch roles from {}", id);
 
-            json!({"error": "Could not get roles"})
+            json_err!("Could not get roles")
         }
     }
 }
@@ -141,7 +133,7 @@ pub async fn get_reminder_templates(
     cookies: &CookieJar<'_>,
     ctx: &State<Context>,
     pool: &State<Pool<MySql>>,
-) -> JsonValue {
+) -> JsonResult {
     check_authorization!(cookies, ctx.inner(), id);
 
     match sqlx::query_as_unchecked!(
@@ -152,13 +144,11 @@ pub async fn get_reminder_templates(
     .fetch_all(pool.inner())
     .await
     {
-        Ok(templates) => {
-            json!(templates)
-        }
+        Ok(templates) => Ok(json!(templates)),
         Err(e) => {
             warn!("Could not fetch templates from {}: {:?}", id, e);
 
-            json!({"error": "Could not get templates"})
+            json_err!("Could not get templates")
         }
     }
 }
@@ -170,7 +160,7 @@ pub async fn create_reminder_template(
     cookies: &CookieJar<'_>,
     ctx: &State<Context>,
     pool: &State<Pool<MySql>>,
-) -> JsonValue {
+) -> JsonResult {
     check_authorization!(cookies, ctx.inner(), id);
 
     // validate lengths
@@ -254,12 +244,12 @@ pub async fn create_reminder_template(
     .await
     {
         Ok(_) => {
-            json!({})
+            Ok(json!({}))
         }
         Err(e) => {
             warn!("Could not fetch templates from {}: {:?}", id, e);
 
-            json!({"error": "Could not get templates"})
+            json_err!("Could not get templates")
         }
     }
 }
@@ -271,7 +261,7 @@ pub async fn delete_reminder_template(
     cookies: &CookieJar<'_>,
     ctx: &State<Context>,
     pool: &State<Pool<MySql>>,
-) -> JsonValue {
+) -> JsonResult {
     check_authorization!(cookies, ctx.inner(), id);
 
     match sqlx::query!(
@@ -282,230 +272,41 @@ pub async fn delete_reminder_template(
     .await
     {
         Ok(_) => {
-            json!({})
+            Ok(json!({}))
         }
         Err(e) => {
             warn!("Could not delete template from {}: {:?}", id, e);
 
-            json!({"error": "Could not delete template"})
+            json_err!("Could not delete template")
         }
     }
 }
 
 #[post("/api/guild/<id>/reminders", data = "<reminder>")]
-pub async fn create_reminder(
+pub async fn create_guild_reminder(
     id: u64,
     reminder: Json<Reminder>,
     cookies: &CookieJar<'_>,
     serenity_context: &State<Context>,
     pool: &State<Pool<MySql>>,
-) -> JsonValue {
+) -> JsonResult {
     check_authorization!(cookies, serenity_context.inner(), id);
 
     let user_id =
         cookies.get_private("userid").map(|c| c.value().parse::<u64>().ok()).flatten().unwrap();
 
-    // validate channel
-    let channel = ChannelId(reminder.channel).to_channel_cached(&serenity_context.inner());
-    let channel_exists = channel.is_some();
-
-    let channel_matches_guild =
-        channel.map_or(false, |c| c.guild().map_or(false, |c| c.guild_id.0 == id));
-
-    if !channel_matches_guild || !channel_exists {
-        warn!(
-            "Error in `create_reminder`: channel {} not found for guild {} (channel exists: {})",
-            reminder.channel, id, channel_exists
-        );
-
-        return json!({"error": "Channel not found"});
-    }
-
-    let channel = create_database_channel(
+    create_reminder(
         serenity_context.inner(),
-        ChannelId(reminder.channel),
         pool.inner(),
+        GuildId(id),
+        UserId(user_id),
+        reminder.into_inner(),
     )
-    .await;
-
-    if let Err(e) = channel {
-        warn!("`create_database_channel` returned an error code: {:?}", e);
-
-        return json!({"error": "Failed to configure channel for reminders. Please check the bot permissions"});
-    }
-
-    let channel = channel.unwrap();
-
-    // validate lengths
-    check_length!(MAX_CONTENT_LENGTH, reminder.content);
-    check_length!(MAX_EMBED_DESCRIPTION_LENGTH, reminder.embed_description);
-    check_length!(MAX_EMBED_TITLE_LENGTH, reminder.embed_title);
-    check_length!(MAX_EMBED_AUTHOR_LENGTH, reminder.embed_author);
-    check_length!(MAX_EMBED_FOOTER_LENGTH, reminder.embed_footer);
-    check_length_opt!(MAX_EMBED_FIELDS, reminder.embed_fields);
-    if let Some(fields) = &reminder.embed_fields {
-        for field in &fields.0 {
-            check_length!(MAX_EMBED_FIELD_VALUE_LENGTH, field.value);
-            check_length!(MAX_EMBED_FIELD_TITLE_LENGTH, field.title);
-        }
-    }
-    check_length_opt!(MAX_USERNAME_LENGTH, reminder.username);
-    check_length_opt!(
-        MAX_URL_LENGTH,
-        reminder.embed_footer_url,
-        reminder.embed_thumbnail_url,
-        reminder.embed_author_url,
-        reminder.embed_image_url,
-        reminder.avatar
-    );
-
-    // validate urls
-    check_url_opt!(
-        reminder.embed_footer_url,
-        reminder.embed_thumbnail_url,
-        reminder.embed_author_url,
-        reminder.embed_image_url,
-        reminder.avatar
-    );
-
-    // validate time and interval
-    if reminder.utc_time < Utc::now().naive_utc() {
-        return json!({"error": "Time must be in the future"});
-    }
-    if reminder.interval_seconds.is_some() || reminder.interval_months.is_some() {
-        if reminder.interval_months.unwrap_or(0) * 30 * DAY as u32
-            + reminder.interval_seconds.unwrap_or(0)
-            < *MIN_INTERVAL
-        {
-            return json!({"error": "Interval too short"});
-        }
-    }
-
-    // check patreon if necessary
-    if reminder.interval_seconds.is_some() || reminder.interval_months.is_some() {
-        if !check_guild_subscription(serenity_context.inner(), GuildId(id)).await
-            && !check_subscription(serenity_context.inner(), user_id).await
-        {
-            return json!({"error": "Patreon is required to set intervals"});
-        }
-    }
-
-    // base64 decode error dropped here
-    let attachment_data = reminder.attachment.as_ref().map(|s| base64::decode(s).ok()).flatten();
-    let name = if reminder.name.is_empty() { name_default() } else { reminder.name.clone() };
-
-    let new_uid = generate_uid();
-
-    // write to db
-    match sqlx::query!(
-        "INSERT INTO reminders (
-         uid,
-         attachment,
-         attachment_name,
-         channel_id,
-         avatar,
-         content,
-         embed_author,
-         embed_author_url,
-         embed_color,
-         embed_description,
-         embed_footer,
-         embed_footer_url,
-         embed_image_url,
-         embed_thumbnail_url,
-         embed_title,
-         embed_fields,
-         enabled,
-         expires,
-         interval_seconds,
-         interval_months,
-         name,
-         restartable,
-         tts,
-         username,
-         `utc_time`
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        new_uid,
-        attachment_data,
-        reminder.attachment_name,
-        channel,
-        reminder.avatar,
-        reminder.content,
-        reminder.embed_author,
-        reminder.embed_author_url,
-        reminder.embed_color,
-        reminder.embed_description,
-        reminder.embed_footer,
-        reminder.embed_footer_url,
-        reminder.embed_image_url,
-        reminder.embed_thumbnail_url,
-        reminder.embed_title,
-        reminder.embed_fields,
-        reminder.enabled,
-        reminder.expires,
-        reminder.interval_seconds,
-        reminder.interval_months,
-        name,
-        reminder.restartable,
-        reminder.tts,
-        reminder.username,
-        reminder.utc_time,
-    )
-    .execute(pool.inner())
     .await
-    {
-        Ok(_) => sqlx::query_as_unchecked!(
-            Reminder,
-            "SELECT
-             reminders.attachment,
-             reminders.attachment_name,
-             reminders.avatar,
-             channels.channel,
-             reminders.content,
-             reminders.embed_author,
-             reminders.embed_author_url,
-             reminders.embed_color,
-             reminders.embed_description,
-             reminders.embed_footer,
-             reminders.embed_footer_url,
-             reminders.embed_image_url,
-             reminders.embed_thumbnail_url,
-             reminders.embed_title,
-             reminders.embed_fields,
-             reminders.enabled,
-             reminders.expires,
-             reminders.interval_seconds,
-             reminders.interval_months,
-             reminders.name,
-             reminders.restartable,
-             reminders.tts,
-             reminders.uid,
-             reminders.username,
-             reminders.utc_time
-            FROM reminders
-            LEFT JOIN channels ON channels.id = reminders.channel_id
-            WHERE uid = ?",
-            new_uid
-        )
-        .fetch_one(pool.inner())
-        .await
-        .map(|r| json!(r))
-        .unwrap_or_else(|e| {
-            warn!("Failed to complete SQL query: {:?}", e);
-
-            json!({"error": "Could not load reminder"})
-        }),
-
-        Err(e) => {
-            warn!("Error in `create_reminder`: Could not execute query: {:?}", e);
-
-            json!({"error": "Unknown error"})
-        }
-    }
 }
 
 #[get("/api/guild/<id>/reminders")]
-pub async fn get_reminders(id: u64, ctx: &State<Context>, pool: &State<Pool<MySql>>) -> JsonValue {
+pub async fn get_reminders(id: u64, ctx: &State<Context>, pool: &State<Pool<MySql>>) -> JsonResult {
     let channels_res = GuildId(id).channels(&ctx.inner()).await;
 
     match channels_res {
@@ -552,17 +353,17 @@ pub async fn get_reminders(id: u64, ctx: &State<Context>, pool: &State<Pool<MySq
             )
             .fetch_all(pool.inner())
             .await
-            .map(|r| json!(r))
+            .map(|r| Ok(json!(r)))
             .unwrap_or_else(|e| {
                 warn!("Failed to complete SQL query: {:?}", e);
 
-                json!({"error": "Could not load reminders"})
+                json_err!("Could not load reminders")
             })
         }
         Err(e) => {
             warn!("Could not fetch channels from {}: {:?}", id, e);
 
-            json!([])
+            Ok(json!([]))
         }
     }
 }
@@ -573,7 +374,7 @@ pub async fn edit_reminder(
     reminder: Json<PatchReminder>,
     serenity_context: &State<Context>,
     pool: &State<Pool<MySql>>,
-) -> JsonValue {
+) -> JsonResult {
     let mut error = vec![];
 
     update_field!(pool.inner(), error, reminder.[
@@ -614,7 +415,7 @@ pub async fn edit_reminder(
                         reminder.channel, id
                     );
 
-                    return json!({"error": "Channel not found"});
+                    return Err(json!({"error": "Channel not found"}));
                 }
 
                 let channel = create_database_channel(
@@ -627,7 +428,9 @@ pub async fn edit_reminder(
                 if let Err(e) = channel {
                     warn!("`create_database_channel` returned an error code: {:?}", e);
 
-                    return json!({"error": "Failed to configure channel for reminders. Please check the bot permissions"});
+                    return Err(
+                        json!({"error": "Failed to configure channel for reminders. Please check the bot permissions"}),
+                    );
                 }
 
                 let channel = channel.unwrap();
@@ -655,7 +458,7 @@ pub async fn edit_reminder(
                     reminder.channel, id
                 );
 
-                return json!({"error": "Channel not found"});
+                return Err(json!({"error": "Channel not found"}));
             }
         }
     }
@@ -695,12 +498,12 @@ pub async fn edit_reminder(
     .fetch_one(pool.inner())
     .await
     {
-        Ok(reminder) => json!({"reminder": reminder, "errors": error}),
+        Ok(reminder) => Ok(json!({"reminder": reminder, "errors": error})),
 
         Err(e) => {
             warn!("Error exiting `edit_reminder': {:?}", e);
 
-            json!({"reminder": Option::<Reminder>::None, "errors": vec!["Unknown error"]})
+            Err(json!({"reminder": Option::<Reminder>::None, "errors": vec!["Unknown error"]}))
         }
     }
 }
@@ -709,19 +512,17 @@ pub async fn edit_reminder(
 pub async fn delete_reminder(
     reminder: Json<DeleteReminder>,
     pool: &State<Pool<MySql>>,
-) -> JsonValue {
+) -> JsonResult {
     match sqlx::query!("DELETE FROM reminders WHERE uid = ?", reminder.uid)
         .execute(pool.inner())
         .await
     {
-        Ok(_) => {
-            json!({})
-        }
+        Ok(_) => Ok(json!({})),
 
         Err(e) => {
             warn!("Error in `delete_reminder`: {:?}", e);
 
-            json!({"error": "Could not delete reminder"})
+            Err(json!({"error": "Could not delete reminder"}))
         }
     }
 }

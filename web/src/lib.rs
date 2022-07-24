@@ -146,7 +146,7 @@ pub async fn initialize(
                 routes::dashboard::guild::get_reminder_templates,
                 routes::dashboard::guild::create_reminder_template,
                 routes::dashboard::guild::delete_reminder_template,
-                routes::dashboard::guild::create_reminder,
+                routes::dashboard::guild::create_guild_reminder,
                 routes::dashboard::guild::get_reminders,
                 routes::dashboard::guild::edit_reminder,
                 routes::dashboard::guild::delete_reminder,

@@ -1,7 +1,7 @@
 macro_rules! check_length {
     ($max:ident, $field:expr) => {
         if $field.len() > $max {
-            return json!({ "error": format!("{} exceeded", stringify!($max)) });
+            return Err(json!({ "error": format!("{} exceeded", stringify!($max)) }));
         }
     };
     ($max:ident, $field:expr, $($fields:expr),+) => {
@@ -25,7 +25,7 @@ macro_rules! check_length_opt {
 macro_rules! check_url {
     ($field:expr) => {
         if !($field.starts_with("http://") || $field.starts_with("https://")) {
-            return json!({ "error": "URL invalid" });
+            return Err(json!({ "error": "URL invalid" }));
         }
     };
     ($field:expr, $($fields:expr),+) => {
@@ -60,7 +60,7 @@ macro_rules! check_authorization {
 
                         match member {
                             Err(_) => {
-                                return json!({"error": "User not in guild"})
+                                return Err(json!({"error": "User not in guild"}));
                             }
 
                             Ok(_) => {}
@@ -68,13 +68,13 @@ macro_rules! check_authorization {
                     }
 
                     None => {
-                        return json!({"error": "Bot not in guild"})
+                        return Err(json!({"error": "Bot not in guild"}));
                     }
                 }
             }
 
             None => {
-                return json!({"error": "User not authorized"});
+                return Err(json!({"error": "User not authorized"}));
             }
         }
     }
@@ -115,5 +115,11 @@ macro_rules! update_field {
     ($pool:expr, $error:ident, $reminder:ident.[$field:ident, $($fields:ident),+]) => {
         update_field!($pool, $error, $reminder.[$field]);
         update_field!($pool, $error, $reminder.[$($fields),+]);
+    };
+}
+
+macro_rules! json_err {
+    ($message:expr) => {
+        Err(json!({ "error": $message }))
     };
 }
