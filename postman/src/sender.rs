@@ -292,9 +292,7 @@ INNER JOIN
 ON
     reminders.channel_id = channels.id
 WHERE
-    reminders.`utc_time` < NOW()
-LIMIT 25
-            "#,
+    reminders.`utc_time` < NOW()"#,
         )
         .fetch_all(pool)
         .await
