@@ -5,6 +5,7 @@ use poise::{
         model::id::{GuildId, UserId},
     },
     serenity_prelude as serenity,
+    serenity_prelude::interaction::MessageFlags,
 };
 
 use crate::{
@@ -102,6 +103,6 @@ pub fn send_as_initial_response(
         });
     }
     if ephemeral {
-        f.flags(serenity::InteractionApplicationCommandCallbackDataFlags::EPHEMERAL);
+        f.flags(MessageFlags::EPHEMERAL);
     }
 }

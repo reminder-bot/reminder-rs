@@ -292,6 +292,16 @@ INNER JOIN
 ON
     reminders.channel_id = channels.id
 WHERE
+    reminders.id IN (
+        SELECT
+            MIN(reminders.id)
+        FROM reminders
+        INNER JOIN
+            channels
+        ON reminders.channel_id = channels.id
+        WHERE reminders.`utc_time` < NOW()
+        GROUP BY channels.guild_id
+    ) AND
     reminders.`utc_time` < NOW()"#,
         )
         .fetch_all(pool)

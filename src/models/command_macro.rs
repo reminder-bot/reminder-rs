@@ -1,5 +1,5 @@
 use poise::serenity::model::{
-    id::GuildId, interactions::application_command::ApplicationCommandInteractionDataOption,
+    application::interaction::application_command::CommandDataOption, id::GuildId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -19,7 +19,7 @@ pub struct RecordedCommand<U, E> {
     #[serde(default = "default_none::<U, E>")]
     pub action: Option<Func<U, E>>,
     pub command_name: String,
-    pub options: Vec<ApplicationCommandInteractionDataOption>,
+    pub options: Vec<CommandDataOption>,
 }
 
 pub struct CommandMacro<U, E> {

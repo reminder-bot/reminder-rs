@@ -9,11 +9,11 @@ use poise::{
         builder::CreateEmbed,
         client::Context,
         model::{
-            channel::Channel,
-            interactions::{
+            application::interaction::{
                 message_component::MessageComponentInteraction, InteractionResponseType,
+                MessageFlags,
             },
-            prelude::InteractionApplicationCommandCallbackDataFlags,
+            channel::Channel,
         },
     },
     serenity_prelude as serenity,
@@ -260,7 +260,7 @@ WHERE guilds.guild = ?",
                             r.kind(InteractionResponseType::ChannelMessageWithSource)
                                 .interaction_response_data(|d| {
                                     d.flags(
-                                        InteractionApplicationCommandCallbackDataFlags::EPHEMERAL,
+                                        MessageFlags::EPHEMERAL,
                                     )
                                     .content("Only the user who performed the command can use these components")
                                 })
@@ -314,7 +314,7 @@ WHERE guilds.guild = ?",
                             r.kind(InteractionResponseType::ChannelMessageWithSource)
                                 .interaction_response_data(|d| {
                                     d.flags(
-                                        InteractionApplicationCommandCallbackDataFlags::EPHEMERAL,
+                                        MessageFlags::EPHEMERAL,
                                     )
                                     .content("Only the user who performed the command can use these components")
                                 })

@@ -9,7 +9,7 @@ use chrono_tz::Tz;
 use num_integer::Integer;
 use poise::{
     serenity::{builder::CreateEmbed, model::channel::Channel},
-    serenity_prelude::{ButtonStyle, ReactionType},
+    serenity_prelude::{component::ButtonStyle, ReactionType},
     CreateReply,
 };
 

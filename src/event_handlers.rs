@@ -2,7 +2,7 @@ use std::{collections::HashMap, env, sync::atomic::Ordering};
 
 use log::{error, info, warn};
 use poise::{
-    serenity::{model::interactions::Interaction, utils::shard_id},
+    serenity::{model::application::interaction::Interaction, utils::shard_id},
     serenity_prelude as serenity,
 };
 
