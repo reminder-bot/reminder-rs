@@ -124,6 +124,52 @@ You may want to use one of the popular timezones below, otherwise click [here](h
     Ok(())
 }
 
+/// Configure whether other users can set reminders to your direct messages
+#[poise::command(slash_command, rename = "dm", identifying_name = "allowed_dm")]
+pub async fn allowed_dm(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// Allow other users to set reminders in your direct messages
+#[poise::command(slash_command, rename = "allow", identifying_name = "allowed_dm")]
+pub async fn set_allowed_dm(ctx: Context<'_>) -> Result<(), Error> {
+    let mut user_data = ctx.author_data().await?;
+    user_data.allowed_dm = true;
+    user_data.commit_changes(&ctx.data().database).await;
+
+    ctx.send(|r| {
+        r.ephemeral(true).embed(|e| {
+            e.title("DMs permitted")
+                .description("You will receive a message if a user sets a DM reminder for you.")
+                .color(*THEME_COLOR)
+        })
+    })
+    .await?;
+
+    Ok(())
+}
+
+/// Block other users from setting reminders in your direct messages
+#[poise::command(slash_command, rename = "block", identifying_name = "allowed_dm")]
+pub async fn unset_allowed_dm(ctx: Context<'_>) -> Result<(), Error> {
+    let mut user_data = ctx.author_data().await?;
+    user_data.allowed_dm = false;
+    user_data.commit_changes(&ctx.data().database).await;
+
+    ctx.send(|r| {
+        r.ephemeral(true).embed(|e| {
+            e.title("DMs blocked")
+                .description(
+                    "You can still set DM reminders for yourself or for users with DMs enabled.",
+                )
+                .color(*THEME_COLOR)
+        })
+    })
+    .await?;
+
+    Ok(())
+}
+
 /// View the webhook being used to send reminders to this channel
 #[poise::command(
     slash_command,

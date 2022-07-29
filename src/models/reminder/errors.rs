@@ -7,6 +7,7 @@ pub enum ReminderError {
     PastTime,
     ShortInterval,
     InvalidTag,
+    UserBlockedDm,
     DiscordError(String),
 }
 
@@ -29,6 +30,9 @@ impl ToString for ReminderError {
             ),
             ReminderError::InvalidTag => {
                 "Couldn't find a location by your tag. Your tag must be either a channel or a user (not a role)".to_string()
+            }
+            ReminderError::UserBlockedDm => {
+                "User has DM reminders disabled".to_string()
             }
             ReminderError::DiscordError(s) => format!("A Discord error occurred: **{}**", s),
         }

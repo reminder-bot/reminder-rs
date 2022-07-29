@@ -38,7 +38,7 @@ async fn _initialize(ctx: Context, pool: impl Executor<'_, Database = Database> 
         let reminders = sender::Reminder::fetch_reminders(pool).await;
 
         if reminders.len() > 0 {
-            println!("Preparing to send {} reminders.", reminders.len());
+            info!("Preparing to send {} reminders.", reminders.len());
 
             for reminder in reminders {
                 reminder.send(pool, ctx.clone()).await;

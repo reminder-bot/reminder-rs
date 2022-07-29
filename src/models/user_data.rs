@@ -10,6 +10,7 @@ pub struct UserData {
     pub user: u64,
     pub dm_channel: u32,
     pub timezone: String,
+    pub allowed_dm: bool,
 }
 
 impl UserData {
@@ -46,7 +47,7 @@ SELECT timezone FROM users WHERE user = ?
         match sqlx::query_as_unchecked!(
             Self,
             "
-SELECT id, user, dm_channel, IF(timezone IS NULL, ?, timezone) AS timezone FROM users WHERE user = ?
+SELECT id, user, dm_channel, IF(timezone IS NULL, ?, timezone) AS timezone, allowed_dm FROM users WHERE user = ?
             ",
             *LOCAL_TIMEZONE,
             user_id.0
@@ -83,7 +84,7 @@ INSERT INTO users (name, user, dm_channel, timezone) VALUES ('', ?, (SELECT id F
                 Ok(sqlx::query_as_unchecked!(
                     Self,
                     "
-SELECT id, user, dm_channel, timezone FROM users WHERE user = ?
+SELECT id, user, dm_channel, timezone, allowed_dm FROM users WHERE user = ?
                     ",
                     user_id.0
                 )
@@ -102,9 +103,10 @@ SELECT id, user, dm_channel, timezone FROM users WHERE user = ?
     pub async fn commit_changes(&self, pool: &MySqlPool) {
         sqlx::query!(
             "
-UPDATE users SET timezone = ? WHERE id = ?
+UPDATE users SET timezone = ?, allowed_dm = ? WHERE id = ?
             ",
             self.timezone,
+            self.allowed_dm,
             self.id
         )
         .execute(pool)

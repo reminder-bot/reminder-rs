@@ -233,6 +233,10 @@ impl<'a> MultiReminderBuilder<'a> {
                             if let Some(guild_id) = self.guild_id {
                                 if guild_id.member(&self.ctx.discord(), user).await.is_err() {
                                     Err(ReminderError::InvalidTag)
+                                } else if self.set_by.map_or(true, |i| i != user_data.id)
+                                    && !user_data.allowed_dm
+                                {
+                                    Err(ReminderError::UserBlockedDm)
                                 } else {
                                     Ok(user_data.dm_channel)
                                 }

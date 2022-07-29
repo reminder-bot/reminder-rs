@@ -694,6 +694,7 @@ pub async fn remind(
                 }
             }
         }
+
         None => {
             ctx.say("Time could not be processed").await?;
         }

@@ -49,6 +49,7 @@ __Todo Commands__
 
 __Setup Commands__
 `/timezone` - Set your timezone (necessary for `/remind` to work properly)
+`/dm allow/block` - Change your DM settings for reminders.
 
 __Advanced Commands__
 `/macro` - Record and replay command sequences
