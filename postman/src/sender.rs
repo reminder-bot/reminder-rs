@@ -301,8 +301,13 @@ WHERE
         ON reminders.channel_id = channels.id
         WHERE reminders.`utc_time` < NOW()
         GROUP BY channels.guild_id
-    ) AND
-    reminders.`utc_time` < NOW()"#,
+    )
+    AND reminders.`utc_time` < NOW()
+    AND (
+        reminders.`interval_seconds` IS NOT NULL
+        OR reminders.`interval_months` IS NOT NULL
+        OR reminders.enabled
+    )"#,
         )
         .fetch_all(pool)
         .await

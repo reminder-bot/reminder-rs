@@ -157,4 +157,9 @@ CREATE TABLE events (
     FOREIGN KEY (reminder_id) REFERENCES reminders_new(id) ON DELETE SET NULL
 );
 
+DROP TABLE reminders;
+DROP TABLE embed_fields;
+RENAME TABLE reminders_new TO reminders;
+RENAME TABLE embed_fields_new TO embed_fields;
+
 SET FOREIGN_KEY_CHECKS = 1;
