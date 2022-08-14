@@ -2,6 +2,7 @@ use poise::serenity::model::{
     application::interaction::application_command::CommandDataOption, id::GuildId,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{Context, Data, Error};
 
@@ -27,6 +28,13 @@ pub struct CommandMacro<U, E> {
     pub name: String,
     pub description: Option<String>,
     pub commands: Vec<RecordedCommand<U, E>>,
+}
+
+pub struct RawCommandMacro {
+    pub guild_id: GuildId,
+    pub name: String,
+    pub description: Option<String>,
+    pub commands: Value,
 }
 
 pub async fn guild_command_macro(

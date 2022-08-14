@@ -116,6 +116,7 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
                     moderation_cmds::list_macro(),
                     moderation_cmds::record_macro(),
                     moderation_cmds::run_macro(),
+                    moderation_cmds::migrate_macro(),
                 ],
                 ..moderation_cmds::macro_base()
             },

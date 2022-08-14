@@ -12,5 +12,5 @@ chrono-tz = { version = "0.5", features = ["serde"] }
 lazy_static = "1.4"
 num-integer = "0.1"
 serde = "1.0"
-sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "macros", "mysql", "bigdecimal", "chrono", "json"]}
+sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "macros", "mysql", "bigdecimal", "chrono", "json"]}
 serenity = { version = "0.11.1", default-features = false, features = ["builder", "cache", "client", "gateway", "http", "model", "utils", "rustls_backend"] }
