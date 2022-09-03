@@ -23,6 +23,7 @@ use std::{
 
 use chrono_tz::Tz;
 use dotenv::dotenv;
+use log::{error, warn};
 use poise::serenity::model::{
     gateway::GatewayIntents,
     id::{GuildId, UserId},
@@ -190,6 +191,38 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
                 )
                 .await
                 .unwrap();
+
+                let kill_tx = tx.clone();
+                let kill_recv = tx.subscribe();
+
+                let ctx1 = ctx.clone();
+                let ctx2 = ctx.clone();
+
+                let pool1 = database.clone();
+                let pool2 = database.clone();
+
+                let run_settings = env::var("DONTRUN").unwrap_or_else(|_| "".to_string());
+
+                if !run_settings.contains("postman") {
+                    tokio::spawn(async move {
+                        match postman::initialize(kill_recv, ctx1, &pool1).await {
+                            Ok(_) => {}
+                            Err(e) => {
+                                error!("postman exiting: {}", e);
+                            }
+                        };
+                    });
+                } else {
+                    warn!("Not running postman");
+                }
+
+                if !run_settings.contains("web") {
+                    tokio::spawn(async move {
+                        reminder_web::initialize(kill_tx, ctx2, pool2).await.unwrap();
+                    });
+                } else {
+                    warn!("Not running web");
+                }
 
                 Ok(Data {
                     http: reqwest::Client::new(),

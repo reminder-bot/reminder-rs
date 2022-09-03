@@ -17,45 +17,6 @@ pub async fn listener(
         poise::Event::Ready { .. } => {
             ctx.set_activity(serenity::Activity::watching("for /remind")).await;
         }
-        poise::Event::CacheReady { .. } => {
-            info!("Cache Ready! Preparing extra processes");
-
-            if !data.is_loop_running.load(Ordering::Relaxed) {
-                let kill_tx = data.broadcast.clone();
-                let kill_recv = data.broadcast.subscribe();
-
-                let ctx1 = ctx.clone();
-                let ctx2 = ctx.clone();
-
-                let pool1 = data.database.clone();
-                let pool2 = data.database.clone();
-
-                let run_settings = env::var("DONTRUN").unwrap_or_else(|_| "".to_string());
-
-                if !run_settings.contains("postman") {
-                    tokio::spawn(async move {
-                        match postman::initialize(kill_recv, ctx1, &pool1).await {
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("postman exiting: {}", e);
-                            }
-                        };
-                    });
-                } else {
-                    warn!("Not running postman");
-                }
-
-                if !run_settings.contains("web") {
-                    tokio::spawn(async move {
-                        reminder_web::initialize(kill_tx, ctx2, pool2).await.unwrap();
-                    });
-                } else {
-                    warn!("Not running web");
-                }
-
-                data.is_loop_running.swap(true, Ordering::Relaxed);
-            }
-        }
         poise::Event::ChannelDelete { channel } => {
             sqlx::query!("DELETE FROM channels WHERE channel = ?", channel.id.as_u64())
                 .execute(&data.database)
