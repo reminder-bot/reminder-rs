@@ -5,6 +5,7 @@ use chrono_tz::{Tz, TZ_VARIANTS};
 use lazy_regex::regex;
 use levenshtein::levenshtein;
 use poise::{serenity_prelude::command::CommandOptionType, CreateReply};
+use regex::Captures;
 use serde_json::{json, Value};
 
 use crate::{
@@ -635,27 +636,6 @@ pub async fn migrate_macro(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-// const REGEX_REMIND_COMMAND: Regex = RegexBuilder::new(
-//     r#"(?P<mentions>(?:<@\d+>\s+|<@!\d+>\s+|<#\d+>\s+)*)(?P<time>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+)(?:\s+(?P<interval>(?:(?:\d+)(?:s|m|h|d|))+))?(?:\s+(?P<expires>(?:(?:\d+)(?:s|m|h|d|:|/|-|))+))?\s+(?P<content>.*)"#
-//     )
-//         .dot_matches_new_line(true)
-//         .build()
-//         .unwrap();
-
-// const REGEX_NATURAL_COMMAND_1: Regex = RegexBuilder::new(
-//     r#"(?P<time>.*?)(?:\s+)(?:send|say)(?:\s+)(?P<msg>.*?)(?:(?:\s+)to(?:\s+)(?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+))?$"#
-//     )
-//         .dot_matches_new_line(true)
-//         .build()
-//         .unwrap();
-
-// static REGEX_NATURAL_COMMAND_2: Regex = RegexBuilder::new(
-//     r#"(?P<msg>.*)(?:\s+)every(?:\s+)(?P<interval>.*?)(?:(?:\s+)(?:until|for)(?:\s+)(?P<expires>.*?))?$"#
-//     )
-//         .dot_matches_new_line(true)
-//         .build()
-//         .unwrap();
-
 fn parse_text_command(
     guild_id: GuildId,
     alias_name: String,
@@ -738,7 +718,84 @@ fn parse_text_command(
 
                     None => None,
                 }
-            // } else if command_word == "n" || command_word == "natural" {
+            } else if command_word == "n" || command_word == "natural" {
+                let matcher_primary = regex!(
+                    r#"(?P<time>.*?)(?:\s+)(?:send|say)(?:\s+)(?P<content>.*?)(?:(?:\s+)to(?:\s+)(?P<mentions>((?:<@\d+>)|(?:<@!\d+>)|(?:<#\d+>)|(?:\s+))+))?$"#s
+                );
+                let matcher_secondary = regex!(
+                    r#"(?P<msg>.*)(?:\s+)every(?:\s+)(?P<interval>.*?)(?:(?:\s+)(?:until|for)(?:\s+)(?P<expires>.*?))?$"#s
+                );
+
+                match matcher_primary.captures(&args) {
+                    Some(captures) => {
+                        let captures_secondary = matcher_secondary.captures(&args);
+
+                        let mut args: Vec<Value> = vec![];
+
+                        if let Some(group) = captures.name("time") {
+                            let content = group.as_str();
+                            args.push(json!({
+                                "name": "time",
+                                "value": content,
+                                "type": CommandOptionType::String,
+                            }));
+                        }
+
+                        if let Some(group) = captures.name("content") {
+                            let content = group.as_str();
+                            args.push(json!({
+                                "name": "content",
+                                "value": content,
+                                "type": CommandOptionType::String,
+                            }));
+                        }
+
+                        if let Some(group) =
+                            captures_secondary.as_ref().and_then(|c: &Captures| c.name("interval"))
+                        {
+                            let content = group.as_str();
+                            args.push(json!({
+                                "name": "interval",
+                                "value": content,
+                                "type": CommandOptionType::String,
+                            }));
+                        }
+
+                        if let Some(group) =
+                            captures_secondary.and_then(|c: Captures| c.name("expires"))
+                        {
+                            let content = group.as_str();
+                            args.push(json!({
+                                "name": "expires",
+                                "value": content,
+                                "type": CommandOptionType::String,
+                            }));
+                        }
+
+                        if let Some(group) = captures.name("mentions") {
+                            let content = group.as_str();
+                            args.push(json!({
+                                "name": "channels",
+                                "value": content,
+                                "type": CommandOptionType::String,
+                            }));
+                        }
+
+                        Some(RawCommandMacro {
+                            guild_id,
+                            name: alias_name,
+                            description: None,
+                            commands: json!([
+                                {
+                                    "command_name": "remind",
+                                    "options": args,
+                                }
+                            ]),
+                        })
+                    }
+
+                    None => None,
+                }
             } else {
                 None
             }
