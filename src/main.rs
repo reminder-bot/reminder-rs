@@ -18,7 +18,6 @@ use std::{
     env,
     error::Error as StdError,
     fmt::{Debug, Display, Formatter},
-    sync::atomic::AtomicBool,
 };
 
 use chrono_tz::Tz;
@@ -44,14 +43,14 @@ type Database = MySql;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
+type ApplicationContext<'a> = poise::ApplicationContext<'a, Data, Error>;
 
 pub struct Data {
     database: Pool<Database>,
     http: reqwest::Client,
     recording_macros: RwLock<HashMap<(GuildId, UserId), CommandMacro<Data, Error>>>,
     popular_timezones: Vec<Tz>,
-    is_loop_running: AtomicBool,
-    broadcast: Sender<()>,
+    _broadcast: Sender<()>,
 }
 
 impl Debug for Data {
@@ -135,6 +134,7 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
                 ..reminder_cmds::timer_base()
             },
             reminder_cmds::remind(),
+            reminder_cmds::remind_multiline(),
             poise::Command {
                 subcommands: vec![
                     poise::Command {
@@ -229,8 +229,7 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
                     database,
                     popular_timezones,
                     recording_macros: Default::default(),
-                    is_loop_running: AtomicBool::new(false),
-                    broadcast: tx,
+                    _broadcast: tx,
                 })
             })
         })

@@ -1,6 +1,5 @@
-use std::{collections::HashMap, env, sync::atomic::Ordering};
+use std::{collections::HashMap, env};
 
-use log::{error, info, warn};
 use poise::{
     serenity::{model::application::interaction::Interaction, utils::shard_id},
     serenity_prelude as serenity,

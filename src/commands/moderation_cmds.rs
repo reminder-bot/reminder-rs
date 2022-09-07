@@ -581,8 +581,6 @@ pub fn show_macro_page<U, E>(macros: &[CommandMacro<U, E>], page: usize) -> Crea
 }
 
 struct Alias {
-    id: u32,
-    guild_id: u32,
     name: String,
     command: String,
 }
@@ -601,7 +599,7 @@ pub async fn migrate_macro(ctx: Context<'_>) -> Result<(), Error> {
 
     let aliases = sqlx::query_as!(
         Alias,
-        "SELECT * FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?)",
+        "SELECT name, command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?)",
         guild_id.0
     )
     .fetch_all(&mut transaction)

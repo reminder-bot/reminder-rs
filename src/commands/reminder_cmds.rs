@@ -10,7 +10,7 @@ use num_integer::Integer;
 use poise::{
     serenity::{builder::CreateEmbed, model::channel::Channel},
     serenity_prelude::{component::ButtonStyle, ReactionType},
-    CreateReply,
+    CreateReply, Modal,
 };
 
 use crate::{
@@ -36,7 +36,7 @@ use crate::{
     },
     time_parser::natural_parser,
     utils::{check_guild_subscription, check_subscription},
-    Context, Error,
+    ApplicationContext, Context, Error,
 };
 
 /// Pause all reminders on the current channel until a certain time or indefinitely
@@ -548,6 +548,40 @@ pub async fn delete_timer(
     Ok(())
 }
 
+#[derive(poise::Modal)]
+#[name = "Reminder"]
+struct ContentModal {
+    #[name = "Content"]
+    #[placeholder = "Message..."]
+    #[paragraph]
+    #[max_length = 2000]
+    content: String,
+}
+
+/// Create a new reminder with multiline content
+#[poise::command(
+    slash_command,
+    rename = "multiline",
+    identifying_name = "remind_multiline",
+    default_member_permissions = "MANAGE_GUILD"
+)]
+pub async fn remind_multiline(
+    ctx: ApplicationContext<'_>,
+    #[description = "A description of the time to set the reminder for"] time: String,
+    #[description = "Channel or user mentions to set the reminder for"] channels: Option<String>,
+    #[description = "(Patreon only) Time to wait before repeating the reminder. Leave blank for one-shot reminder"]
+    interval: Option<String>,
+    #[description = "(Patreon only) For repeating reminders, the time at which the reminder will stop repeating"]
+    expires: Option<String>,
+    #[description = "Set the TTS flag on the reminder message, similar to the /tts command"]
+    tts: Option<bool>,
+) -> Result<(), Error> {
+    let data = ContentModal::execute(ctx).await?;
+
+    create_reminder(Context::Application(ctx), time, data.content, channels, interval, expires, tts)
+        .await
+}
+
 /// Create a new reminder
 #[poise::command(
     slash_command,
@@ -561,9 +595,21 @@ pub async fn remind(
     #[description = "Channel or user mentions to set the reminder for"] channels: Option<String>,
     #[description = "(Patreon only) Time to wait before repeating the reminder. Leave blank for one-shot reminder"]
     interval: Option<String>,
-    #[description = "(Patreon only) For repeating reminders, the time at which the reminder will stop sending"]
+    #[description = "(Patreon only) For repeating reminders, the time at which the reminder will stop repeating"]
     expires: Option<String>,
     #[description = "Set the TTS flag on the reminder message, similar to the /tts command"]
+    tts: Option<bool>,
+) -> Result<(), Error> {
+    create_reminder(ctx, time, content, channels, interval, expires, tts).await
+}
+
+async fn create_reminder(
+    ctx: Context<'_>,
+    time: String,
+    content: String,
+    channels: Option<String>,
+    interval: Option<String>,
+    expires: Option<String>,
     tts: Option<bool>,
 ) -> Result<(), Error> {
     if interval.is_none() && expires.is_some() {
