@@ -2,7 +2,7 @@ use std::{collections::HashSet, fmt::Display};
 
 use chrono::{Duration, NaiveDateTime, Utc};
 use chrono_tz::Tz;
-use poise::serenity::{
+use poise::serenity_prelude::{
     http::CacheHttp,
     model::{
         channel::GuildChannel,

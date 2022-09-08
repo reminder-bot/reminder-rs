@@ -1,6 +1,6 @@
 use chrono_tz::Tz;
 use log::error;
-use poise::serenity::{http::CacheHttp, model::id::UserId};
+use poise::serenity_prelude::{http::CacheHttp, model::id::UserId};
 use sqlx::MySqlPool;
 
 use crate::consts::LOCAL_TIMEZONE;

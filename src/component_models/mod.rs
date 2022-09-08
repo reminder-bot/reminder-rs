@@ -5,9 +5,9 @@ use std::io::Cursor;
 use chrono_tz::Tz;
 use log::warn;
 use poise::{
-    serenity::{
+    serenity_prelude as serenity,
+    serenity_prelude::{
         builder::CreateEmbed,
-        client::Context,
         model::{
             application::interaction::{
                 message_component::MessageComponentInteraction, InteractionResponseType,
@@ -15,8 +15,8 @@ use poise::{
             },
             channel::Channel,
         },
+        Context,
     },
-    serenity_prelude as serenity,
 };
 use rmp_serde::Serializer;
 use serde::{Deserialize, Serialize};

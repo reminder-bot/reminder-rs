@@ -1,4 +1,4 @@
-use poise::serenity::model::{
+use poise::serenity_prelude::model::{
     application::interaction::application_command::CommandDataOption, id::GuildId,
 };
 use serde::{Deserialize, Serialize};

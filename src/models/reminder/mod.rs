@@ -8,9 +8,9 @@ use std::hash::{Hash, Hasher};
 
 use chrono::{NaiveDateTime, TimeZone};
 use chrono_tz::Tz;
-use poise::{
-    serenity::model::id::{ChannelId, GuildId, UserId},
-    serenity_prelude::Cache,
+use poise::serenity_prelude::{
+    model::id::{ChannelId, GuildId, UserId},
+    Cache,
 };
 use sqlx::Executor;
 

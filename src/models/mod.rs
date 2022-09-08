@@ -5,7 +5,7 @@ pub mod timer;
 pub mod user_data;
 
 use chrono_tz::Tz;
-use poise::serenity::{async_trait, model::id::UserId};
+use poise::serenity_prelude::{async_trait, model::id::UserId};
 
 use crate::{
     models::{channel_data::ChannelData, user_data::UserData},

@@ -1,11 +1,11 @@
 use poise::{
-    serenity::{
+    serenity_prelude as serenity,
+    serenity_prelude::{
         builder::CreateApplicationCommands,
         http::CacheHttp,
+        interaction::MessageFlags,
         model::id::{GuildId, UserId},
     },
-    serenity_prelude as serenity,
-    serenity_prelude::interaction::MessageFlags,
 };
 
 use crate::{
@@ -14,10 +14,10 @@ use crate::{
 };
 
 pub async fn register_application_commands(
-    ctx: &poise::serenity::client::Context,
+    ctx: &serenity::Context,
     framework: &poise::Framework<Data, Error>,
     guild_id: Option<GuildId>,
-) -> Result<(), poise::serenity::Error> {
+) -> Result<(), serenity::Error> {
     let mut commands_builder = CreateApplicationCommands::default();
     let commands = &framework.options().commands;
     for command in commands {
@@ -28,7 +28,7 @@ pub async fn register_application_commands(
             commands_builder.add_application_command(context_menu_command);
         }
     }
-    let commands_builder = poise::serenity::json::Value::Array(commands_builder.0);
+    let commands_builder = poise::serenity_prelude::json::Value::Array(commands_builder.0);
 
     if let Some(guild_id) = guild_id {
         ctx.http.create_guild_application_commands(guild_id.0, &commands_builder).await?;

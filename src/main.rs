@@ -23,7 +23,7 @@ use std::{
 use chrono_tz::Tz;
 use dotenv::dotenv;
 use log::{error, warn};
-use poise::serenity::model::{
+use poise::serenity_prelude::model::{
     gateway::GatewayIntents,
     id::{GuildId, UserId},
 };
@@ -134,7 +134,6 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
                 ..reminder_cmds::timer_base()
             },
             reminder_cmds::remind(),
-            reminder_cmds::remind_multiline(),
             poise::Command {
                 subcommands: vec![
                     poise::Command {
@@ -178,7 +177,7 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
     .map(|t| t.timezone.parse::<Tz>().unwrap())
     .collect::<Vec<Tz>>();
 
-    poise::Framework::build()
+    poise::Framework::builder()
         .token(discord_token)
         .user_data_setup(move |ctx, _bot, framework| {
             Box::pin(async move {

@@ -1,8 +1,8 @@
 use std::{collections::HashMap, env};
 
 use poise::{
-    serenity::{model::application::interaction::Interaction, utils::shard_id},
     serenity_prelude as serenity,
+    serenity_prelude::{model::application::interaction::Interaction, utils::shard_id},
 };
 
 use crate::{component_models::ComponentDataModel, Data, Error};

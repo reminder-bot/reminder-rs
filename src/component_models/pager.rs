@@ -1,6 +1,8 @@
 // todo split pager out into a single struct
 use chrono_tz::Tz;
-use poise::serenity::{builder::CreateComponents, model::application::component::ButtonStyle};
+use poise::serenity_prelude::{
+    builder::CreateComponents, model::application::component::ButtonStyle,
+};
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
 

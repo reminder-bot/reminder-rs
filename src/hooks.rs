@@ -1,4 +1,4 @@
-use poise::serenity::model::channel::Channel;
+use poise::serenity_prelude::model::channel::Channel;
 
 use crate::{consts::MACRO_MAX_COMMANDS, models::command_macro::RecordedCommand, Context, Error};
 

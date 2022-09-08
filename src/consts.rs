@@ -12,7 +12,7 @@ pub const MACRO_MAX_COMMANDS: usize = 5;
 
 use std::{collections::HashSet, env, iter::FromIterator};
 
-use poise::serenity::model::prelude::AttachmentType;
+use poise::serenity_prelude::model::prelude::AttachmentType;
 use regex::Regex;
 
 lazy_static! {

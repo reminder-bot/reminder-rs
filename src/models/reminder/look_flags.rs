@@ -1,4 +1,4 @@
-use poise::serenity::model::id::ChannelId;
+use poise::serenity_prelude::model::id::ChannelId;
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
 

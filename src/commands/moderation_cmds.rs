@@ -18,7 +18,7 @@ use crate::{
     Context, Data, Error, GuildId,
 };
 
-async fn timezone_autocomplete(ctx: Context<'_>, partial: String) -> Vec<String> {
+async fn timezone_autocomplete(ctx: Context<'_>, partial: &str) -> Vec<String> {
     if partial.is_empty() {
         ctx.data().popular_timezones.iter().map(|t| t.to_string()).collect::<Vec<String>>()
     } else {
@@ -206,7 +206,7 @@ Do not share it!
     Ok(())
 }
 
-async fn macro_name_autocomplete(ctx: Context<'_>, partial: String) -> Vec<String> {
+async fn macro_name_autocomplete(ctx: Context<'_>, partial: &str) -> Vec<String> {
     sqlx::query!(
         "
 SELECT name

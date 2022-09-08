@@ -8,8 +8,9 @@ use chrono::NaiveDateTime;
 use chrono_tz::Tz;
 use num_integer::Integer;
 use poise::{
-    serenity::{builder::CreateEmbed, model::channel::Channel},
-    serenity_prelude::{component::ButtonStyle, ReactionType},
+    serenity_prelude::{
+        builder::CreateEmbed, component::ButtonStyle, model::channel::Channel, ReactionType,
+    },
     CreateReply, Modal,
 };
 
@@ -558,40 +559,16 @@ struct ContentModal {
     content: String,
 }
 
-/// Create a new reminder with multiline content
-#[poise::command(
-    slash_command,
-    rename = "multiline",
-    identifying_name = "remind_multiline",
-    default_member_permissions = "MANAGE_GUILD"
-)]
-pub async fn remind_multiline(
-    ctx: ApplicationContext<'_>,
-    #[description = "A description of the time to set the reminder for"] time: String,
-    #[description = "Channel or user mentions to set the reminder for"] channels: Option<String>,
-    #[description = "(Patreon only) Time to wait before repeating the reminder. Leave blank for one-shot reminder"]
-    interval: Option<String>,
-    #[description = "(Patreon only) For repeating reminders, the time at which the reminder will stop repeating"]
-    expires: Option<String>,
-    #[description = "Set the TTS flag on the reminder message, similar to the /tts command"]
-    tts: Option<bool>,
-) -> Result<(), Error> {
-    let data = ContentModal::execute(ctx).await?;
-
-    create_reminder(Context::Application(ctx), time, data.content, channels, interval, expires, tts)
-        .await
-}
-
-/// Create a new reminder
+/// Create a reminder. Press "+5 more" for other options. A modal will open if "content" is not provided
 #[poise::command(
     slash_command,
     identifying_name = "remind",
     default_member_permissions = "MANAGE_GUILD"
 )]
 pub async fn remind(
-    ctx: Context<'_>,
+    ctx: ApplicationContext<'_>,
     #[description = "A description of the time to set the reminder for"] time: String,
-    #[description = "The message content to send"] content: String,
+    #[description = "The message content to send"] content: Option<String>,
     #[description = "Channel or user mentions to set the reminder for"] channels: Option<String>,
     #[description = "(Patreon only) Time to wait before repeating the reminder. Leave blank for one-shot reminder"]
     interval: Option<String>,
@@ -600,7 +577,35 @@ pub async fn remind(
     #[description = "Set the TTS flag on the reminder message, similar to the /tts command"]
     tts: Option<bool>,
 ) -> Result<(), Error> {
-    create_reminder(ctx, time, content, channels, interval, expires, tts).await
+    match content {
+        Some(content) => {
+            create_reminder(
+                Context::Application(ctx),
+                time,
+                content,
+                channels,
+                interval,
+                expires,
+                tts,
+            )
+            .await
+        }
+
+        None => {
+            let data = ContentModal::execute(ctx).await?;
+
+            create_reminder(
+                Context::Application(ctx),
+                time,
+                data.content,
+                channels,
+                interval,
+                expires,
+                tts,
+            )
+            .await
+        }
+    }
 }
 
 async fn create_reminder(
