@@ -14,6 +14,7 @@ use poise::{
     AutocompleteChoice, CreateReply, Modal,
 };
 
+use super::autocomplete::timezone_autocomplete;
 use crate::{
     component_models::{
         pager::{DelPager, LookPager, Pager},
@@ -592,7 +593,12 @@ pub async fn remind(
     expires: Option<String>,
     #[description = "Set the TTS flag on the reminder message, similar to the /tts command"]
     tts: Option<bool>,
+    #[description = "Set a timezone override for this reminder only"]
+    #[autocomplete = "timezone_autocomplete"]
+    timezone: Option<String>,
 ) -> Result<(), Error> {
+    let tz = timezone.map(|t| t.parse::<Tz>().ok()).flatten();
+
     if content.is_empty() {
         let data = ContentModal::execute(ctx).await?;
 
@@ -604,11 +610,21 @@ pub async fn remind(
             interval,
             expires,
             tts,
+            tz,
         )
         .await
     } else {
-        create_reminder(Context::Application(ctx), time, content, channels, interval, expires, tts)
-            .await
+        create_reminder(
+            Context::Application(ctx),
+            time,
+            content,
+            channels,
+            interval,
+            expires,
+            tts,
+            tz,
+        )
+        .await
     }
 }
 
@@ -620,6 +636,7 @@ async fn create_reminder(
     interval: Option<String>,
     expires: Option<String>,
     tts: Option<bool>,
+    timezone: Option<Tz>,
 ) -> Result<(), Error> {
     if interval.is_none() && expires.is_some() {
         ctx.say("`expires` can only be used with `interval`").await?;
@@ -630,7 +647,7 @@ async fn create_reminder(
     ctx.defer().await?;
 
     let user_data = ctx.author_data().await.unwrap();
-    let timezone = ctx.timezone().await;
+    let timezone = timezone.unwrap_or(ctx.timezone().await);
 
     let time = natural_parser(&time, &timezone.to_string()).await;
 

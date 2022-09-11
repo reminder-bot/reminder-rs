@@ -8,6 +8,7 @@ use poise::{serenity_prelude::command::CommandOptionType, CreateReply};
 use regex::Captures;
 use serde_json::{json, Value};
 
+use super::autocomplete::{macro_name_autocomplete, timezone_autocomplete};
 use crate::{
     component_models::pager::{MacroPager, Pager},
     consts::{EMBED_DESCRIPTION_MAX_LENGTH, THEME_COLOR},
@@ -17,19 +18,6 @@ use crate::{
     },
     Context, Data, Error, GuildId,
 };
-
-async fn timezone_autocomplete(ctx: Context<'_>, partial: &str) -> Vec<String> {
-    if partial.is_empty() {
-        ctx.data().popular_timezones.iter().map(|t| t.to_string()).collect::<Vec<String>>()
-    } else {
-        TZ_VARIANTS
-            .iter()
-            .filter(|tz| tz.to_string().contains(&partial))
-            .take(25)
-            .map(|t| t.to_string())
-            .collect::<Vec<String>>()
-    }
-}
 
 /// Select your timezone
 #[poise::command(slash_command, identifying_name = "timezone")]
@@ -204,25 +192,6 @@ Do not share it!
     }
 
     Ok(())
-}
-
-async fn macro_name_autocomplete(ctx: Context<'_>, partial: &str) -> Vec<String> {
-    sqlx::query!(
-        "
-SELECT name
-FROM macro
-WHERE
-    guild_id = (SELECT id FROM guilds WHERE guild = ?)
-    AND name LIKE CONCAT(?, '%')",
-        ctx.guild_id().unwrap().0,
-        partial,
-    )
-    .fetch_all(&ctx.data().database)
-    .await
-    .unwrap_or_default()
-    .iter()
-    .map(|s| s.name.clone())
-    .collect()
 }
 
 /// Record and replay command sequences
