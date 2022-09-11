@@ -11,7 +11,7 @@ use poise::{
     serenity_prelude::{
         builder::CreateEmbed, component::ButtonStyle, model::channel::Channel, ReactionType,
     },
-    CreateReply, Modal,
+    AutocompleteChoice, CreateReply, Modal,
 };
 
 use crate::{
@@ -549,6 +549,20 @@ pub async fn delete_timer(
     Ok(())
 }
 
+async fn multiline_autocomplete(
+    _ctx: Context<'_>,
+    partial: &str,
+) -> Vec<AutocompleteChoice<String>> {
+    if partial.is_empty() {
+        vec![AutocompleteChoice { name: "Multiline content...".to_string(), value: "".to_string() }]
+    } else {
+        vec![
+            AutocompleteChoice { name: partial.to_string(), value: partial.to_string() },
+            AutocompleteChoice { name: "Multiline content...".to_string(), value: "".to_string() },
+        ]
+    }
+}
+
 #[derive(poise::Modal)]
 #[name = "Reminder"]
 struct ContentModal {
@@ -568,7 +582,9 @@ struct ContentModal {
 pub async fn remind(
     ctx: ApplicationContext<'_>,
     #[description = "A description of the time to set the reminder for"] time: String,
-    #[description = "The message content to send"] content: Option<String>,
+    #[description = "The message content to send"]
+    #[autocomplete = "multiline_autocomplete"]
+    content: String,
     #[description = "Channel or user mentions to set the reminder for"] channels: Option<String>,
     #[description = "(Patreon only) Time to wait before repeating the reminder. Leave blank for one-shot reminder"]
     interval: Option<String>,
@@ -577,34 +593,22 @@ pub async fn remind(
     #[description = "Set the TTS flag on the reminder message, similar to the /tts command"]
     tts: Option<bool>,
 ) -> Result<(), Error> {
-    match content {
-        Some(content) => {
-            create_reminder(
-                Context::Application(ctx),
-                time,
-                content,
-                channels,
-                interval,
-                expires,
-                tts,
-            )
-            .await
-        }
+    if content.is_empty() {
+        let data = ContentModal::execute(ctx).await?;
 
-        None => {
-            let data = ContentModal::execute(ctx).await?;
-
-            create_reminder(
-                Context::Application(ctx),
-                time,
-                data.content,
-                channels,
-                interval,
-                expires,
-                tts,
-            )
+        create_reminder(
+            Context::Application(ctx),
+            time,
+            data.content,
+            channels,
+            interval,
+            expires,
+            tts,
+        )
+        .await
+    } else {
+        create_reminder(Context::Application(ctx), time, content, channels, interval, expires, tts)
             .await
-        }
     }
 }
 
