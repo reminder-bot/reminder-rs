@@ -181,15 +181,7 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
         .token(discord_token)
         .user_data_setup(move |ctx, _bot, framework| {
             Box::pin(async move {
-                register_application_commands(
-                    ctx,
-                    framework,
-                    env::var("DEBUG_GUILD")
-                        .map(|inner| GuildId(inner.parse().expect("DEBUG_GUILD not valid")))
-                        .ok(),
-                )
-                .await
-                .unwrap();
+                register_application_commands(ctx, framework, None).await.unwrap();
 
                 let kill_tx = tx.clone();
                 let kill_recv = tx.subscribe();

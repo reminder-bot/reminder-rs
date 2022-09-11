@@ -1,11 +1,12 @@
 use std::{collections::HashMap, env};
 
+use log::error;
 use poise::{
     serenity_prelude as serenity,
     serenity_prelude::{model::application::interaction::Interaction, utils::shard_id},
 };
 
-use crate::{component_models::ComponentDataModel, Data, Error};
+use crate::{component_models::ComponentDataModel, Data, Error, THEME_COLOR};
 
 pub async fn listener(
     ctx: &serenity::Context,
@@ -26,46 +27,36 @@ pub async fn listener(
             if *is_new {
                 let guild_id = guild.id.as_u64().to_owned();
 
-                sqlx::query!("INSERT INTO guilds (guild) VALUES (?)", guild_id)
+                sqlx::query!("INSERT IGNORE INTO guilds (guild) VALUES (?)", guild_id)
                     .execute(&data.database)
-                    .await
-                    .unwrap();
+                    .await?;
 
-                if let Ok(token) = env::var("DISCORDBOTS_TOKEN") {
-                    let shard_count = ctx.cache.shard_count();
-                    let current_shard_id = shard_id(guild_id, shard_count);
+                if let Err(e) = post_guild_count(ctx, &data.http, guild_id).await {
+                    error!("DiscordBotList: {:?}", e);
+                }
 
-                    let guild_count = ctx
-                        .cache
-                        .guilds()
-                        .iter()
-                        .filter(|g| {
-                            shard_id(g.as_u64().to_owned(), shard_count) == current_shard_id
+                let default_channel = guild.default_channel_guaranteed();
+
+                if let Some(default_channel) = default_channel {
+                    default_channel
+                        .send_message(&ctx, |m| {
+                            m.embed(|e| {
+                                e.title("Thank you for adding Reminder Bot!").description(
+                                    "To get started:
+• Set your timezone with `/timezone`
+• Set up permissions in Server Settings 🠚 Integrations 🠚 Reminder Bot (desktop only)
+• Create your first reminder with `/remind`
+
+__Support__
+If you need any support, please come and ask us! Join our [Discord](https://discord.jellywx.com).
+
+__Updates__
+To stay up to date on the latest features and fixes, join our [Discord](https://discord.jellywx.com).
+",
+                                ).color(*THEME_COLOR)
+                            })
                         })
-                        .count() as u64;
-
-                    let mut hm = HashMap::new();
-                    hm.insert("server_count", guild_count);
-                    hm.insert("shard_id", current_shard_id);
-                    hm.insert("shard_count", shard_count);
-
-                    let response = data
-                        .http
-                        .post(
-                            format!(
-                                "https://top.gg/api/bots/{}/stats",
-                                ctx.cache.current_user_id().as_u64()
-                            )
-                            .as_str(),
-                        )
-                        .header("Authorization", token)
-                        .json(&hm)
-                        .send()
-                        .await;
-
-                    if let Err(res) = response {
-                        println!("DiscordBots Response: {:?}", res);
-                    }
+                        .await?;
                 }
             }
         }
@@ -85,4 +76,39 @@ pub async fn listener(
     }
 
     Ok(())
+}
+
+async fn post_guild_count(
+    ctx: &serenity::Context,
+    http: &reqwest::Client,
+    guild_id: u64,
+) -> Result<(), reqwest::Error> {
+    if let Ok(token) = env::var("DISCORDBOTS_TOKEN") {
+        let shard_count = ctx.cache.shard_count();
+        let current_shard_id = shard_id(guild_id, shard_count);
+
+        let guild_count = ctx
+            .cache
+            .guilds()
+            .iter()
+            .filter(|g| shard_id(g.as_u64().to_owned(), shard_count) == current_shard_id)
+            .count() as u64;
+
+        let mut hm = HashMap::new();
+        hm.insert("server_count", guild_count);
+        hm.insert("shard_id", current_shard_id);
+        hm.insert("shard_count", shard_count);
+
+        http.post(
+            format!("https://top.gg/api/bots/{}/stats", ctx.cache.current_user_id().as_u64())
+                .as_str(),
+        )
+        .header("Authorization", token)
+        .json(&hm)
+        .send()
+        .await
+        .map(|_| ())
+    } else {
+        Ok(())
+    }
 }
