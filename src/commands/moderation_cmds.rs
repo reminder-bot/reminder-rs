@@ -2,6 +2,7 @@ use chrono::offset::Utc;
 use chrono_tz::{Tz, TZ_VARIANTS};
 use levenshtein::levenshtein;
 use log::warn;
+use poise::serenity_prelude::{ChannelId, Mentionable};
 
 use super::autocomplete::timezone_autocomplete;
 use crate::{consts::THEME_COLOR, models::CtxData, Context, Error};
@@ -148,11 +149,51 @@ pub async fn unset_allowed_dm(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
+/// Set defaults for commands
+#[poise::command(
+    slash_command,
+    identifying_name = "default",
+    default_member_permissions = "MANAGE_GUILD"
+)]
+pub async fn default(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// Set a default channel for reminders to be sent to
+#[poise::command(
+    slash_command,
+    guild_only = true,
+    identifying_name = "default_channel",
+    default_member_permissions = "MANAGE_GUILD"
+)]
+pub async fn default_channel(
+    ctx: Context<'_>,
+    #[description = "Channel to send reminders to by default"] channel: Option<ChannelId>,
+) -> Result<(), Error> {
+    if let Some(mut guild_data) = ctx.guild_data().await {
+        guild_data.default_channel = channel.map(|c| c.0);
+
+        guild_data.commit_changes(&ctx.data().database).await?;
+
+        if let Some(channel) = channel {
+            ctx.send(|r| {
+                r.ephemeral(true).content(format!("Default channel set to {}", channel.mention()))
+            })
+            .await?;
+        } else {
+            ctx.send(|r| r.ephemeral(true).content("Default channel unset.")).await?;
+        }
+    }
+
+    Ok(())
+}
+
 /// View the webhook being used to send reminders to this channel
 #[poise::command(
     slash_command,
     identifying_name = "webhook_url",
-    required_permissions = "ADMINISTRATOR"
+    required_permissions = "ADMINISTRATOR",
+    default_member_permissions = "ADMINISTRATOR"
 )]
 pub async fn webhook(ctx: Context<'_>) -> Result<(), Error> {
     match ctx.channel_data().await {

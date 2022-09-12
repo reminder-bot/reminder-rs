@@ -1,4 +1,3 @@
-use poise::serenity_prelude::Guild;
 use sqlx::MySqlPool;
 
 use crate::GuildId;

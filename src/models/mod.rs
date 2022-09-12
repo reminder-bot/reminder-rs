@@ -6,24 +6,23 @@ pub mod timer;
 pub mod user_data;
 
 use chrono_tz::Tz;
-use poise::serenity_prelude::{async_trait, model::id::UserId};
+use log::warn;
+use poise::serenity_prelude::{async_trait, model::id::UserId, ChannelId};
 
 use crate::{
-    models::{channel_data::ChannelData, user_data::UserData},
+    models::{channel_data::ChannelData, guild_data::GuildData, user_data::UserData},
     CommandMacro, Context, Data, Error, GuildId,
 };
 
 #[async_trait]
 pub trait CtxData {
     async fn user_data<U: Into<UserId> + Send>(&self, user_id: U) -> Result<UserData, Error>;
-
     async fn author_data(&self) -> Result<UserData, Error>;
-
     async fn timezone(&self) -> Tz;
-
     async fn channel_data(&self) -> Result<ChannelData, Error>;
-
+    async fn guild_data(&self) -> Option<GuildData>;
     async fn command_macros(&self) -> Result<Vec<CommandMacro<Data, Error>>, Error>;
+    async fn default_channel(&self) -> Option<ChannelId>;
 }
 
 #[async_trait]
@@ -52,10 +51,38 @@ impl CtxData for Context<'_> {
     async fn command_macros(&self) -> Result<Vec<CommandMacro<Data, Error>>, Error> {
         self.data().command_macros(self.guild_id().unwrap()).await
     }
+
+    async fn default_channel(&self) -> Option<ChannelId> {
+        match self.guild_id() {
+            Some(guild_id) => {
+                let guild_data = GuildData::from_guild(guild_id, &self.data().database).await;
+
+                match guild_data {
+                    Ok(data) => data.default_channel.map(|c| ChannelId(c)),
+
+                    Err(e) => {
+                        warn!("SQL error: {:?}", e);
+
+                        None
+                    }
+                }
+            }
+
+            None => None,
+        }
+    }
+
+    async fn guild_data(&self) -> Option<GuildData> {
+        match self.guild_id() {
+            Some(guild_id) => GuildData::from_guild(guild_id, &self.data().database).await.ok(),
+
+            None => None,
+        }
+    }
 }
 
 impl Data {
-    pub(crate) async fn command_macros(
+    pub async fn command_macros(
         &self,
         guild_id: GuildId,
     ) -> Result<Vec<CommandMacro<Data, Error>>, Error> {

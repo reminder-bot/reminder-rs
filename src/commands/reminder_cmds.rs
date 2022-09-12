@@ -653,7 +653,9 @@ async fn create_reminder(
                 let list = channels.map(|arg| parse_mention_list(&arg)).unwrap_or_default();
 
                 if list.is_empty() {
-                    if ctx.guild_id().is_some() {
+                    if let Some(channel_id) = ctx.default_channel().await {
+                        vec![ReminderScope::Channel(channel_id.0)]
+                    } else if ctx.guild_id().is_some() {
                         vec![ReminderScope::Channel(ctx.channel_id().0)]
                     } else {
                         vec![ReminderScope::User(ctx.author().id.0)]

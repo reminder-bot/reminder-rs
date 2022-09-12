@@ -120,6 +120,10 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
                 ],
                 ..command_macro::macro_base()
             },
+            poise::Command {
+                subcommands: vec![moderation_cmds::default_channel()],
+                ..moderation_cmds::default()
+            },
             reminder_cmds::pause(),
             reminder_cmds::offset(),
             reminder_cmds::nudge(),
