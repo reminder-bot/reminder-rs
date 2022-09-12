@@ -43,7 +43,7 @@ pub async fn guild_command_macro(
 ) -> Option<CommandMacro<Data, Error>> {
     let row = sqlx::query!(
         "
-SELECT * FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?
+SELECT * FROM macro WHERE guild_id = ? AND name = ?
         ",
         ctx.guild_id().unwrap().0,
         name

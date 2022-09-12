@@ -60,16 +60,19 @@ impl Data {
         guild_id: GuildId,
     ) -> Result<Vec<CommandMacro<Data, Error>>, Error> {
         let rows = sqlx::query!(
-            "SELECT name, description, commands FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?)",
+            "SELECT name, description, commands FROM macro WHERE guild_id = ?",
             guild_id.0
         )
         .fetch_all(&self.database)
-        .await?.iter().map(|row| CommandMacro {
+        .await?
+        .iter()
+        .map(|row| CommandMacro {
             guild_id,
             name: row.name.clone(),
             description: row.description.clone(),
             commands: serde_json::from_str(&row.commands).unwrap(),
-        }).collect();
+        })
+        .collect();
 
         Ok(rows)
     }

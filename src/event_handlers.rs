@@ -6,7 +6,9 @@ use poise::{
     serenity_prelude::{model::application::interaction::Interaction, utils::shard_id},
 };
 
-use crate::{component_models::ComponentDataModel, Data, Error, THEME_COLOR};
+use crate::{
+    component_models::ComponentDataModel, models::guild_data::GuildData, Data, Error, THEME_COLOR,
+};
 
 pub async fn listener(
     ctx: &serenity::Context,
@@ -27,7 +29,7 @@ pub async fn listener(
             if *is_new {
                 let guild_id = guild.id.as_u64().to_owned();
 
-                sqlx::query!("INSERT IGNORE INTO guilds (guild) VALUES (?)", guild_id)
+                sqlx::query!("INSERT IGNORE INTO guilds (id) VALUES (?)", guild_id)
                     .execute(&data.database)
                     .await?;
 
@@ -61,15 +63,27 @@ To stay up to date on the latest features and fixes, join our [Discord](https://
             }
         }
         poise::Event::GuildDelete { incomplete, .. } => {
-            let _ = sqlx::query!("DELETE FROM guilds WHERE guild = ?", incomplete.id.0)
+            let _ = sqlx::query!("DELETE FROM guilds WHERE id = ?", incomplete.id.0)
                 .execute(&data.database)
                 .await;
         }
         poise::Event::InteractionCreate { interaction } => {
-            if let Interaction::MessageComponent(component) = interaction {
-                let component_model = ComponentDataModel::from_custom_id(&component.data.custom_id);
+            match interaction {
+                Interaction::ApplicationCommand(app_command) => {
+                    if let Some(guild_id) = app_command.guild_id {
+                        // check database guild exists
+                        GuildData::from_guild(guild_id, &data.database).await?;
+                    }
+                }
 
-                component_model.act(ctx, data, component).await;
+                Interaction::MessageComponent(component) => {
+                    let component_model =
+                        ComponentDataModel::from_custom_id(&component.data.custom_id);
+
+                    component_model.act(ctx, data, component).await;
+                }
+
+                _ => {}
             }
         }
         _ => {}

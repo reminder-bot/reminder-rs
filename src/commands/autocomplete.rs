@@ -24,7 +24,7 @@ pub async fn macro_name_autocomplete(ctx: Context<'_>, partial: &str) -> Vec<Str
 SELECT name
 FROM macro
 WHERE
-    guild_id = (SELECT id FROM guilds WHERE guild = ?)
+    guild_id = ?
     AND name LIKE CONCAT(?, '%')",
         ctx.guild_id().unwrap().0,
         partial,

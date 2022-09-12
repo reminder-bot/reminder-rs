@@ -31,7 +31,7 @@ pub async fn record_macro(
 
     let row = sqlx::query!(
         "
-SELECT 1 as _e FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?",
+SELECT 1 as _e FROM macro WHERE guild_id = ? AND name = ?",
         guild_id.0,
         name
     )
@@ -121,15 +121,15 @@ pub async fn finish_macro(ctx: Context<'_>) -> Result<(), Error> {
             let json = serde_json::to_string(&command_macro.commands).unwrap();
 
             sqlx::query!(
-                "INSERT INTO macro (guild_id, name, description, commands) VALUES ((SELECT id FROM guilds WHERE guild = ?), ?, ?, ?)",
+                "INSERT INTO macro (guild_id, name, description, commands) VALUES (?, ?, ?, ?)",
                 command_macro.guild_id.0,
                 command_macro.name,
                 command_macro.description,
                 json
             )
-                .execute(&ctx.data().database)
-                .await
-                .unwrap();
+            .execute(&ctx.data().database)
+            .await
+            .unwrap();
 
             ctx.send(|m| {
                 m.embed(|e| {

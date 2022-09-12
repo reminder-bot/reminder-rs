@@ -47,7 +47,7 @@ pub async fn todo_guild_add(
 ) -> Result<(), Error> {
     sqlx::query!(
         "INSERT INTO todos (guild_id, value)
-VALUES ((SELECT id FROM guilds WHERE guild = ?), ?)",
+VALUES (?, ?)",
         ctx.guild_id().unwrap().0,
         task
     )
@@ -70,9 +70,7 @@ VALUES ((SELECT id FROM guilds WHERE guild = ?), ?)",
 )]
 pub async fn todo_guild_view(ctx: Context<'_>) -> Result<(), Error> {
     let values = sqlx::query!(
-        "SELECT todos.id, value FROM todos
-INNER JOIN guilds ON todos.guild_id = guilds.id
-WHERE guilds.guild = ?",
+        "SELECT todos.id, value FROM todos WHERE guild_id = ?",
         ctx.guild_id().unwrap().0,
     )
     .fetch_all(&ctx.data().database)
@@ -122,7 +120,7 @@ pub async fn todo_channel_add(
 
     sqlx::query!(
         "INSERT INTO todos (guild_id, channel_id, value)
-VALUES ((SELECT id FROM guilds WHERE guild = ?), (SELECT id FROM channels WHERE channel = ?), ?)",
+VALUES (?, (SELECT id FROM channels WHERE channel = ?), ?)",
         ctx.guild_id().unwrap().0,
         ctx.channel_id().0,
         task

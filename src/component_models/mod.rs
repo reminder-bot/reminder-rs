@@ -222,9 +222,7 @@ WHERE channels.channel = ?",
                         .collect::<Vec<(usize, String)>>()
                     } else {
                         sqlx::query!(
-                            "SELECT todos.id, value FROM todos
-INNER JOIN guilds ON todos.guild_id = guilds.id
-WHERE guilds.guild = ?",
+                            "SELECT todos.id, value FROM todos WHERE guild_id = ?",
                             pager.guild_id,
                         )
                         .fetch_all(&data.database)

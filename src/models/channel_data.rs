@@ -38,7 +38,7 @@ SELECT id, name, nudge, blacklisted, webhook_id, webhook_token, paused, paused_u
 
             sqlx::query!(
                 "
-INSERT IGNORE INTO channels (channel, name, guild_id) VALUES (?, ?, (SELECT id FROM guilds WHERE guild = ?))
+INSERT IGNORE INTO channels (channel, name, guild_id) VALUES (?, ?, ?)
                 ",
                 channel_id,
                 channel_name,

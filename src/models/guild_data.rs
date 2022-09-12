@@ -1,5 +1,7 @@
-use poise::serenity_prelude::{model::channel::Channel, Guild};
+use poise::serenity_prelude::Guild;
 use sqlx::MySqlPool;
+
+use crate::GuildId;
 
 pub struct GuildData {
     pub id: u64,
@@ -7,8 +9,8 @@ pub struct GuildData {
 }
 
 impl GuildData {
-    pub async fn from_guild(guild: &Guild, pool: &MySqlPool) -> Result<Self, sqlx::Error> {
-        let guild_id = guild.id.0;
+    pub async fn from_guild(guild: GuildId, pool: &MySqlPool) -> Result<Self, sqlx::Error> {
+        let guild_id = guild.0;
 
         if let Ok(row) = sqlx::query_as_unchecked!(
             Self,

@@ -24,7 +24,7 @@ pub async fn migrate_macro(ctx: Context<'_>) -> Result<(), Error> {
 
     let aliases = sqlx::query_as!(
         Alias,
-        "SELECT name, command FROM command_aliases WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?)",
+        "SELECT name, command FROM command_aliases WHERE guild_id = ?",
         guild_id.0
     )
     .fetch_all(&mut transaction)
@@ -36,7 +36,7 @@ pub async fn migrate_macro(ctx: Context<'_>) -> Result<(), Error> {
         match parse_text_command(guild_id, alias.name, &alias.command) {
             Some(cmd_macro) => {
                 sqlx::query!(
-                    "INSERT INTO macro (guild_id, name, description, commands) VALUES ((SELECT id FROM guilds WHERE guild = ?), ?, ?, ?)",
+                    "INSERT INTO macro (guild_id, name, description, commands) VALUES (?, ?, ?, ?)",
                     cmd_macro.guild_id.0,
                     cmd_macro.name,
                     cmd_macro.description,

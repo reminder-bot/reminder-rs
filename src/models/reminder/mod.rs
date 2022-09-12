@@ -245,7 +245,7 @@ LEFT JOIN
 ON
     reminders.set_by = users.id
 WHERE
-    channels.guild_id = (SELECT id FROM guilds WHERE guild = ?)
+    channels.guild_id = ?
                 ",
                     guild_id.as_u64()
                 )

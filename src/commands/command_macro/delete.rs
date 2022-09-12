@@ -17,7 +17,7 @@ pub async fn delete_macro(
 ) -> Result<(), Error> {
     match sqlx::query!(
         "
-SELECT id FROM macro WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?) AND name = ?",
+SELECT id FROM macro WHERE guild_id = ? AND name = ?",
         ctx.guild_id().unwrap().0,
         name
     )
