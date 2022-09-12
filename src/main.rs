@@ -31,7 +31,7 @@ use sqlx::{MySql, Pool};
 use tokio::sync::{broadcast, broadcast::Sender, RwLock};
 
 use crate::{
-    commands::{info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
+    commands::{command_macro, info_cmds, moderation_cmds, reminder_cmds, todo_cmds},
     consts::THEME_COLOR,
     event_handlers::listener,
     hooks::all_checks,
@@ -111,14 +111,14 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
             moderation_cmds::webhook(),
             poise::Command {
                 subcommands: vec![
-                    moderation_cmds::delete_macro(),
-                    moderation_cmds::finish_macro(),
-                    moderation_cmds::list_macro(),
-                    moderation_cmds::record_macro(),
-                    moderation_cmds::run_macro(),
-                    moderation_cmds::migrate_macro(),
+                    command_macro::delete::delete_macro(),
+                    command_macro::record::finish_macro(),
+                    command_macro::list::list_macro(),
+                    command_macro::record::record_macro(),
+                    command_macro::run::run_macro(),
+                    command_macro::migrate::migrate_macro(),
                 ],
-                ..moderation_cmds::macro_base()
+                ..command_macro::macro_base()
             },
             reminder_cmds::pause(),
             reminder_cmds::offset(),
