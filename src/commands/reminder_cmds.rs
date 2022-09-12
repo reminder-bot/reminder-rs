@@ -11,11 +11,13 @@ use poise::{
     serenity_prelude::{
         builder::CreateEmbed, component::ButtonStyle, model::channel::Channel, ReactionType,
     },
-    AutocompleteChoice, CreateReply, Modal,
+    CreateReply, Modal,
 };
 
-use super::autocomplete::timezone_autocomplete;
 use crate::{
+    commands::autocomplete::{
+        multiline_autocomplete, time_hint_autocomplete, timezone_autocomplete,
+    },
     component_models::{
         pager::{DelPager, LookPager, Pager},
         ComponentDataModel, DelSelector, UndoReminder,
@@ -550,20 +552,6 @@ pub async fn delete_timer(
     Ok(())
 }
 
-async fn multiline_autocomplete(
-    _ctx: Context<'_>,
-    partial: &str,
-) -> Vec<AutocompleteChoice<String>> {
-    if partial.is_empty() {
-        vec![AutocompleteChoice { name: "Multiline content...".to_string(), value: "".to_string() }]
-    } else {
-        vec![
-            AutocompleteChoice { name: partial.to_string(), value: partial.to_string() },
-            AutocompleteChoice { name: "Multiline content...".to_string(), value: "".to_string() },
-        ]
-    }
-}
-
 #[derive(poise::Modal)]
 #[name = "Reminder"]
 struct ContentModal {
@@ -574,7 +562,7 @@ struct ContentModal {
     content: String,
 }
 
-/// Create a reminder. Press "+5 more" for other options. A modal will open if "content" is not provided
+/// Create a reminder. Press "+4 more" for other options.
 #[poise::command(
     slash_command,
     identifying_name = "remind",
@@ -582,7 +570,9 @@ struct ContentModal {
 )]
 pub async fn remind(
     ctx: ApplicationContext<'_>,
-    #[description = "A description of the time to set the reminder for"] time: String,
+    #[description = "A description of the time to set the reminder for"]
+    #[autocomplete = "time_hint_autocomplete"]
+    time: String,
     #[description = "The message content to send"]
     #[autocomplete = "multiline_autocomplete"]
     content: String,
