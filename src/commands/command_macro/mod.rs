@@ -1,6 +1,7 @@
 use crate::{Context, Error};
 
 pub mod delete;
+pub mod install;
 pub mod list;
 pub mod migrate;
 pub mod record;

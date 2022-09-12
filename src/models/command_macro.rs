@@ -37,6 +37,7 @@ pub struct RawCommandMacro {
     pub commands: Value,
 }
 
+/// Get a macro by name form a guild.
 pub async fn guild_command_macro(
     ctx: &Context<'_>,
     name: &str,

@@ -1,4 +1,4 @@
-mod autocomplete;
+pub mod autocomplete;
 pub mod command_macro;
 pub mod info_cmds;
 pub mod moderation_cmds;

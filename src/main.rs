@@ -117,6 +117,7 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
                     command_macro::record::record_macro(),
                     command_macro::run::run_macro(),
                     command_macro::migrate::migrate_macro(),
+                    command_macro::install::install_macro(),
                 ],
                 ..command_macro::macro_base()
             },

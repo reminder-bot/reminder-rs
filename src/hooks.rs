@@ -1,36 +1,42 @@
-use poise::serenity_prelude::model::channel::Channel;
+use poise::{
+    serenity_prelude::model::channel::Channel, ApplicationCommandOrAutocompleteInteraction,
+};
 
 use crate::{consts::MACRO_MAX_COMMANDS, models::command_macro::RecordedCommand, Context, Error};
 
-async fn macro_check(ctx: Context<'_>) -> bool {
+async fn recording_macro_check(ctx: Context<'_>) -> bool {
     if let Context::Application(app_ctx) = ctx {
-        if let Some(guild_id) = ctx.guild_id() {
-            if ctx.command().identifying_name != "finish_macro" {
-                let mut lock = ctx.data().recording_macros.write().await;
+        if let ApplicationCommandOrAutocompleteInteraction::ApplicationCommand(_) =
+            app_ctx.interaction
+        {
+            if let Some(guild_id) = ctx.guild_id() {
+                if ctx.command().identifying_name != "finish_macro" {
+                    let mut lock = ctx.data().recording_macros.write().await;
 
-                if let Some(command_macro) = lock.get_mut(&(guild_id, ctx.author().id)) {
-                    if command_macro.commands.len() >= MACRO_MAX_COMMANDS {
-                        let _ = ctx.send(|m| {
+                    if let Some(command_macro) = lock.get_mut(&(guild_id, ctx.author().id)) {
+                        if command_macro.commands.len() >= MACRO_MAX_COMMANDS {
+                            let _ = ctx.send(|m| {
                             m.ephemeral(true).content(
                                 format!("{} commands already recorded. Please use `/macro finish` to end recording.", MACRO_MAX_COMMANDS),
                             )
                         })
                             .await;
-                    } else {
-                        let recorded = RecordedCommand {
-                            action: None,
-                            command_name: ctx.command().identifying_name.clone(),
-                            options: Vec::from(app_ctx.args),
-                        };
+                        } else {
+                            let recorded = RecordedCommand {
+                                action: None,
+                                command_name: ctx.command().identifying_name.clone(),
+                                options: Vec::from(app_ctx.args),
+                            };
 
-                        command_macro.commands.push(recorded);
+                            command_macro.commands.push(recorded);
 
-                        let _ = ctx
-                            .send(|m| m.ephemeral(true).content("Command recorded to macro"))
-                            .await;
+                            let _ = ctx
+                                .send(|m| m.ephemeral(true).content("Command recorded to macro"))
+                                .await;
+                        }
+
+                        return false;
                     }
-
-                    return false;
                 }
             }
         }
@@ -89,5 +95,5 @@ async fn check_self_permissions(ctx: Context<'_>) -> bool {
 }
 
 pub async fn all_checks(ctx: Context<'_>) -> Result<bool, Error> {
-    Ok(macro_check(ctx).await && check_self_permissions(ctx).await)
+    Ok(recording_macro_check(ctx).await && check_self_permissions(ctx).await)
 }
