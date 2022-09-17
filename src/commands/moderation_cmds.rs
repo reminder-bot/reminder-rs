@@ -1,6 +1,7 @@
 use chrono::offset::Utc;
 use chrono_tz::{Tz, TZ_VARIANTS};
 use levenshtein::levenshtein;
+use log::warn;
 
 use super::autocomplete::timezone_autocomplete;
 use crate::{consts::THEME_COLOR, models::CtxData, Context, Error};
@@ -157,23 +158,24 @@ pub async fn webhook(ctx: Context<'_>) -> Result<(), Error> {
     match ctx.channel_data().await {
         Ok(data) => {
             if let (Some(id), Some(token)) = (data.webhook_id, data.webhook_token) {
-                let _ = ctx
-                    .send(|b| {
-                        b.ephemeral(true).content(format!(
-                            "**Warning!**
+                ctx.send(|b| {
+                    b.ephemeral(true).content(format!(
+                        "**Warning!**
 This link can be used by users to anonymously send messages, with or without permissions.
 Do not share it!
 || https://discord.com/api/webhooks/{}/{} ||",
-                            id, token,
-                        ))
-                    })
-                    .await;
+                        id, token,
+                    ))
+                })
+                .await?;
             } else {
-                let _ = ctx.say("No webhook configured on this channel.").await;
+                ctx.say("No webhook configured on this channel.").await?;
             }
         }
-        Err(_) => {
-            let _ = ctx.say("No webhook configured on this channel.").await;
+        Err(e) => {
+            warn!("Error fetching channel data: {:?}", e);
+
+            ctx.say("No webhook configured on this channel.").await?;
         }
     }
 

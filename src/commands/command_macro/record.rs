@@ -15,6 +15,18 @@ pub async fn record_macro(
     #[description = "Name for the new macro"] name: String,
     #[description = "Description for the new macro"] description: Option<String>,
 ) -> Result<(), Error> {
+    if name.len() > 100 {
+        ctx.say("Name must be less than 100 characters").await?;
+
+        return Ok(());
+    }
+
+    if description.as_ref().map_or(0, |d| d.len()) > 100 {
+        ctx.say("Description must be less than 100 characters").await?;
+
+        return Ok(());
+    }
+
     let guild_id = ctx.guild_id().unwrap();
 
     let row = sqlx::query!(
