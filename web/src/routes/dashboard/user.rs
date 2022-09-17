@@ -61,10 +61,13 @@ pub async fn get_user_info(
             .member(&ctx.inner(), user_id)
             .await;
 
-        let timezone = sqlx::query!("SELECT timezone FROM users WHERE user = ?", user_id)
-            .fetch_one(pool.inner())
-            .await
-            .map_or(None, |q| Some(q.timezone));
+        let timezone = sqlx::query!(
+            "SELECT IFNULL(timezone, 'UTC') AS timezone FROM users WHERE user = ?",
+            user_id
+        )
+        .fetch_one(pool.inner())
+        .await
+        .map_or(None, |q| Some(q.timezone));
 
         let user_info = UserInfo {
             name: cookies
