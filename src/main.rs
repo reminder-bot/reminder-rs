@@ -168,7 +168,7 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
         Pool::connect(&env::var("DATABASE_URL").expect("No database URL provided")).await.unwrap();
 
     let popular_timezones = sqlx::query!(
-        "SELECT timezone FROM users GROUP BY timezone ORDER BY COUNT(timezone) DESC LIMIT 21"
+        "SELECT timezone FROM users WHERE timezone IS NOT NULL GROUP BY timezone ORDER BY COUNT(timezone) DESC LIMIT 21"
     )
     .fetch_all(&database)
     .await

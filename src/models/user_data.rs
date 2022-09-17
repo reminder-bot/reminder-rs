@@ -22,7 +22,7 @@ impl UserData {
 
         match sqlx::query!(
             "
-SELECT timezone FROM users WHERE user = ?
+SELECT IFNULL(timezone, 'UTC') AS timezone FROM users WHERE user = ?
             ",
             user_id
         )
