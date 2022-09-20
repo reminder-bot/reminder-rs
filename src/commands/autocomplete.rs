@@ -37,20 +37,6 @@ WHERE
     .collect()
 }
 
-pub async fn multiline_autocomplete(
-    _ctx: Context<'_>,
-    partial: &str,
-) -> Vec<AutocompleteChoice<String>> {
-    if partial.is_empty() {
-        vec![AutocompleteChoice { name: "Multiline content...".to_string(), value: "".to_string() }]
-    } else {
-        vec![
-            AutocompleteChoice { name: partial.to_string(), value: partial.to_string() },
-            AutocompleteChoice { name: "Multiline content...".to_string(), value: "".to_string() },
-        ]
-    }
-}
-
 pub async fn time_hint_autocomplete(
     ctx: Context<'_>,
     partial: &str,

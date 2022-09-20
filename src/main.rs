@@ -133,6 +133,7 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
                 ],
                 ..reminder_cmds::timer_base()
             },
+            reminder_cmds::multiline(),
             reminder_cmds::remind(),
             poise::Command {
                 subcommands: vec![

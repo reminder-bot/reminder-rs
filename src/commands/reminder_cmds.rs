@@ -15,9 +15,7 @@ use poise::{
 };
 
 use crate::{
-    commands::autocomplete::{
-        multiline_autocomplete, time_hint_autocomplete, timezone_autocomplete,
-    },
+    commands::autocomplete::{time_hint_autocomplete, timezone_autocomplete},
     component_models::{
         pager::{DelPager, LookPager, Pager},
         ComponentDataModel, DelSelector, UndoReminder,
@@ -562,7 +560,45 @@ struct ContentModal {
     content: String,
 }
 
-/// Create a reminder. Press "+4 more" for other options.
+/// Create a reminder with multi-line content. Press "+4 more" for other options.
+#[poise::command(
+    slash_command,
+    identifying_name = "multiline",
+    default_member_permissions = "MANAGE_GUILD"
+)]
+pub async fn multiline(
+    ctx: ApplicationContext<'_>,
+    #[description = "A description of the time to set the reminder for"]
+    #[autocomplete = "time_hint_autocomplete"]
+    time: String,
+    #[description = "Channel or user mentions to set the reminder for"] channels: Option<String>,
+    #[description = "(Patreon only) Time to wait before repeating the reminder. Leave blank for one-shot reminder"]
+    interval: Option<String>,
+    #[description = "(Patreon only) For repeating reminders, the time at which the reminder will stop repeating"]
+    expires: Option<String>,
+    #[description = "Set the TTS flag on the reminder message, similar to the /tts command"]
+    tts: Option<bool>,
+    #[description = "Set a timezone override for this reminder only"]
+    #[autocomplete = "timezone_autocomplete"]
+    timezone: Option<String>,
+) -> Result<(), Error> {
+    let tz = timezone.map(|t| t.parse::<Tz>().ok()).flatten();
+    let data = ContentModal::execute(ctx).await?;
+
+    create_reminder(
+        Context::Application(ctx),
+        time,
+        data.content,
+        channels,
+        interval,
+        expires,
+        tts,
+        tz,
+    )
+    .await
+}
+
+/// Create a reminder. Press "+4 more" for other options. Use "/multiline" for multiline content.
 #[poise::command(
     slash_command,
     identifying_name = "remind",
@@ -573,9 +609,7 @@ pub async fn remind(
     #[description = "A description of the time to set the reminder for"]
     #[autocomplete = "time_hint_autocomplete"]
     time: String,
-    #[description = "The message content to send"]
-    #[autocomplete = "multiline_autocomplete"]
-    content: String,
+    #[description = "The message content to send"] content: String,
     #[description = "Channel or user mentions to set the reminder for"] channels: Option<String>,
     #[description = "(Patreon only) Time to wait before repeating the reminder. Leave blank for one-shot reminder"]
     interval: Option<String>,
@@ -589,33 +623,8 @@ pub async fn remind(
 ) -> Result<(), Error> {
     let tz = timezone.map(|t| t.parse::<Tz>().ok()).flatten();
 
-    if content.is_empty() {
-        let data = ContentModal::execute(ctx).await?;
-
-        create_reminder(
-            Context::Application(ctx),
-            time,
-            data.content,
-            channels,
-            interval,
-            expires,
-            tts,
-            tz,
-        )
+    create_reminder(Context::Application(ctx), time, content, channels, interval, expires, tts, tz)
         .await
-    } else {
-        create_reminder(
-            Context::Application(ctx),
-            time,
-            content,
-            channels,
-            interval,
-            expires,
-            tts,
-            tz,
-        )
-        .await
-    }
 }
 
 async fn create_reminder(
