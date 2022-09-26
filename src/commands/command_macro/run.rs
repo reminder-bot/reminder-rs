@@ -1,5 +1,5 @@
 use super::super::autocomplete::macro_name_autocomplete;
-use crate::{models::command_macro::guild_command_macro, Context, Data, Error};
+use crate::{models::command_macro::guild_command_macro, Context, Data, Error, THEME_COLOR};
 
 /// Run a recorded macro
 #[poise::command(
@@ -17,7 +17,17 @@ pub async fn run_macro(
 ) -> Result<(), Error> {
     match guild_command_macro(&Context::Application(ctx), &name).await {
         Some(command_macro) => {
-            ctx.defer_response(false).await?;
+            Context::Application(ctx)
+                .send(|b| {
+                    b.embed(|e| {
+                        e.title("Running Macro").color(*THEME_COLOR).description(format!(
+                            "Running macro {} ({} commands)",
+                            command_macro.name,
+                            command_macro.commands.len()
+                        ))
+                    })
+                })
+                .await?;
 
             for command in command_macro.commands {
                 if let Some(action) = command.action {
