@@ -326,14 +326,14 @@ WHERE
 
         if self.interval_seconds.is_some() || self.interval_months.is_some() {
             format!(
-                "'{}' *occurs next at* **{}**, repeating (set by {})",
+                "'{}' *occurs next at* **{}**, repeating (set by {})\n",
                 self.display_content(),
                 time_display,
                 self.set_by.map(|i| format!("<@{}>", i)).unwrap_or_else(|| "unknown".to_string())
             )
         } else {
             format!(
-                "'{}' *occurs next at* **{}** (set by {})",
+                "'{}' *occurs next at* **{}** (set by {})\n",
                 self.display_content(),
                 time_display,
                 self.set_by.map(|i| format!("<@{}>", i)).unwrap_or_else(|| "unknown".to_string())

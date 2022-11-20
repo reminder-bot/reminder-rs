@@ -1,4 +1,4 @@
-use chrono::Duration;
+use chrono::{DateTime, Days, Duration};
 use chrono_tz::Tz;
 use lazy_static::lazy_static;
 use log::{error, info, warn};
@@ -374,7 +374,30 @@ UPDATE channels SET webhook_id = NULL, webhook_token = NULL WHERE channel = ?
                 }
             }
 
+            fn increment_days(
+                now: NaiveDateTime,
+                mut new_time: NaiveDateTime,
+                interval: u32,
+            ) -> Option<NaiveDateTime> {
+                while new_time < now {
+                    new_time = new_time.checked_add_days(Days::new((interval / 86400).into()))?;
+                }
+
+                Some(new_time)
+            }
+
             if let Some(interval) = self.interval_seconds {
+                if interval.div_rem(&86400).1 == 0 {
+                    updated_reminder_time =
+                        match increment_days(now, updated_reminder_time, interval) {
+                            Some(d) => d,
+                            None => {
+                                warn!("Failed to update days on a reminder.");
+                                updated_reminder_time
+                            }
+                        }
+                }
+
                 while updated_reminder_time < now {
                     updated_reminder_time += Duration::seconds(interval as i64);
                 }

@@ -113,7 +113,7 @@ impl ComponentDataModel {
                         char_count < EMBED_DESCRIPTION_MAX_LENGTH
                     })
                     .collect::<Vec<String>>()
-                    .join("\n");
+                    .join("");
 
                 let mut embed = CreateEmbed::default();
                 embed

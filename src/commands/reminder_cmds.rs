@@ -245,7 +245,7 @@ pub async fn look(
                 char_count < EMBED_DESCRIPTION_MAX_LENGTH
             })
             .collect::<Vec<String>>()
-            .join("\n");
+            .join("");
 
         let pages = reminders
             .iter()

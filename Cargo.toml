@@ -14,7 +14,7 @@ regex = "1.6"
 log = "0.4"
 env_logger = "0.9"
 chrono = "0.4"
-chrono-tz = { version = "0.6", features = ["serde"] }
+chrono-tz = { version = "0.8", features = ["serde"] }
 lazy_static = "1.4"
 num-integer = "0.1"
 serde = "1.0"
