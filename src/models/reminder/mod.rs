@@ -6,7 +6,7 @@ pub mod look_flags;
 
 use std::hash::{Hash, Hasher};
 
-use chrono::{NaiveDateTime, TimeZone};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use chrono_tz::Tz;
 use poise::serenity_prelude::{
     model::id::{ChannelId, GuildId, UserId},
@@ -24,7 +24,7 @@ pub struct Reminder {
     pub id: u32,
     pub uid: String,
     pub channel: u64,
-    pub utc_time: NaiveDateTime,
+    pub utc_time: DateTime<Utc>,
     pub interval_seconds: Option<u32>,
     pub interval_months: Option<u32>,
     pub expires: Option<NaiveDateTime>,
@@ -310,16 +310,15 @@ WHERE
             count + 1,
             self.display_content(),
             self.channel,
-            timezone.timestamp(self.utc_time.timestamp(), 0).format("%Y-%m-%d %H:%M:%S")
+            self.utc_time.with_timezone(timezone).format("%Y-%m-%d %H:%M:%S")
         )
     }
 
     pub fn display(&self, flags: &LookFlags, timezone: &Tz) -> String {
         let time_display = match flags.time_display {
-            TimeDisplayType::Absolute => timezone
-                .timestamp(self.utc_time.timestamp(), 0)
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string(),
+            TimeDisplayType::Absolute => {
+                self.utc_time.with_timezone(timezone).format("%Y-%m-%d %H:%M:%S").to_string()
+            }
 
             TimeDisplayType::Relative => format!("<t:{}:R>", self.utc_time.timestamp()),
         };

@@ -1,11 +1,11 @@
 [package]
 name = "reminder_rs"
-version = "1.6.8"
+version = "1.6.9"
 authors = ["jellywx <judesouthworth@pm.me>"]
 edition = "2018"
 
 [dependencies]
-poise = "0.3"
+poise = "0.4"
 dotenv = "0.15"
 tokio = { version = "1", features = ["process", "full"] }
 reqwest = "0.11"

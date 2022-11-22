@@ -1,9 +1,9 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use sqlx::MySqlPool;
 
 pub struct Timer {
     pub name: String,
-    pub start_time: NaiveDateTime,
+    pub start_time: DateTime<Utc>,
     pub owner: u64,
 }
 

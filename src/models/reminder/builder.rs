@@ -175,17 +175,15 @@ impl<'a> MultiReminderBuilder<'a> {
     }
 
     pub fn time<T: Into<i64>>(mut self, time: T) -> Self {
-        self.utc_time = NaiveDateTime::from_timestamp(time.into(), 0);
+        if let Some(utc_time) = NaiveDateTime::from_timestamp_opt(time.into(), 0) {
+            self.utc_time = utc_time;
+        }
 
         self
     }
 
     pub fn expires<T: Into<i64>>(mut self, time: Option<T>) -> Self {
-        if let Some(t) = time {
-            self.expires = Some(NaiveDateTime::from_timestamp(t.into(), 0));
-        } else {
-            self.expires = None;
-        }
+        self.expires = time.map(|t| NaiveDateTime::from_timestamp_opt(t.into(), 0)).flatten();
 
         self
     }

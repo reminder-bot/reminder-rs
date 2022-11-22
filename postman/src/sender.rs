@@ -1,4 +1,4 @@
-use chrono::{DateTime, Days, Duration};
+use chrono::{DateTime, Days, Duration, Months, TimeZone};
 use chrono_tz::Tz;
 use lazy_static::lazy_static;
 use log::{error, info, warn};
@@ -62,18 +62,23 @@ pub fn substitute(string: &str) -> String {
         let format = caps.name("format").map(|m| m.as_str());
 
         if let (Some(final_time), Some(format)) = (final_time, format) {
-            let dt = NaiveDateTime::from_timestamp(final_time, 0);
-            let now = Utc::now().naive_utc();
+            match NaiveDateTime::from_timestamp_opt(final_time, 0) {
+                Some(dt) => {
+                    let now = Utc::now().naive_utc();
 
-            let difference = {
-                if now < dt {
-                    dt - Utc::now().naive_utc()
-                } else {
-                    Utc::now().naive_utc() - dt
+                    let difference = {
+                        if now < dt {
+                            dt - Utc::now().naive_utc()
+                        } else {
+                            Utc::now().naive_utc() - dt
+                        }
+                    };
+
+                    fmt_displacement(format, difference.num_seconds() as u64)
                 }
-            };
 
-            fmt_displacement(format, difference.num_seconds() as u64)
+                None => String::new(),
+            }
         } else {
             String::new()
         }
@@ -243,10 +248,10 @@ pub struct Reminder {
     attachment: Option<Vec<u8>>,
     attachment_name: Option<String>,
 
-    utc_time: NaiveDateTime,
+    utc_time: DateTime<Utc>,
     timezone: String,
     restartable: bool,
-    expires: Option<NaiveDateTime>,
+    expires: Option<DateTime<Utc>>,
     interval_seconds: Option<u32>,
     interval_months: Option<u32>,
 
@@ -330,9 +335,7 @@ WHERE
 
     async fn reset_webhook(&self, pool: impl Executor<'_, Database = Database> + Copy) {
         let _ = sqlx::query!(
-            "
-UPDATE channels SET webhook_id = NULL, webhook_token = NULL WHERE channel = ?
-            ",
+            "UPDATE channels SET webhook_id = NULL, webhook_token = NULL WHERE channel = ?",
             self.channel_id
         )
         .execute(pool)
@@ -341,44 +344,25 @@ UPDATE channels SET webhook_id = NULL, webhook_token = NULL WHERE channel = ?
 
     async fn refresh(&self, pool: impl Executor<'_, Database = Database> + Copy) {
         if self.interval_seconds.is_some() || self.interval_months.is_some() {
-            let now = Utc::now().naive_local();
-            let mut updated_reminder_time = self.utc_time;
+            let now = Utc::now();
+            let mut updated_reminder_time =
+                self.utc_time.with_timezone(&self.timezone.parse().unwrap_or(Tz::UTC));
 
             if let Some(interval) = self.interval_months {
-                match sqlx::query!(
-                    // use the second date_add to force return value to datetime
-                    "SELECT DATE_ADD(DATE_ADD(?, INTERVAL ? MONTH), INTERVAL 0 SECOND) AS new_time",
-                    updated_reminder_time,
-                    interval
-                )
-                .fetch_one(pool)
-                .await
-                {
-                    Ok(row) => match row.new_time {
-                        Some(datetime) => {
-                            updated_reminder_time = datetime;
-                        }
-                        None => {
-                            warn!("Could not update interval by months: got NULL");
+                updated_reminder_time = updated_reminder_time
+                    .checked_add_months(Months::new(interval))
+                    .unwrap_or_else(|| {
+                        warn!("Could not add months to a reminder");
 
-                            updated_reminder_time += Duration::days(30);
-                        }
-                    },
-
-                    Err(e) => {
-                        warn!("Could not update interval by months: {:?}", e);
-
-                        // naively fallback to adding 30 days
-                        updated_reminder_time += Duration::days(30);
-                    }
-                }
+                        updated_reminder_time
+                    });
             }
 
-            fn increment_days(
-                now: NaiveDateTime,
-                mut new_time: NaiveDateTime,
+            fn increment_days<T: TimeZone>(
+                now: DateTime<Utc>,
+                mut new_time: DateTime<T>,
                 interval: u32,
-            ) -> Option<NaiveDateTime> {
+            ) -> Option<DateTime<T>> {
                 while new_time < now {
                     new_time = new_time.checked_add_days(Days::new((interval / 86400).into()))?;
                 }
@@ -403,16 +387,12 @@ UPDATE channels SET webhook_id = NULL, webhook_token = NULL WHERE channel = ?
                 }
             }
 
-            if self.expires.map_or(false, |expires| {
-                NaiveDateTime::from_timestamp(updated_reminder_time.timestamp(), 0) > expires
-            }) {
+            if self.expires.map_or(false, |expires| updated_reminder_time > expires) {
                 self.force_delete(pool).await;
             } else {
                 sqlx::query!(
-                    "
-UPDATE reminders SET `utc_time` = ? WHERE `id` = ?
-                    ",
-                    updated_reminder_time,
+                    "UPDATE reminders SET `utc_time` = ? WHERE `id` = ?",
+                    updated_reminder_time.with_timezone(&Utc),
                     self.id
                 )
                 .execute(pool)
@@ -425,15 +405,10 @@ UPDATE reminders SET `utc_time` = ? WHERE `id` = ?
     }
 
     async fn force_delete(&self, pool: impl Executor<'_, Database = Database> + Copy) {
-        sqlx::query!(
-            "
-DELETE FROM reminders WHERE `id` = ?
-            ",
-            self.id
-        )
-        .execute(pool)
-        .await
-        .expect(&format!("Could not delete Reminder {}", self.id));
+        sqlx::query!("DELETE FROM reminders WHERE `id` = ?", self.id)
+            .execute(pool)
+            .await
+            .expect(&format!("Could not delete Reminder {}", self.id));
     }
 
     async fn pin_message<M: Into<u64>>(&self, message_id: M, http: impl AsRef<Http>) {
@@ -571,9 +546,7 @@ DELETE FROM reminders WHERE `id` = ?
                     .map_or(true, |inner| inner >= Utc::now().naive_local()))
         {
             let _ = sqlx::query!(
-                "
-UPDATE `channels` SET paused = 0, paused_until = NULL WHERE `channel` = ?
-                ",
+                "UPDATE `channels` SET paused = 0, paused_until = NULL WHERE `channel` = ?",
                 self.channel_id
             )
             .execute(pool)

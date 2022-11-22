@@ -1,10 +1,6 @@
-use std::{
-    collections::HashSet,
-    string::ToString,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{collections::HashSet, string::ToString};
 
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use chrono_tz::Tz;
 use num_integer::Integer;
 use poise::{
@@ -60,18 +56,27 @@ pub async fn pause(
             let parsed = natural_parser(&until, &timezone.to_string()).await;
 
             if let Some(timestamp) = parsed {
-                let dt = NaiveDateTime::from_timestamp(timestamp, 0);
+                match NaiveDateTime::from_timestamp_opt(timestamp, 0) {
+                    Some(dt) => {
+                        channel.paused = true;
+                        channel.paused_until = Some(dt);
 
-                channel.paused = true;
-                channel.paused_until = Some(dt);
+                        channel.commit_changes(&ctx.data().database).await;
 
-                channel.commit_changes(&ctx.data().database).await;
+                        ctx.say(format!(
+                            "Reminders in this channel have been silenced until **<t:{}:D>**",
+                            timestamp
+                        ))
+                        .await?;
+                    }
 
-                ctx.say(format!(
-                    "Reminders in this channel have been silenced until **<t:{}:D>**",
-                    timestamp
-                ))
-                .await?;
+                    None => {
+                        ctx.say(format!(
+                            "Time processed could not be interpreted as `DateTime`. Please write the time as clearly as possible",
+                        ))
+                        .await?;
+                    }
+                }
             } else {
                 ctx.say(
                     "Time could not be processed. Please write the time as clearly as possible",
@@ -432,11 +437,8 @@ pub fn show_delete_page(reminders: &[Reminder], page: usize, timezone: Tz) -> Cr
     reply
 }
 
-fn time_difference(start_time: NaiveDateTime) -> String {
-    let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
-    let now = NaiveDateTime::from_timestamp(unix_time, 0);
-
-    let delta = (now - start_time).num_seconds();
+fn time_difference(start_time: DateTime<Utc>) -> String {
+    let delta = (Utc::now() - start_time).num_seconds();
 
     let (minutes, seconds) = delta.div_rem(&60);
     let (hours, minutes) = minutes.div_rem(&60);
