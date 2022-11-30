@@ -76,7 +76,7 @@ impl ReminderBuilder {
 
         match queried_time.utc_time {
             Some(utc_time) => {
-                if utc_time < (Utc::now() - Duration::seconds(60)).naive_local() {
+                if NaiveDateTime::from_timestamp_opt(utc_time.parse::<i64>().unwrap_or_default(), 0).unwrap_or_default() < (Utc::now() - Duration::seconds(60)).naive_local() {
                     Err(ReminderError::PastTime)
                 } else {
                     sqlx::query!(

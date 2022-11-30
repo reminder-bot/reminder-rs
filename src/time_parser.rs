@@ -6,9 +6,8 @@ use std::{
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use chrono_tz::Tz;
-use event_parser::*;
-use icalendar::Component;
-use icalendar::Event;
+use event_parser::to_event;
+use icalendar::*;
 
 #[derive(Debug)]
 pub enum InvalidTime {
@@ -200,12 +199,9 @@ impl TimeParser {
     }
 }
 
-pub async fn natural_parser(time: &str, timezone: &str) -> Option<i64> {
-    let ts = to_event(time).get_timestamp();
-
-    if ts.is_none() {
-        return None;
+pub async fn natural_parser(time: &str, _timezone: &str) -> Option<i64> {
+    match to_event(time).get_timestamp() {
+        None => None,
+        Some(x) => Some(x.timestamp())
     }
-
-    return Some(ts.unwrap().timestamp());
 }
