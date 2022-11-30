@@ -1,15 +1,14 @@
 use std::{
     convert::TryFrom,
     fmt::{Display, Formatter, Result as FmtResult},
-    str::from_utf8,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use chrono_tz::Tz;
-use tokio::process::Command;
-
-use crate::consts::{LOCAL_TIMEZONE, PYTHON_LOCATION};
+use event_parser::*;
+use icalendar::Component;
+use icalendar::Event;
 
 #[derive(Debug)]
 pub enum InvalidTime {
@@ -202,21 +201,11 @@ impl TimeParser {
 }
 
 pub async fn natural_parser(time: &str, timezone: &str) -> Option<i64> {
-    Command::new(&*PYTHON_LOCATION)
-        .arg("-c")
-        .arg(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/dp.py")))
-        .arg(time)
-        .arg(timezone)
-        .arg(&*LOCAL_TIMEZONE)
-        .output()
-        .await
-        .ok()
-        .and_then(|inner| {
-            if inner.status.success() {
-                Some(from_utf8(&*inner.stdout).unwrap().parse::<i64>().unwrap())
-            } else {
-                None
-            }
-        })
-        .and_then(|inner| if inner < 0 { None } else { Some(inner) })
+    let ts = to_event(time).get_timestamp();
+
+    if ts.is_none() {
+        return None;
+    }
+
+    return Some(ts.unwrap().timestamp());
 }

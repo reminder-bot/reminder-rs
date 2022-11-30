@@ -2,7 +2,7 @@
 name = "reminder_rs"
 version = "1.6.9"
 authors = ["jellywx <judesouthworth@pm.me>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 poise = "0.4"
@@ -25,6 +25,10 @@ rand = "0.8"
 levenshtein = "1.0"
 sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "macros", "mysql", "bigdecimal", "chrono"]}
 base64 = "0.13"
+date_time_parser = "0"
+event_parser = "0"
+icalendar = "0.14.0"
+
 
 [dependencies.postman]
 path = "postman"
