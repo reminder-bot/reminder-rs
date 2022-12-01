@@ -76,7 +76,7 @@ impl Display for Ended {
 impl StdError for Ended {}
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn StdError + Send + Sync>> {
+async fn main() -> anyhow::Result<(), Box<dyn StdError + Send + Sync>> {
     let (tx, mut rx) = broadcast::channel(16);
 
     tokio::select! {
@@ -85,7 +85,7 @@ async fn main() -> Result<(), Box<dyn StdError + Send + Sync>> {
     }
 }
 
-async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
+async fn _main(tx: Sender<()>) -> anyhow::Result<(), Box<dyn StdError + Send + Sync>> {
     env_logger::init();
 
     dotenv()?;

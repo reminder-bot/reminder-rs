@@ -1,15 +1,13 @@
 use std::{
     convert::TryFrom,
     fmt::{Display, Formatter, Result as FmtResult},
-    str::from_utf8,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use chrono_tz::Tz;
-use tokio::process::Command;
-
-use crate::consts::{LOCAL_TIMEZONE, PYTHON_LOCATION};
+use event_parser::to_event;
+use icalendar::*;
 
 #[derive(Debug)]
 pub enum InvalidTime {
@@ -201,22 +199,29 @@ impl TimeParser {
     }
 }
 
-pub async fn natural_parser(time: &str, timezone: &str) -> Option<i64> {
-    Command::new(&*PYTHON_LOCATION)
-        .arg("-c")
-        .arg(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/dp.py")))
-        .arg(time)
-        .arg(timezone)
-        .arg(&*LOCAL_TIMEZONE)
-        .output()
-        .await
-        .ok()
-        .and_then(|inner| {
-            if inner.status.success() {
-                Some(from_utf8(&*inner.stdout).unwrap().parse::<i64>().unwrap())
-            } else {
-                None
-            }
-        })
-        .and_then(|inner| if inner < 0 { None } else { Some(inner) })
+pub async fn natural_parser(time: &str, _timezone: &str) -> Option<i64> {
+    println!("natural_parser of {}", time);
+    let evt = to_event(time);
+    println!("to_event: {}", evt.to_string());
+    let ts = evt.get_start();
+
+    let ts2 = match ts {
+        None => None,
+        Some(x) => match x {
+            DatePerhapsTime::DateTime(y) => match y {
+                CalendarDateTime::Floating(z) => Some(z.timestamp()),
+                CalendarDateTime::Utc(z) => Some(z.timestamp()),
+                CalendarDateTime::WithTimezone { date_time, tzid } => Some(date_time.timestamp()),
+            },
+            DatePerhapsTime::Date(y) => Some(y.and_hms_opt(0,0,0).unwrap().timestamp()),
+        }
+    };
+
+    if ts2.is_none() {
+        println!("No timestamp for {}", time);
+    }
+    else {
+        println!("Timestamp for {} = {}", time, ts2.unwrap());
+    }
+    return ts2;
 }

@@ -5,3 +5,4 @@
 assets
 out.json
 /.idea
+priv_*
