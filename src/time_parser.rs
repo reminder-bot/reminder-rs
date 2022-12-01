@@ -200,8 +200,28 @@ impl TimeParser {
 }
 
 pub async fn natural_parser(time: &str, _timezone: &str) -> Option<i64> {
-    match to_event(time).get_timestamp() {
+    println!("natural_parser of {}", time);
+    let evt = to_event(time);
+    println!("to_event: {}", evt.to_string());
+    let ts = evt.get_start();
+
+    let ts2 = match ts {
         None => None,
-        Some(x) => Some(x.timestamp())
+        Some(x) => match x {
+            DatePerhapsTime::DateTime(y) => match y {
+                CalendarDateTime::Floating(z) => Some(z.timestamp()),
+                CalendarDateTime::Utc(z) => Some(z.timestamp()),
+                CalendarDateTime::WithTimezone { date_time, tzid } => Some(date_time.timestamp()),
+            },
+            DatePerhapsTime::Date(y) => Some(y.and_hms_opt(0,0,0).unwrap().timestamp()),
+        }
+    };
+
+    if ts2.is_none() {
+        println!("No timestamp for {}", time);
     }
+    else {
+        println!("Timestamp for {} = {}", time, ts2.unwrap());
+    }
+    return ts2;
 }
