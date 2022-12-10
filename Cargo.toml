@@ -1,8 +1,8 @@
 [package]
 name = "reminder_rs"
-version = "1.6.9"
+version = "1.6.10"
 authors = ["jellywx <judesouthworth@pm.me>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 poise = "0.4"
