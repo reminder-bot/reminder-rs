@@ -1,4 +1,4 @@
-use chrono::{DateTime, Days, Duration, Months, TimeZone};
+use chrono::{DateTime, Days, Duration, Months};
 use chrono_tz::Tz;
 use lazy_static::lazy_static;
 use log::{error, info, warn};
@@ -253,6 +253,7 @@ pub struct Reminder {
     restartable: bool,
     expires: Option<DateTime<Utc>>,
     interval_seconds: Option<u32>,
+    interval_days: Option<u32>,
     interval_months: Option<u32>,
 
     avatar: Option<String>,
@@ -286,6 +287,7 @@ SELECT
     reminders.`restartable` AS restartable,
     reminders.`expires` AS 'expires',
     reminders.`interval_seconds` AS 'interval_seconds',
+    reminders.`interval_days` AS 'interval_days',
     reminders.`interval_months` AS 'interval_months',
 
     reminders.`avatar` AS avatar,
@@ -348,42 +350,30 @@ WHERE
             let mut updated_reminder_time =
                 self.utc_time.with_timezone(&self.timezone.parse().unwrap_or(Tz::UTC));
 
-            if let Some(interval) = self.interval_months {
-                updated_reminder_time = updated_reminder_time
-                    .checked_add_months(Months::new(interval))
-                    .unwrap_or_else(|| {
-                        warn!("Could not add months to a reminder");
+            while updated_reminder_time < now {
+                if let Some(interval) = self.interval_months {
+                    updated_reminder_time = updated_reminder_time
+                        .checked_add_months(Months::new(interval))
+                        .unwrap_or_else(|| {
+                            warn!("Could not add months to a reminder");
 
-                        updated_reminder_time
-                    });
-            }
-
-            fn increment_days<T: TimeZone>(
-                now: DateTime<Utc>,
-                mut new_time: DateTime<T>,
-                interval: u32,
-            ) -> Option<DateTime<T>> {
-                while new_time < now {
-                    new_time = new_time.checked_add_days(Days::new((interval / 86400).into()))?;
+                            updated_reminder_time
+                        });
                 }
 
-                Some(new_time)
-            }
+                if let Some(interval) = self.interval_days {
+                    updated_reminder_time = updated_reminder_time
+                        .checked_add_days(Days::new(interval as u64))
+                        .unwrap_or_else(|| {
+                            warn!("Could not add days to a reminder");
 
-            if let Some(interval) = self.interval_seconds {
-                if interval.div_rem(&86400).1 == 0 {
+                            updated_reminder_time
+                        });
+                }
+
+                if let Some(interval) = self.interval_seconds {
                     updated_reminder_time =
-                        match increment_days(now, updated_reminder_time, interval) {
-                            Some(d) => d,
-                            None => {
-                                warn!("Failed to update days on a reminder.");
-                                updated_reminder_time
-                            }
-                        }
-                }
-
-                while updated_reminder_time < now {
-                    updated_reminder_time += Duration::seconds(interval as i64);
+                        updated_reminder_time + Duration::seconds(interval as i64);
                 }
             }
 

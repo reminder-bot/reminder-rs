@@ -53,7 +53,8 @@ pub struct ReminderBuilder {
     channel: u32,
     utc_time: NaiveDateTime,
     timezone: String,
-    interval_secs: Option<i64>,
+    interval_seconds: Option<i64>,
+    interval_days: Option<i64>,
     interval_months: Option<i64>,
     expires: Option<NaiveDateTime>,
     content: String,
@@ -87,6 +88,7 @@ INSERT INTO reminders (
     `utc_time`,
     `timezone`,
     `interval_seconds`,
+    `interval_days`,
     `interval_months`,
     `expires`,
     `content`,
@@ -106,6 +108,7 @@ INSERT INTO reminders (
     ?,
     ?,
     ?,
+    ?,
     ?
 )
             ",
@@ -113,7 +116,8 @@ INSERT INTO reminders (
                         self.channel,
                         utc_time,
                         self.timezone,
-                        self.interval_secs,
+                        self.interval_seconds,
+                        self.interval_days,
                         self.interval_months,
                         self.expires,
                         self.content,
@@ -210,9 +214,14 @@ impl<'a> MultiReminderBuilder<'a> {
 
         let mut ok_locs = HashSet::new();
 
-        if self.interval.map_or(false, |i| ((i.sec + i.month * 30 * DAY) as i64) < *MIN_INTERVAL) {
+        if self
+            .interval
+            .map_or(false, |i| ((i.sec + i.day * DAY + i.month * 30 * DAY) as i64) < *MIN_INTERVAL)
+        {
             errors.insert(ReminderError::ShortInterval);
-        } else if self.interval.map_or(false, |i| ((i.sec + i.month * 30 * DAY) as i64) > *MAX_TIME)
+        } else if self
+            .interval
+            .map_or(false, |i| ((i.sec + i.day * DAY + i.month * 30 * DAY) as i64) > *MAX_TIME)
         {
             errors.insert(ReminderError::LongInterval);
         } else {
@@ -300,7 +309,8 @@ impl<'a> MultiReminderBuilder<'a> {
                             channel: c,
                             utc_time: self.utc_time,
                             timezone: self.timezone.to_string(),
-                            interval_secs: self.interval.map(|i| i.sec as i64),
+                            interval_seconds: self.interval.map(|i| i.sec as i64),
+                            interval_days: self.interval.map(|i| i.day as i64),
                             interval_months: self.interval.map(|i| i.month as i64),
                             expires: self.expires,
                             content: self.content.content.clone(),

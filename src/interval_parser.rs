@@ -110,13 +110,14 @@ impl OverflowOp for u64 {
 #[derive(Copy, Clone)]
 pub struct Interval {
     pub month: u64,
+    pub day: u64,
     pub sec: u64,
 }
 
 struct Parser<'a> {
     iter: Chars<'a>,
     src: &'a str,
-    current: (u64, u64, u64),
+    current: (u64, u64, u64, u64),
 }
 
 impl<'a> Parser<'a> {
@@ -140,17 +141,17 @@ impl<'a> Parser<'a> {
         Ok(None)
     }
     fn parse_unit(&mut self, n: u64, start: usize, end: usize) -> Result<(), Error> {
-        let (mut month, mut sec, nsec) = match &self.src[start..end] {
-            "nanos" | "nsec" | "ns" => (0u64, 0u64, n),
-            "usec" | "us" => (0, 0u64, n.mul(1000)?),
-            "millis" | "msec" | "ms" => (0, 0u64, n.mul(1_000_000)?),
-            "seconds" | "second" | "secs" | "sec" | "s" => (0, n, 0),
-            "minutes" | "minute" | "min" | "mins" | "m" => (0, n.mul(60)?, 0),
-            "hours" | "hour" | "hr" | "hrs" | "h" => (0, n.mul(3600)?, 0),
-            "days" | "day" | "d" => (0, n.mul(86400)?, 0),
-            "weeks" | "week" | "w" => (0, n.mul(86400 * 7)?, 0),
-            "months" | "month" | "M" => (n, 0, 0),
-            "years" | "year" | "y" => (12, 0, 0),
+        let (mut month, mut day, mut sec, nsec) = match &self.src[start..end] {
+            "nanos" | "nsec" | "ns" => (0, 0u64, 0u64, n),
+            "usec" | "us" => (0, 0, 0u64, n.mul(1000)?),
+            "millis" | "msec" | "ms" => (0, 0, 0u64, n.mul(1_000_000)?),
+            "seconds" | "second" | "secs" | "sec" | "s" => (0, 0, n, 0),
+            "minutes" | "minute" | "min" | "mins" | "m" => (0, 0, n.mul(60)?, 0),
+            "hours" | "hour" | "hr" | "hrs" | "h" => (0, 0, n.mul(3600)?, 0),
+            "days" | "day" | "d" => (0, n, 0, 0),
+            "weeks" | "week" | "w" => (0, n.mul(7)?, 0, 0),
+            "months" | "month" | "M" => (n, 0, 0, 0),
+            "years" | "year" | "y" => (n.mul(12)?, 0, 0, 0),
             _ => {
                 return Err(Error::UnknownUnit {
                     start,
@@ -160,15 +161,16 @@ impl<'a> Parser<'a> {
                 });
             }
         };
-        let mut nsec = self.current.2 + nsec;
+        let mut nsec = self.current.3 + nsec;
         if nsec > 1_000_000_000 {
             sec += nsec / 1_000_000_000;
             nsec %= 1_000_000_000;
         }
-        sec += self.current.1;
+        sec += self.current.2;
+        day += self.current.1;
         month += self.current.0;
 
-        self.current = (month, sec, nsec);
+        self.current = (month, day, sec, nsec);
 
         Ok(())
     }
@@ -215,7 +217,13 @@ impl<'a> Parser<'a> {
             self.parse_unit(n, start, off)?;
             n = match self.parse_first_char()? {
                 Some(n) => n,
-                None => return Ok(Interval { month: self.current.0, sec: self.current.1 }),
+                None => {
+                    return Ok(Interval {
+                        month: self.current.0,
+                        day: self.current.1,
+                        sec: self.current.2,
+                    })
+                }
             };
         }
     }
@@ -247,5 +255,73 @@ impl<'a> Parser<'a> {
 /// assert_eq!(parse_duration("32ms"), Ok(Duration::new(0, 32_000_000)));
 /// ```
 pub fn parse_duration(s: &str) -> Result<Interval, Error> {
-    Parser { iter: s.chars(), src: s, current: (0, 0, 0) }.parse()
+    Parser { iter: s.chars(), src: s, current: (0, 0, 0, 0) }.parse()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_seconds() {
+        let interval = parse_duration("10 seconds").unwrap();
+
+        assert_eq!(interval.sec, 10);
+        assert_eq!(interval.day, 0);
+        assert_eq!(interval.month, 0);
+    }
+
+    #[test]
+    fn parse_minutes() {
+        let interval = parse_duration("10 minutes").unwrap();
+
+        assert_eq!(interval.sec, 600);
+        assert_eq!(interval.day, 0);
+        assert_eq!(interval.month, 0);
+    }
+
+    #[test]
+    fn parse_hours() {
+        let interval = parse_duration("10 hours").unwrap();
+
+        assert_eq!(interval.sec, 36_000);
+        assert_eq!(interval.day, 0);
+        assert_eq!(interval.month, 0);
+    }
+
+    #[test]
+    fn parse_days() {
+        let interval = parse_duration("10 days").unwrap();
+
+        assert_eq!(interval.sec, 0);
+        assert_eq!(interval.day, 10);
+        assert_eq!(interval.month, 0);
+    }
+
+    #[test]
+    fn parse_weeks() {
+        let interval = parse_duration("10 weeks").unwrap();
+
+        assert_eq!(interval.sec, 0);
+        assert_eq!(interval.day, 70);
+        assert_eq!(interval.month, 0);
+    }
+
+    #[test]
+    fn parse_months() {
+        let interval = parse_duration("10 months").unwrap();
+
+        assert_eq!(interval.sec, 0);
+        assert_eq!(interval.day, 0);
+        assert_eq!(interval.month, 10);
+    }
+
+    #[test]
+    fn parse_years() {
+        let interval = parse_duration("10 years").unwrap();
+
+        assert_eq!(interval.sec, 0);
+        assert_eq!(interval.day, 0);
+        assert_eq!(interval.month, 120);
+    }
 }

@@ -26,6 +26,7 @@ pub struct Reminder {
     pub channel: u64,
     pub utc_time: DateTime<Utc>,
     pub interval_seconds: Option<u32>,
+    pub interval_days: Option<u32>,
     pub interval_months: Option<u32>,
     pub expires: Option<NaiveDateTime>,
     pub enabled: bool,
@@ -59,6 +60,7 @@ SELECT
     channels.channel,
     reminders.utc_time,
     reminders.interval_seconds,
+    reminders.interval_days,
     reminders.interval_months,
     reminders.expires,
     reminders.enabled,
@@ -95,6 +97,7 @@ SELECT
     channels.channel,
     reminders.utc_time,
     reminders.interval_seconds,
+    reminders.interval_days,
     reminders.interval_months,
     reminders.expires,
     reminders.enabled,
@@ -138,6 +141,7 @@ SELECT
     channels.channel,
     reminders.utc_time,
     reminders.interval_seconds,
+    reminders.interval_days,
     reminders.interval_months,
     reminders.expires,
     reminders.enabled,
@@ -195,6 +199,7 @@ SELECT
     channels.channel,
     reminders.utc_time,
     reminders.interval_seconds,
+    reminders.interval_days,
     reminders.interval_months,
     reminders.expires,
     reminders.enabled,
@@ -228,6 +233,7 @@ SELECT
     channels.channel,
     reminders.utc_time,
     reminders.interval_seconds,
+    reminders.interval_days,
     reminders.interval_months,
     reminders.expires,
     reminders.enabled,
@@ -262,6 +268,7 @@ SELECT
     channels.channel,
     reminders.utc_time,
     reminders.interval_seconds,
+    reminders.interval_days,
     reminders.interval_months,
     reminders.expires,
     reminders.enabled,
@@ -323,7 +330,10 @@ WHERE
             TimeDisplayType::Relative => format!("<t:{}:R>", self.utc_time.timestamp()),
         };
 
-        if self.interval_seconds.is_some() || self.interval_months.is_some() {
+        if self.interval_seconds.is_some()
+            || self.interval_days.is_some()
+            || self.interval_months.is_some()
+        {
             format!(
                 "'{}' *occurs next at* **{}**, repeating (set by {})\n",
                 self.display_content(),
