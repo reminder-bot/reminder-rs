@@ -132,6 +132,7 @@ pub struct Reminder {
     enabled: bool,
     expires: Option<NaiveDateTime>,
     interval_seconds: Option<u32>,
+    interval_days: Option<u32>,
     interval_months: Option<u32>,
     #[serde(default = "name_default")]
     name: String,
@@ -164,6 +165,7 @@ pub struct ReminderCsv {
     enabled: bool,
     expires: Option<NaiveDateTime>,
     interval_seconds: Option<u32>,
+    interval_days: Option<u32>,
     interval_months: Option<u32>,
     #[serde(default = "name_default")]
     name: String,
@@ -213,6 +215,8 @@ pub struct PatchReminder {
     expires: Unset<Option<NaiveDateTime>>,
     #[serde(default)]
     interval_seconds: Unset<Option<u32>>,
+    #[serde(default)]
+    interval_days: Unset<Option<u32>>,
     #[serde(default)]
     interval_months: Unset<Option<u32>>,
     #[serde(default)]
@@ -370,8 +374,12 @@ pub async fn create_reminder(
     if reminder.utc_time < Utc::now().naive_utc() {
         return Err(json!({"error": "Time must be in the future"}));
     }
-    if reminder.interval_seconds.is_some() || reminder.interval_months.is_some() {
+    if reminder.interval_seconds.is_some()
+        || reminder.interval_days.is_some()
+        || reminder.interval_months.is_some()
+    {
         if reminder.interval_months.unwrap_or(0) * 30 * DAY as u32
+            + reminder.interval_days.unwrap_or(0) * DAY as u32
             + reminder.interval_seconds.unwrap_or(0)
             < *MIN_INTERVAL
         {
@@ -380,7 +388,10 @@ pub async fn create_reminder(
     }
 
     // check patreon if necessary
-    if reminder.interval_seconds.is_some() || reminder.interval_months.is_some() {
+    if reminder.interval_seconds.is_some()
+        || reminder.interval_days.is_some()
+        || reminder.interval_months.is_some()
+    {
         if !check_guild_subscription(&ctx, guild_id).await
             && !check_subscription(&ctx, user_id).await
         {
@@ -416,13 +427,14 @@ pub async fn create_reminder(
          enabled,
          expires,
          interval_seconds,
+         interval_days,
          interval_months,
          name,
          restartable,
          tts,
          username,
          `utc_time`
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         new_uid,
         attachment_data,
         reminder.attachment_name,
@@ -442,6 +454,7 @@ pub async fn create_reminder(
         reminder.enabled,
         reminder.expires,
         reminder.interval_seconds,
+        reminder.interval_days,
         reminder.interval_months,
         name,
         reminder.restartable,
@@ -473,6 +486,7 @@ pub async fn create_reminder(
              reminders.enabled,
              reminders.expires,
              reminders.interval_seconds,
+             reminders.interval_days,
              reminders.interval_months,
              reminders.name,
              reminders.restartable,

@@ -319,6 +319,7 @@ async function serialize_reminder(node, mode) {
         embed_fields: fields,
         expires: expiration_time,
         interval_seconds: mode !== "template" ? interval.seconds : null,
+        interval_days: mode !== "template" ? interval.days : null,
         interval_months: mode !== "template" ? interval.months : null,
         name: node.querySelector('input[name="name"]').value,
         tts: node.querySelector('input[name="tts"]').checked,

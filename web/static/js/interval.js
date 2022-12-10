@@ -7,9 +7,9 @@ function get_interval(element) {
 
     return {
         months: parseInt(months) || null,
+        days: parseInt(days) || null,
         seconds:
-            (parseInt(days) || 0) * 86400 +
-                (parseInt(hours) || 0) * 3600 +
+            (parseInt(hours) || 0) * 3600 +
                 (parseInt(minutes) || 0) * 60 +
                 (parseInt(seconds) || 0) || null,
     };
@@ -41,13 +41,6 @@ function update_interval(element) {
 
         minutes.value = String(remainder).padStart(2, "0");
         hours.value = String(Number(hours.value) + Number(quotient)).padStart(2, "0");
-    }
-    if (hours.value >= 24) {
-        let quotient = Math.floor(hours.value / 24);
-        let remainder = hours.value % 24;
-
-        hours.value = String(remainder).padStart(2, "0");
-        days.value = Number(days.value) + Number(quotient);
     }
 }
 

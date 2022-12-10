@@ -75,7 +75,7 @@ impl Display for Ended {
 
 impl StdError for Ended {}
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn StdError + Send + Sync>> {
     let (tx, mut rx) = broadcast::channel(16);
 

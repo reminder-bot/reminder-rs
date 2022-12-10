@@ -49,7 +49,7 @@
                 <p class="content">
                     Monthly or yearly intervals are configured the same as fixed intervals. Instead of a fixed time
                     interval, these reminders repeat on a certain day each month or each year. This makes them ideal
-                    for marking certain dates.
+                    for marking calendar events.
                 </p>
             </div>
         </div>
@@ -61,7 +61,8 @@
                 <p class="title">Interval expiration</p>
                 <p class="content">
                     An expiration time can also be specified, both via commands and dashboard, for repeating reminders.
-                    This is optional, and if omitted, the reminder will repeat indefinitely.
+                    This is optional, and if omitted, the reminder will repeat indefinitely. Otherwise, the reminder
+                    will be deleted once the expiration date is reached.
                 </p>
             </div>
         </div>

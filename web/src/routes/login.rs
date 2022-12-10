@@ -135,14 +135,14 @@ pub async fn discord_callback(
                     Err(Flash::new(
                         Redirect::to(uri!(super::return_to_same_site(""))),
                         "warning",
-                        "Your login request was rejected",
+                        "Your login request was rejected. The server may be misconfigured. Please retry or alert us in Discord.",
                     ))
                 }
             }
         } else {
-            Err(Flash::new(Redirect::to(uri!(super::return_to_same_site(""))), "danger", "Your request failed to validate, and so has been rejected (error: CSRF Validation Failure)"))
+            Err(Flash::new(Redirect::to(uri!(super::return_to_same_site(""))), "danger", "Your request failed to validate, and so has been rejected (CSRF Validation Failure)"))
         }
     } else {
-        Err(Flash::new(Redirect::to(uri!(super::return_to_same_site(""))), "warning", "Your request was missing information, and so has been rejected (error: CSRF Validation Tokens Missing)"))
+        Err(Flash::new(Redirect::to(uri!(super::return_to_same_site(""))), "warning", "Your request was missing information, and so has been rejected (CSRF Validation Tokens Missing)"))
     }
 }

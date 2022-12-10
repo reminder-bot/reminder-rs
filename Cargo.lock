@@ -685,7 +685,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a12e6657c4c97ebab115a42dcee77225f7f482cdd841cf7088c657a42e9e00e7"
 dependencies = [
  "atty",
- "humantime 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "humantime",
  "log",
  "regex",
  "termcolor",
@@ -1068,11 +1068,6 @@ name = "humantime"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
-
-[[package]]
-name = "humantime"
-version = "2.1.0"
-source = "git+https://github.com/reminder-bot/humantime#12ce6f50894a56a410b390e5608ac9db8afe2407"
 
 [[package]]
 name = "hyper"
@@ -2145,7 +2140,6 @@ dependencies = [
  "chrono-tz 0.8.1",
  "dotenv",
  "env_logger",
- "humantime 2.1.0 (git+https://github.com/reminder-bot/humantime)",
  "lazy-regex",
  "lazy_static",
  "levenshtein",
