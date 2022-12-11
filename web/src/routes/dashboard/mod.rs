@@ -8,7 +8,7 @@ use rocket::{
     serde::json::{json, Value as JsonValue},
 };
 use rocket_dyn_templates::Template;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serenity::{
     client::Context,
     http::Http,
@@ -48,6 +48,14 @@ fn channel_default() -> u64 {
 
 fn id_default() -> u32 {
     0
+}
+
+fn deserialize_optional_field<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Ok(Some(Option::deserialize(deserializer)?))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -179,10 +187,13 @@ pub struct ReminderCsv {
 pub struct PatchReminder {
     uid: String,
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_optional_field")]
     attachment: Unset<Option<String>>,
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_optional_field")]
     attachment_name: Unset<Option<String>>,
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_optional_field")]
     avatar: Unset<Option<String>>,
     #[serde(default = "channel_default")]
     #[serde(with = "string")]
@@ -192,6 +203,7 @@ pub struct PatchReminder {
     #[serde(default)]
     embed_author: Unset<String>,
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_optional_field")]
     embed_author_url: Unset<Option<String>>,
     #[serde(default)]
     embed_color: Unset<u32>,
@@ -200,10 +212,13 @@ pub struct PatchReminder {
     #[serde(default)]
     embed_footer: Unset<String>,
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_optional_field")]
     embed_footer_url: Unset<Option<String>>,
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_optional_field")]
     embed_image_url: Unset<Option<String>>,
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_optional_field")]
     embed_thumbnail_url: Unset<Option<String>>,
     #[serde(default)]
     embed_title: Unset<String>,
@@ -212,12 +227,16 @@ pub struct PatchReminder {
     #[serde(default)]
     enabled: Unset<bool>,
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_optional_field")]
     expires: Unset<Option<NaiveDateTime>>,
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_optional_field")]
     interval_seconds: Unset<Option<u32>>,
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_optional_field")]
     interval_days: Unset<Option<u32>>,
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_optional_field")]
     interval_months: Unset<Option<u32>>,
     #[serde(default)]
     name: Unset<String>,
@@ -226,6 +245,7 @@ pub struct PatchReminder {
     #[serde(default)]
     tts: Unset<bool>,
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_optional_field")]
     username: Unset<Option<String>>,
     #[serde(default)]
     utc_time: Unset<NaiveDateTime>,

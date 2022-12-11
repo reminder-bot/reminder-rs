@@ -332,6 +332,9 @@ function deserialize_reminder(reminder, frame, mode) {
     // populate channels
     set_channels(frame.querySelector("select.channel-selector"));
 
+    frame.querySelector(`*[name="interval_hours"]`).value = 0;
+    frame.querySelector(`*[name="interval_minutes"]`).value = 0;
+
     // populate majority of items
     for (let prop in reminder) {
         if (reminder.hasOwnProperty(prop) && reminder[prop] !== null) {
@@ -498,6 +501,8 @@ document.addEventListener("remindersLoaded", (event) => {
                 .then((response) => response.json())
                 .then((data) => {
                     for (let error of data.errors) show_error(error);
+
+                    deserialize_reminder(data.reminder, node, "reload");
                 });
 
             $saveBtn.querySelector("span.icon > i").classList = ["fas fa-check"];

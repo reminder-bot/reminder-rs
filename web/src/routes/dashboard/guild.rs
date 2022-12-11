@@ -16,10 +16,12 @@ use serenity::{
 use sqlx::{MySql, Pool};
 
 use crate::{
+    check_guild_subscription, check_subscription,
     consts::{
         MAX_CONTENT_LENGTH, MAX_EMBED_AUTHOR_LENGTH, MAX_EMBED_DESCRIPTION_LENGTH,
         MAX_EMBED_FIELDS, MAX_EMBED_FIELD_TITLE_LENGTH, MAX_EMBED_FIELD_VALUE_LENGTH,
         MAX_EMBED_FOOTER_LENGTH, MAX_EMBED_TITLE_LENGTH, MAX_URL_LENGTH, MAX_USERNAME_LENGTH,
+        MIN_INTERVAL,
     },
     routes::dashboard::{
         create_database_channel, create_reminder, template_name_default, DeleteReminder,
@@ -375,8 +377,14 @@ pub async fn edit_reminder(
     reminder: Json<PatchReminder>,
     serenity_context: &State<Context>,
     pool: &State<Pool<MySql>>,
+    cookies: &CookieJar<'_>,
 ) -> JsonResult {
+    check_authorization!(cookies, serenity_context.inner(), id);
+
     let mut error = vec![];
+
+    let user_id =
+        cookies.get_private("userid").map(|c| c.value().parse::<u64>().ok()).flatten().unwrap();
 
     update_field!(pool.inner(), error, reminder.[
         attachment,
@@ -395,15 +403,75 @@ pub async fn edit_reminder(
         embed_fields,
         enabled,
         expires,
-        interval_seconds,
-        interval_days,
-        interval_months,
         name,
         restartable,
         tts,
         username,
         utc_time
     ]);
+
+    if reminder.interval_days.is_some()
+        || reminder.interval_months.is_some()
+        || reminder.interval_seconds.is_some()
+    {
+        if check_guild_subscription(&serenity_context.inner(), id).await
+            || check_subscription(&serenity_context.inner(), user_id).await
+        {
+            let new_interval_length = match reminder.interval_days {
+                Some(interval) => interval.unwrap_or(0),
+                None => sqlx::query!(
+                    "SELECT interval_days AS days FROM reminders WHERE uid = ?",
+                    reminder.uid
+                )
+                .fetch_one(pool.inner())
+                .await
+                .map_err(|e| {
+                    warn!("Error updating reminder interval: {:?}", e);
+                    json!({ "reminder": Option::<Reminder>::None, "errors": vec!["Unknown error"] })
+                })?
+                .days
+                .unwrap_or(0),
+            } + match reminder.interval_months {
+                Some(interval) => interval.unwrap_or(0),
+                None => sqlx::query!(
+                    "SELECT interval_months AS months FROM reminders WHERE uid = ?",
+                    reminder.uid
+                )
+                .fetch_one(pool.inner())
+                .await
+                .map_err(|e| {
+                    warn!("Error updating reminder interval: {:?}", e);
+                    json!({ "reminder": Option::<Reminder>::None, "errors": vec!["Unknown error"] })
+                })?
+                .months
+                .unwrap_or(0),
+            } + match reminder.interval_seconds {
+                Some(interval) => interval.unwrap_or(0),
+                None => sqlx::query!(
+                    "SELECT interval_seconds AS seconds FROM reminders WHERE uid = ?",
+                    reminder.uid
+                )
+                .fetch_one(pool.inner())
+                .await
+                .map_err(|e| {
+                    warn!("Error updating reminder interval: {:?}", e);
+                    json!({ "reminder": Option::<Reminder>::None, "errors": vec!["Unknown error"] })
+                })?
+                .seconds
+                .unwrap_or(0),
+            };
+
+            if new_interval_length < *MIN_INTERVAL {
+                error.push(String::from("New interval is too short."));
+            } else {
+                update_field!(pool.inner(), error, reminder.[
+                    interval_days,
+                    interval_months,
+                    interval_seconds
+                ]);
+            }
+        }
+    }
 
     if reminder.channel > 0 {
         let channel = ChannelId(reminder.channel).to_channel_cached(&serenity_context.inner());
