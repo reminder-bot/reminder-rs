@@ -355,6 +355,8 @@ function deserialize_reminder(reminder, frame, mode) {
         }
     }
 
+    update_interval(frame);
+
     const lastChild = frame.querySelector("div.embed-multifield-box .embed-field-box");
 
     for (let field of reminder["embed_fields"]) {
@@ -838,13 +840,6 @@ $deleteTemplateBtn.addEventListener("click", (ev) => {
         });
 });
 
-document.querySelectorAll("textarea.autoresize").forEach((element) => {
-    element.addEventListener("input", () => {
-        element.style.height = "";
-        element.style.height = element.scrollHeight + 3 + "px";
-    });
-});
-
 let $img;
 const $urlModal = document.querySelector("div#addImageModal");
 const $urlInput = $urlModal.querySelector("input");
@@ -898,6 +893,13 @@ document.addEventListener("remindersLoaded", () => {
             $colorPickerModal.classList.toggle("is-active");
             colorPicker.color.rgbString =
                 window.getComputedStyle($discordFrame).borderLeftColor;
+        });
+    });
+
+    document.querySelectorAll("textarea.autoresize").forEach((element) => {
+        element.addEventListener("input", () => {
+            element.style.height = "";
+            element.style.height = element.scrollHeight + 3 + "px";
         });
     });
 });

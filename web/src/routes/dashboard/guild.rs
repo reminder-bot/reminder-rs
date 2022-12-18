@@ -386,33 +386,40 @@ pub async fn edit_reminder(
     let user_id =
         cookies.get_private("userid").map(|c| c.value().parse::<u64>().ok()).flatten().unwrap();
 
+    if reminder.message_ok() {
+        update_field!(pool.inner(), error, reminder.[
+            content,
+            embed_author,
+            embed_description,
+            embed_footer,
+            embed_title,
+            embed_fields,
+            username
+        ]);
+    } else {
+        error.push("Message exceeds limits.".to_string());
+    }
+
     update_field!(pool.inner(), error, reminder.[
         attachment,
         attachment_name,
         avatar,
-        content,
-        embed_author,
         embed_author_url,
         embed_color,
-        embed_description,
-        embed_footer,
         embed_footer_url,
         embed_image_url,
         embed_thumbnail_url,
-        embed_title,
-        embed_fields,
         enabled,
         expires,
         name,
         restartable,
         tts,
-        username,
         utc_time
     ]);
 
-    if reminder.interval_days.is_some()
-        || reminder.interval_months.is_some()
-        || reminder.interval_seconds.is_some()
+    if reminder.interval_days.flatten().is_some()
+        || reminder.interval_months.flatten().is_some()
+        || reminder.interval_seconds.flatten().is_some()
     {
         if check_guild_subscription(&serenity_context.inner(), id).await
             || check_subscription(&serenity_context.inner(), user_id).await

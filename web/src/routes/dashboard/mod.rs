@@ -50,6 +50,10 @@ fn id_default() -> u32 {
     0
 }
 
+fn interval_default() -> Unset<Option<u32>> {
+    None
+}
+
 fn deserialize_optional_field<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
 where
     D: Deserializer<'de>,
@@ -229,13 +233,13 @@ pub struct PatchReminder {
     #[serde(default)]
     #[serde(deserialize_with = "deserialize_optional_field")]
     expires: Unset<Option<NaiveDateTime>>,
-    #[serde(default)]
+    #[serde(default = "interval_default")]
     #[serde(deserialize_with = "deserialize_optional_field")]
     interval_seconds: Unset<Option<u32>>,
-    #[serde(default)]
+    #[serde(default = "interval_default")]
     #[serde(deserialize_with = "deserialize_optional_field")]
     interval_days: Unset<Option<u32>>,
-    #[serde(default)]
+    #[serde(default = "interval_default")]
     #[serde(deserialize_with = "deserialize_optional_field")]
     interval_months: Unset<Option<u32>>,
     #[serde(default)]
@@ -249,6 +253,30 @@ pub struct PatchReminder {
     username: Unset<Option<String>>,
     #[serde(default)]
     utc_time: Unset<NaiveDateTime>,
+}
+
+impl PatchReminder {
+    fn message_ok(&self) -> bool {
+        self.content.as_ref().map_or(true, |c| c.len() <= MAX_CONTENT_LENGTH)
+            && self.embed_author.as_ref().map_or(true, |c| c.len() <= MAX_EMBED_AUTHOR_LENGTH)
+            && self
+                .embed_description
+                .as_ref()
+                .map_or(true, |c| c.len() <= MAX_EMBED_DESCRIPTION_LENGTH)
+            && self.embed_footer.as_ref().map_or(true, |c| c.len() <= MAX_EMBED_FOOTER_LENGTH)
+            && self.embed_title.as_ref().map_or(true, |c| c.len() <= MAX_EMBED_TITLE_LENGTH)
+            && self.embed_fields.as_ref().map_or(true, |c| {
+                c.0.len() <= MAX_EMBED_FIELDS
+                    && c.0.iter().all(|f| {
+                        f.title.len() <= MAX_EMBED_FIELD_TITLE_LENGTH
+                            && f.value.len() <= MAX_EMBED_FIELD_VALUE_LENGTH
+                    })
+            })
+            && self
+                .username
+                .as_ref()
+                .map_or(true, |c| c.as_ref().map_or(true, |v| v.len() <= MAX_USERNAME_LENGTH))
+    }
 }
 
 pub fn generate_uid() -> String {

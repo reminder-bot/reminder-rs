@@ -22,25 +22,38 @@ function update_interval(element) {
     let minutes = element.querySelector('input[name="interval_minutes"]');
     let seconds = element.querySelector('input[name="interval_seconds"]');
 
-    months.value = months.value.padStart(1, "0");
-    days.value = days.value.padStart(1, "0");
-    hours.value = hours.value.padStart(2, "0");
-    minutes.value = minutes.value.padStart(2, "0");
-    seconds.value = seconds.value.padStart(2, "0");
+    let interval = get_interval(element);
 
-    if (seconds.value >= 60) {
-        let quotient = Math.floor(seconds.value / 60);
-        let remainder = seconds.value % 60;
+    if (interval.months === null && interval.days === null && interval.seconds === null) {
+        months.value = "";
+        days.value = "";
+        hours.value = "";
+        minutes.value = "";
+        seconds.value = "";
+    } else {
+        months.value = months.value.padStart(1, "0");
+        days.value = days.value.padStart(1, "0");
+        hours.value = hours.value.padStart(2, "0");
+        minutes.value = minutes.value.padStart(2, "0");
+        seconds.value = seconds.value.padStart(2, "0");
 
-        seconds.value = String(remainder).padStart(2, "0");
-        minutes.value = String(Number(minutes.value) + Number(quotient)).padStart(2, "0");
-    }
-    if (minutes.value >= 60) {
-        let quotient = Math.floor(minutes.value / 60);
-        let remainder = minutes.value % 60;
+        if (seconds.value >= 60) {
+            let quotient = Math.floor(seconds.value / 60);
+            let remainder = seconds.value % 60;
 
-        minutes.value = String(remainder).padStart(2, "0");
-        hours.value = String(Number(hours.value) + Number(quotient)).padStart(2, "0");
+            seconds.value = String(remainder).padStart(2, "0");
+            minutes.value = String(Number(minutes.value) + Number(quotient)).padStart(
+                2,
+                "0"
+            );
+        }
+        if (minutes.value >= 60) {
+            let quotient = Math.floor(minutes.value / 60);
+            let remainder = minutes.value % 60;
+
+            minutes.value = String(remainder).padStart(2, "0");
+            hours.value = String(Number(hours.value) + Number(quotient)).padStart(2, "0");
+        }
     }
 }
 
