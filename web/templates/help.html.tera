@@ -27,7 +27,7 @@
             </div>
             <div class="tile is-parent">
                 <article class="tile is-child notification">
-                    <p class="title">Creating reminders</p>
+                    <p class="title">Create reminders</p>
                     <p class="subtitle">Learn to create reminders for your server</p>
                     <div class="content has-text-centered">
                         <a class="button is-size-4 is-rounded is-light" href="/help/create_reminder">
@@ -52,47 +52,47 @@
                 </article>
             </div>
         </div>
-        <div class="tile is-ancestor">
-            <div class="tile is-parent">
-                <article class="tile is-child notification">
-                    <p class="title">Timers</p>
-                    <p class="subtitle">Learn to manage timers</p>
-                    <div class="content has-text-centered">
-                        <a class="button is-size-4 is-rounded is-light" href="/help/timers">
-                            <p class="is-size-4">
-                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
-                            </p>
-                        </a>
-                    </div>
-                </article>
-            </div>
-            <div class="tile is-parent">
-                <article class="tile is-child notification">
-                    <p class="title">Todo Lists</p>
-                    <p class="subtitle">Learn to manage various todo lists</p>
-                    <div class="content has-text-centered">
-                        <a class="button is-size-4 is-rounded is-light" href="/help/todo_lists">
-                            <p class="is-size-4">
-                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
-                            </p>
-                        </a>
-                    </div>
-                </article>
-            </div>
-            <div class="tile is-parent is-vertical">
-                <article class="tile is-child notification">
-                    <p class="title">Macros</p>
-                    <p class="subtitle">Learn how to create combination commands called macros, to suit advanced use cases</p>
-                    <div class="content has-text-centered">
-                        <a class="button is-size-4 is-rounded is-light" href="/help/macros">
-                            <p class="is-size-4">
-                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
-                            </p>
-                        </a>
-                    </div>
-                </article>
-            </div>
-        </div>
+<!--        <div class="tile is-ancestor">-->
+<!--            <div class="tile is-parent">-->
+<!--                <article class="tile is-child notification">-->
+<!--                    <p class="title">Timers</p>-->
+<!--                    <p class="subtitle">Learn to manage timers</p>-->
+<!--                    <div class="content has-text-centered">-->
+<!--                        <a class="button is-size-4 is-rounded is-light" href="/help/timers">-->
+<!--                            <p class="is-size-4">-->
+<!--                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>-->
+<!--                            </p>-->
+<!--                        </a>-->
+<!--                    </div>-->
+<!--                </article>-->
+<!--            </div>-->
+<!--            <div class="tile is-parent">-->
+<!--                <article class="tile is-child notification">-->
+<!--                    <p class="title">Todo Lists</p>-->
+<!--                    <p class="subtitle">Learn to manage various todo lists</p>-->
+<!--                    <div class="content has-text-centered">-->
+<!--                        <a class="button is-size-4 is-rounded is-light" href="/help/todo_lists">-->
+<!--                            <p class="is-size-4">-->
+<!--                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>-->
+<!--                            </p>-->
+<!--                        </a>-->
+<!--                    </div>-->
+<!--                </article>-->
+<!--            </div>-->
+<!--            <div class="tile is-parent is-vertical">-->
+<!--                <article class="tile is-child notification">-->
+<!--                    <p class="title">Macros</p>-->
+<!--                    <p class="subtitle">Learn how to create combination commands called macros, to suit advanced use cases</p>-->
+<!--                    <div class="content has-text-centered">-->
+<!--                        <a class="button is-size-4 is-rounded is-light" href="/help/macros">-->
+<!--                            <p class="is-size-4">-->
+<!--                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>-->
+<!--                            </p>-->
+<!--                        </a>-->
+<!--                    </div>-->
+<!--                </article>-->
+<!--            </div>-->
+<!--        </div>-->
         <div class="tile is-ancestor">
             <div class="tile is-parent">
                 <article class="tile is-child notification">
@@ -100,19 +100,6 @@
                     <p class="subtitle">Learn about repeating reminders</p>
                     <div class="content has-text-centered">
                         <a class="button is-size-4 is-rounded is-light" href="/help/intervals">
-                            <p class="is-size-4">
-                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
-                            </p>
-                        </a>
-                    </div>
-                </article>
-            </div>
-            <div class="tile is-parent">
-                <article class="tile is-child notification">
-                    <p class="title">Dashboard</p>
-                    <p class="subtitle">Learn to use the interactive web dashboard</p>
-                    <div class="content has-text-centered">
-                        <a class="button is-size-4 is-rounded is-light" href="/help/dashboard">
                             <p class="is-size-4">
                                 Read <span class="icon"><i class="fas fa-chevron-right"></i></span>
                             </p>
@@ -132,6 +119,19 @@
                         </a>
                     </div>
                 </article>
+            </div>
+            <div class="tile is-parent">
+<!--                <article class="tile is-child notification">-->
+<!--                    <p class="title">Dashboard</p>-->
+<!--                    <p class="subtitle">Learn to use the interactive web dashboard</p>-->
+<!--                    <div class="content has-text-centered">-->
+<!--                        <a class="button is-size-4 is-rounded is-light" href="/help/dashboard">-->
+<!--                            <p class="is-size-4">-->
+<!--                                Read <span class="icon"><i class="fas fa-chevron-right"></i></span>-->
+<!--                            </p>-->
+<!--                        </a>-->
+<!--                    </div>-->
+<!--                </article>-->
             </div>
         </div>
     </div>

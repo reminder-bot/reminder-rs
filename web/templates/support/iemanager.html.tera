@@ -12,7 +12,7 @@
     <section class="hero is-small">
         <div class="hero-body">
             <div class="container">
-                <p class="title">Export your data</p>
+                <p class="title">Export data</p>
                 <p class="content">
                     You can export data associated with your server from the dashboard. The data will export as a CSV
                     file. The CSV file can then be edited and imported to bulk edit server data.
@@ -55,7 +55,7 @@
                         </figure>
                     </li>
                     <li>
-                        Make edits to the spreadsheet. You can add, edit, and remove rows for reminders. Don't remove the title row.
+                        Make edits to the spreadsheet. You can add, edit, and remove rows for reminders. Don't remove the top-most (title) row.
                         <figure>
                             <img src="/static/img/support/iemanager/edit_spreadsheet.png" alt="Editing spreadsheet">
                         </figure>
@@ -70,7 +70,7 @@
                 Other spreadsheet tools can also be used to edit exports, as long as they are properly configured:
                 <ul>
                     <li>
-                        <strong>Google Sheets</strong>: Create a new blank spreadsheet. Select <strong>File >> Import >> Upload >> export.csv</strong>.
+                        <strong>Google Sheets</strong>: Create a new blank spreadsheet. Select <strong>File > Import > Upload > export.csv</strong>.
                         Use the following import settings:
                         <figure>
                             <img src="/static/img/support/iemanager/sheets_settings.png" alt="Google sheets import settings">

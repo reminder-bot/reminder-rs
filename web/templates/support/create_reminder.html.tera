@@ -28,7 +28,10 @@
             <div class="container">
                 <p class="title">Create reminders via the dashboard</p>
                 <p class="content">
-                    Reminders can also be created on the dashboard.
+                    Reminders can also be created on the dashboard. The dashboard offers more options for configuring
+                    reminders, and offers templates for quick recreation of reminders.
+
+                    <a href="/dashboard">Access the dashboard.</a>
                 </p>
             </div>
         </div>
