@@ -340,7 +340,18 @@ pub fn show_todo_page(
                                 opt.create_option(|o| {
                                     o.label(format!("Mark {} complete", count + first_num))
                                         .value(id)
-                                        .description(disp.split_once(' ').unwrap_or(("", "")).1)
+                                        .description({
+                                            let c = disp.split_once(' ').unwrap_or(("", "")).1;
+
+                                            if c.len() > 100 {
+                                                format!(
+                                                    "{}...",
+                                                    c.chars().take(97).collect::<String>()
+                                                )
+                                            } else {
+                                                c.to_string()
+                                            }
+                                        })
                                 });
                             }
 
