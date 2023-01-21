@@ -22,8 +22,15 @@ These environment variables must be provided when compiling the bot
 * `DATABASE_URL` - the URL of your MySQL database (`mysql://user[:password]@domain/database`)
 * `WEBHOOK_AVATAR` - accepts the name of an image file located in `$CARGO_MANIFEST_DIR/assets/` to be used as the avatar when creating webhooks. **IMPORTANT: image file must be 128x128 or smaller in size**
 
+### Setting up database
+Use MySQL 8. MariaDB is confirmed not working at the moment.
+
+Load the SQL files in order from "migrations" to generate the database schema.
+
 ### Setting up Python
-Reminder Bot by default looks for a venv within it's working directory to run Python out of. To set up a venv, install `python3-venv` and run `python3 -m venv venv`. Then, run `source venv/bin/activate` to activate the venv, and do `pip install dateparser` to install the required library
+Reminder Bot by default looks for a venv within it's working directory to run Python out of. To set up a venv, install `python3-venv` and run `python3 -m venv venv`. Then, run `source venv/bin/activate` to activate the venv, and do `pip install dateparser` to install the required library.
+
+Remember where you create the venv! You may need to change the `PYTHON_LOCATION` variable in the next step to point to your Python binary if the venv is not in your working directory.
 
 ### Environment Variables
 Reminder Bot reads a number of environment variables. Some are essential, and others have hardcoded fallbacks. Environment variables can be loaded from a .env file in the working directory.
