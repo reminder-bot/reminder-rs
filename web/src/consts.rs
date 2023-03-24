@@ -31,7 +31,7 @@ lazy_static! {
     )
         .into();
     pub static ref SUBSCRIPTION_ROLES: HashSet<u64> = HashSet::from_iter(
-        env::var("SUBSCRIPTION_ROLES")
+        env::var("PATREON_ROLE_ID")
             .map(|var| var
                 .split(',')
                 .filter_map(|item| { item.parse::<u64>().ok() })
@@ -39,7 +39,7 @@ lazy_static! {
             .unwrap_or_else(|_| Vec::new())
     );
     pub static ref CNC_GUILD: Option<u64> =
-        env::var("CNC_GUILD").map(|var| var.parse::<u64>().ok()).ok().flatten();
+        env::var("PATREON_GUILD_ID").map(|var| var.parse::<u64>().ok()).ok().flatten();
     pub static ref MIN_INTERVAL: u32 = env::var("MIN_INTERVAL")
         .ok()
         .map(|inner| inner.parse::<u32>().ok())

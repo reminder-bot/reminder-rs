@@ -1,7 +1,7 @@
 [package]
 name = "reminder_rs"
 version = "1.6.10"
-authors = ["jellywx <judesouthworth@pm.me>"]
+authors = ["Jude Southworth <judesouthworth@pm.me>"]
 edition = "2021"
 
 [dependencies]
@@ -12,7 +12,7 @@ reqwest = "0.11"
 lazy-regex = "2.3.0"
 regex = "1.6"
 log = "0.4"
-env_logger = "0.9"
+env_logger = "0.10"
 chrono = "0.4"
 chrono-tz = { version = "0.8", features = ["serde"] }
 lazy_static = "1.4"
@@ -31,3 +31,16 @@ path = "postman"
 
 [dependencies.reminder_web]
 path = "web"
+
+[package.metadata.deb]
+depends = "$auto, nginx, python3, python3-venv"
+suggests = "mysql-server-8.0"
+maintainer-scripts = "debian"
+assets = [
+    ["target/release/reminder-rs", "usr/bin/reminder-rs", "755"],
+    ["conf/default.env", "etc/reminder-rs/default.env", "600"]
+]
+
+[package.metadata.deb.systemd-units]
+unit-scripts = "systemd"
+start = false

@@ -1,6 +1,6 @@
 [default]
 address = "0.0.0.0"
-port = 5000
+port = 18920
 template_dir = "web/templates"
 limits = { json = "10MiB" }
 
@@ -11,18 +11,18 @@ secret_key = "tR8krio5FXTnnyIZNiJDXPondz0kI1v6X6BXZcBGIRY="
 certs = "web/private/rsa_sha256_cert.pem"
 key = "web/private/rsa_sha256_key.pem"
 
-[rsa_sha256.tls]
+[debug.rsa_sha256.tls]
 certs = "web/private/rsa_sha256_cert.pem"
 key = "web/private/rsa_sha256_key.pem"
 
-[ecdsa_nistp256_sha256.tls]
+[debug.ecdsa_nistp256_sha256.tls]
 certs = "web/private/ecdsa_nistp256_sha256_cert.pem"
 key = "web/private/ecdsa_nistp256_sha256_key_pkcs8.pem"
 
-[ecdsa_nistp384_sha384.tls]
+[debug.ecdsa_nistp384_sha384.tls]
 certs = "web/private/ecdsa_nistp384_sha384_cert.pem"
 key = "web/private/ecdsa_nistp384_sha384_key_pkcs8.pem"
 
-[ed25519.tls]
+[debug.ed25519.tls]
 certs = "web/private/ed25519_cert.pem"
 key = "eb/private/ed25519_key.pem"

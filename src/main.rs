@@ -18,10 +18,10 @@ use std::{
     env,
     error::Error as StdError,
     fmt::{Debug, Display, Formatter},
+    path::Path,
 };
 
 use chrono_tz::Tz;
-use dotenv::dotenv;
 use log::{error, warn};
 use poise::serenity_prelude::model::{
     gateway::GatewayIntents,
@@ -88,7 +88,9 @@ async fn main() -> Result<(), Box<dyn StdError + Send + Sync>> {
 async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
     env_logger::init();
 
-    dotenv()?;
+    if Path::new("/etc/soundfx-rs/default.env").exists() {
+        dotenv::from_path("/etc/soundfx-rs/default.env")?;
+    }
 
     let discord_token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment");
 

@@ -1,0 +1,12 @@
+[Unit]
+Description=Reminder Bot
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/reminder-rs
+Restart=always
+RestartSec=4
+# Environment="RUST_LOG=warn,reminder_rs=info,postman=info"
+
+[Install]
+WantedBy=multi-user.target

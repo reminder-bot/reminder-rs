@@ -75,7 +75,7 @@ pub async fn initialize(
     env::var("OAUTH2_CLIENT_ID").expect("`OAUTH2_CLIENT_ID' not supplied");
     env::var("OAUTH2_CLIENT_SECRET").expect("`OAUTH2_CLIENT_SECRET' not supplied");
     env::var("OAUTH2_DISCORD_CALLBACK").expect("`OAUTH2_DISCORD_CALLBACK' not supplied");
-    env::var("PATREON_GUILD_ID").expect("`PATREON_GUILD' not supplied");
+    env::var("PATREON_GUILD_ID").expect("`PATREON_GUILD_ID' not supplied");
     info!("Done!");
 
     let oauth2_client = BasicClient::new(
