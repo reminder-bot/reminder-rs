@@ -249,9 +249,9 @@ pub async fn create_reminder_template(
             Ok(json!({}))
         }
         Err(e) => {
-            warn!("Could not fetch templates from {}: {:?}", id, e);
+            warn!("Could not create template for {}: {:?}", id, e);
 
-            json_err!("Could not get templates")
+            json_err!("Could not create template")
         }
     }
 }

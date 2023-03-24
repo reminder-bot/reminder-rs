@@ -172,7 +172,7 @@ pub async fn import_reminders(
 
                                 create_reminder(
                                     ctx.inner(),
-                                    transaction,
+                                    pool.inner(),
                                     GuildId(id),
                                     UserId(user_id),
                                     reminder,

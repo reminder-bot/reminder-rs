@@ -14,7 +14,7 @@ use serenity::{
     http::Http,
     model::id::{ChannelId, GuildId, UserId},
 };
-use sqlx::{types::Json, Executor, MySql, Pool};
+use sqlx::{types::Json, Executor};
 
 use crate::{
     check_guild_subscription, check_subscription,
@@ -358,6 +358,23 @@ pub async fn create_reminder(
     user_id: UserId,
     reminder: Reminder,
 ) -> JsonResult {
+    // check guild in db
+    match sqlx::query!("SELECT 1 as A FROM guilds WHERE guild = ?", guild_id.0)
+        .fetch_one(pool)
+        .await
+    {
+        Err(sqlx::Error::RowNotFound) => {
+            if sqlx::query!("INSERT INTO guilds (guild) VALUES (?)", guild_id.0)
+                .execute(pool)
+                .await
+                .is_err()
+            {
+                return Err(json!({"error": "Guild could not be created"}));
+            }
+        }
+        _ => {}
+    }
+
     // validate channel
     let channel = ChannelId(reminder.channel).to_channel_cached(&ctx);
     let channel_exists = channel.is_some();
