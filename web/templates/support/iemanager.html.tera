@@ -26,8 +26,7 @@
             <div class="container">
                 <p class="title">Import data</p>
                 <p class="content">
-                    You can import previous exports or modified exports. When importing a file, <strong>existing data
-                    will be overwritten</strong>.
+                    You can import previous exports or modified exports. When importing a file, the new data will be added alongside existing data.
                 </p>
             </div>
         </div>

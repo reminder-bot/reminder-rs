@@ -191,19 +191,8 @@
                     </label>
                 </div>
             </div>
-            <div class="control">
-                <div class="field">
-                    <label>
-                        <input type="radio" class="default-width" name="exportSelect" value="reminder_templates">
-                        Reminder templates
-                    </label>
-                </div>
-            </div>
             <br>
             <div class="has-text-centered">
-                <div style="color: red; font-weight: bold;">
-                    By selecting "Import", you understand that this will overwrite existing data.
-                </div>
                 <div style="color: red">
                     Please first read the <a href="/help/iemanager">support page</a>
                 </div>

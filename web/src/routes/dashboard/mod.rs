@@ -353,7 +353,7 @@ pub struct TodoCsv {
 
 pub async fn create_reminder(
     ctx: &Context,
-    pool: &Pool<MySql>,
+    pool: impl sqlx::Executor<'_, Database = Database> + Copy,
     guild_id: GuildId,
     user_id: UserId,
     reminder: Reminder,
@@ -450,6 +450,11 @@ pub async fn create_reminder(
     // base64 decode error dropped here
     let attachment_data = reminder.attachment.as_ref().map(|s| base64::decode(s).ok()).flatten();
     let name = if reminder.name.is_empty() { name_default() } else { reminder.name.clone() };
+    let username = if reminder.username.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+        None
+    } else {
+        reminder.username
+    };
 
     let new_uid = generate_uid();
 
@@ -507,7 +512,7 @@ pub async fn create_reminder(
         name,
         reminder.restartable,
         reminder.tts,
-        reminder.username,
+        username,
         reminder.utc_time,
     )
     .execute(pool)

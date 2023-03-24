@@ -492,7 +492,9 @@ WHERE
                     w.content(&reminder.content).tts(reminder.tts);
 
                     if let Some(username) = &reminder.username {
-                        w.username(username);
+                        if !username.is_empty() {
+                            w.username(username);
+                        }
                     }
 
                     if let Some(avatar) = &reminder.avatar {

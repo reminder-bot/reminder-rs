@@ -172,7 +172,7 @@ pub async fn import_reminders(
 
                                 create_reminder(
                                     ctx.inner(),
-                                    pool.inner(),
+                                    transaction,
                                     GuildId(id),
                                     UserId(user_id),
                                     reminder,
@@ -319,13 +319,6 @@ pub async fn import_todos(
                         }
                     }
                 }
-
-                let _ = sqlx::query!(
-                    "DELETE FROM todos WHERE guild_id = (SELECT id FROM guilds WHERE guild = ?)",
-                    id
-                )
-                .execute(pool.inner())
-                .await;
 
                 let query_str = format!(
                     "INSERT INTO todos (value, channel_id, guild_id) VALUES {}",

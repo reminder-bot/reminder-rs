@@ -60,14 +60,15 @@ function update_select(sel) {
         sel.closest("div.reminderContent").querySelector("img.discord-avatar").src =
             sel.selectedOptions[0].dataset["webhookAvatar"];
     } else {
-        sel.closest("div.reminderContent").querySelector("img.discord-avatar").src = "";
+        sel.closest("div.reminderContent").querySelector("img.discord-avatar").src =
+            "/static/img/icon.png";
     }
     if (sel.selectedOptions[0].dataset["webhookName"]) {
         sel.closest("div.reminderContent").querySelector("input.discord-username").value =
             sel.selectedOptions[0].dataset["webhookName"];
     } else {
         sel.closest("div.reminderContent").querySelector("input.discord-username").value =
-            "";
+            "Reminder";
     }
 }
 
@@ -723,6 +724,7 @@ $createReminderBtn.addEventListener("click", async () => {
     let reminder = await serialize_reminder($createReminder, "create");
     if (reminder.error) {
         show_error(reminder.error);
+        $createReminderBtn.querySelector("span.icon > i").classList = ["fas fa-sparkles"];
         return;
     }
 
