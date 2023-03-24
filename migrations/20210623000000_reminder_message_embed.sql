@@ -1,5 +1,3 @@
-USE reminders;
-
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS reminders_new;

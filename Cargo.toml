@@ -23,7 +23,7 @@ serde_repr = "0.1"
 rmp-serde = "1.1"
 rand = "0.8"
 levenshtein = "1.0"
-sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "macros", "mysql", "bigdecimal", "chrono"]}
+sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "macros", "mysql", "bigdecimal", "chrono", "migrate"]}
 base64 = "0.13"
 
 [dependencies.postman]

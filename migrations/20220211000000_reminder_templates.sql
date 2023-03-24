@@ -1,5 +1,3 @@
-USE reminders;
-
 CREATE TABLE reminder_template (
     `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
 

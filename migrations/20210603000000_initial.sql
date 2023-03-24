@@ -1,10 +1,6 @@
-CREATE DATABASE IF NOT EXISTS reminders;
-
 SET FOREIGN_KEY_CHECKS=0;
 
-USE reminders;
-
-CREATE TABLE reminders.guilds (
+CREATE TABLE guilds (
     id INT UNSIGNED UNIQUE NOT NULL AUTO_INCREMENT,
     guild BIGINT UNSIGNED UNIQUE NOT NULL,
 
@@ -21,7 +17,7 @@ CREATE TABLE reminders.guilds (
     FOREIGN KEY (default_channel_id) REFERENCES reminders.channels(id) ON DELETE SET NULL
 );
 
-CREATE TABLE reminders.channels (
+CREATE TABLE channels (
     id INT UNSIGNED UNIQUE NOT NULL AUTO_INCREMENT,
     channel BIGINT UNSIGNED UNIQUE NOT NULL,
 
@@ -42,7 +38,7 @@ CREATE TABLE reminders.channels (
     FOREIGN KEY (guild_id) REFERENCES reminders.guilds(id) ON DELETE CASCADE
 );
 
-CREATE TABLE reminders.users (
+CREATE TABLE users (
     id INT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
     user BIGINT UNSIGNED UNIQUE NOT NULL,
 
@@ -62,7 +58,7 @@ CREATE TABLE reminders.users (
     FOREIGN KEY (dm_channel) REFERENCES reminders.channels(id) ON DELETE RESTRICT
 );
 
-CREATE TABLE reminders.roles (
+CREATE TABLE roles (
     id INT UNSIGNED UNIQUE NOT NULL AUTO_INCREMENT,
     role BIGINT UNSIGNED UNIQUE NOT NULL,
 
@@ -74,7 +70,7 @@ CREATE TABLE reminders.roles (
     FOREIGN KEY (guild_id) REFERENCES reminders.guilds(id) ON DELETE CASCADE
 );
 
-CREATE TABLE reminders.embeds (
+CREATE TABLE embeds (
     id INT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
 
     title VARCHAR(256) NOT NULL DEFAULT '',
@@ -91,7 +87,7 @@ CREATE TABLE reminders.embeds (
     PRIMARY KEY (id)
 );
 
-CREATE TABLE reminders.embed_fields (
+CREATE TABLE embed_fields (
     id INT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
 
     title VARCHAR(256) NOT NULL DEFAULT '',
@@ -100,10 +96,10 @@ CREATE TABLE reminders.embed_fields (
     embed_id INT UNSIGNED NOT NULL,
 
     PRIMARY KEY (id),
-    FOREIGN KEY (embed_id) REFERENCES reminders.embeds(id) ON DELETE CASCADE
+    FOREIGN KEY (embed_id) REFERENCES embeds(id) ON DELETE CASCADE
 );
 
-CREATE TABLE reminders.messages (
+CREATE TABLE messages (
     id INT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
 
     content VARCHAR(2048) NOT NULL DEFAULT '',
@@ -114,10 +110,10 @@ CREATE TABLE reminders.messages (
     attachment_name VARCHAR(260),
 
     PRIMARY KEY (id),
-    FOREIGN KEY (embed_id) REFERENCES reminders.embeds(id) ON DELETE SET NULL
+    FOREIGN KEY (embed_id) REFERENCES embeds(id) ON DELETE SET NULL
 );
 
-CREATE TABLE reminders.reminders (
+CREATE TABLE reminders (
     id INT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
     uid VARCHAR(64) UNIQUE NOT NULL,
 
@@ -140,20 +136,20 @@ CREATE TABLE reminders.reminders (
     set_by INT UNSIGNED,
 
     PRIMARY KEY (id),
-    FOREIGN KEY (message_id) REFERENCES reminders.messages(id) ON DELETE RESTRICT,
-    FOREIGN KEY (channel_id) REFERENCES reminders.channels(id) ON DELETE CASCADE,
-    FOREIGN KEY (set_by) REFERENCES reminders.users(id) ON DELETE SET NULL
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE RESTRICT,
+    FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE,
+    FOREIGN KEY (set_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE TRIGGER message_cleanup AFTER DELETE ON reminders.reminders
+CREATE TRIGGER message_cleanup AFTER DELETE ON reminders
 FOR EACH ROW
-    DELETE FROM reminders.messages WHERE id = OLD.message_id;
+    DELETE FROM messages WHERE id = OLD.message_id;
 
-CREATE TRIGGER embed_cleanup AFTER DELETE ON reminders.messages
+CREATE TRIGGER embed_cleanup AFTER DELETE ON messages
 FOR EACH ROW
-    DELETE FROM reminders.embeds WHERE id = OLD.embed_id;
+    DELETE FROM embeds WHERE id = OLD.embed_id;
 
-CREATE TABLE reminders.todos (
+CREATE TABLE todos (
     id INT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
     user_id INT UNSIGNED,
     guild_id INT UNSIGNED,
@@ -161,23 +157,23 @@ CREATE TABLE reminders.todos (
     value VARCHAR(2000) NOT NULL,
 
     PRIMARY KEY (id),
-    FOREIGN KEY (user_id) REFERENCES reminders.users(id) ON DELETE SET NULL,
-    FOREIGN KEY (guild_id) REFERENCES reminders.guilds(id) ON DELETE CASCADE,
-    FOREIGN KEY (channel_id) REFERENCES reminders.channels(id) ON DELETE SET NULL
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE,
+    FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE SET NULL
 );
 
-CREATE TABLE reminders.command_restrictions (
+CREATE TABLE command_restrictions (
     id INT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
 
     role_id INT UNSIGNED NOT NULL,
     command ENUM('todos', 'natural', 'remind', 'interval', 'timer', 'del', 'look', 'alias', 'countdown') NOT NULL,
 
     PRIMARY KEY (id),
-    FOREIGN KEY (role_id) REFERENCES reminders.roles(id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
     UNIQUE KEY (`role_id`, `command`)
 );
 
-CREATE TABLE reminders.timers (
+CREATE TABLE timers (
     id INT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
     start_time TIMESTAMP NOT NULL DEFAULT NOW(),
     name VARCHAR(32) NOT NULL,
@@ -186,7 +182,7 @@ CREATE TABLE reminders.timers (
     PRIMARY KEY (id)
 );
 
-CREATE TABLE reminders.events (
+CREATE TABLE events (
     id INT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
     `time` TIMESTAMP NOT NULL DEFAULT NOW(),
 
@@ -198,12 +194,12 @@ CREATE TABLE reminders.events (
     reminder_id INT UNSIGNED,
 
     PRIMARY KEY (id),
-    FOREIGN KEY (guild_id) REFERENCES reminders.guilds(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES reminders.users(id) ON DELETE SET NULL,
-    FOREIGN KEY (reminder_id) REFERENCES reminders.reminders(id) ON DELETE SET NULL
+    FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (reminder_id) REFERENCES reminders(id) ON DELETE SET NULL
 );
 
-CREATE TABLE reminders.command_aliases (
+CREATE TABLE command_aliases (
     id INT UNSIGNED AUTO_INCREMENT UNIQUE NOT NULL,
 
     guild_id INT UNSIGNED NOT NULL,
@@ -212,22 +208,22 @@ CREATE TABLE reminders.command_aliases (
     command VARCHAR(2048) NOT NULL,
 
     PRIMARY KEY (id),
-    FOREIGN KEY (guild_id) REFERENCES reminders.guilds(id) ON DELETE CASCADE,
+    FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE,
     UNIQUE KEY (`guild_id`, `name`)
 );
 
-CREATE TABLE reminders.guild_users (
+CREATE TABLE guild_users (
     guild INT UNSIGNED NOT NULL,
     user INT UNSIGNED NOT NULL,
 
     can_access BOOL NOT NULL DEFAULT 0,
 
-    FOREIGN KEY (guild) REFERENCES reminders.guilds(id) ON DELETE CASCADE,
-    FOREIGN KEY (user) REFERENCES reminders.users(id) ON DELETE CASCADE,
+    FOREIGN KEY (guild) REFERENCES guilds(id) ON DELETE CASCADE,
+    FOREIGN KEY (user) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE KEY (guild, user)
 );
 
-CREATE EVENT reminders.event_cleanup
+CREATE EVENT event_cleanup
 ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 DAY
 ON COMPLETION PRESERVE
-DO DELETE FROM reminders.events WHERE `time` < DATE_SUB(NOW(), INTERVAL 5 DAY);
+DO DELETE FROM events WHERE `time` < DATE_SUB(NOW(), INTERVAL 5 DAY);

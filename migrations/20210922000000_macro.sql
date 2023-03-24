@@ -1,5 +1,3 @@
-USE reminders;
-
 CREATE TABLE macro (
     id INT UNSIGNED AUTO_INCREMENT,
     guild_id INT UNSIGNED NOT NULL,

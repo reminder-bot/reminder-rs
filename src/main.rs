@@ -168,6 +168,8 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
     let database =
         Pool::connect(&env::var("DATABASE_URL").expect("No database URL provided")).await.unwrap();
 
+    sqlx::migrate!().run(&database).await?;
+
     let popular_timezones = sqlx::query!(
         "SELECT IFNULL(timezone, 'UTC') AS timezone
         FROM users
