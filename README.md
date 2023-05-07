@@ -9,7 +9,7 @@ You'll need rustc and cargo for compilation. To run, you'll need Python 3 still 
 
 ### Compiling
 Install build requirements: 
-`sudo apt install gcc gcc-multilib cmake libssl-dev build-essential`
+`sudo apt install gcc gcc-multilib cmake libssl-dev build-essential python3-dateparser`
 
 Install Rust from https://rustup.rs
 
@@ -28,9 +28,7 @@ Use MySQL 8. MariaDB is confirmed not working at the moment.
 Load the SQL files in order from "migrations" to generate the database schema.
 
 ### Setting up Python
-Reminder Bot by default looks for a venv within it's working directory to run Python out of. To set up a venv, install `python3-venv` and run `python3 -m venv venv`. Then, run `source venv/bin/activate` to activate the venv, and do `pip install dateparser` to install the required library.
-
-Remember where you create the venv! You may need to change the `PYTHON_LOCATION` variable in the next step to point to your Python binary if the venv is not in your working directory.
+Reminder Bot uses `python3-dateparser` to handle dates. This depends on Python 3.
 
 ### Environment Variables
 Reminder Bot reads a number of environment variables. Some are essential, and others have hardcoded fallbacks. Environment variables can be loaded from a .env file in the working directory.
@@ -46,8 +44,3 @@ __Other Variables__
 * `CNC_GUILD` - default `None`, accepts a single Discord guild ID for the server that the subscription roles belong to
 * `PYTHON_LOCATION` - default `venv/bin/python3`. Can be changed if your Python executable is located somewhere else
 * `THEME_COLOR` - default `8fb677`. Specifies the hex value of the color to use on info message embeds 
-* `DM_ENABLED` - default `1`, if `1`, Reminder Bot will respond to direct messages
-
-### Todo List
-
-* Convert aliases to macros

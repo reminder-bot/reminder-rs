@@ -35,14 +35,14 @@ path = "postman"
 path = "web"
 
 [package.metadata.deb]
-depends = "$auto, nginx, python3-dateparser"
-suggests = "mysql-server-8.0"
+depends = "$auto, python3-dateparser"
+suggests = "mysql-server-8.0, nginx"
 maintainer-scripts = "debian"
 assets = [
     ["target/release/reminder-rs", "usr/bin/reminder-rs", "755"],
     ["conf/default.env", "etc/reminder-rs/default.env", "600"],
-    ["web/static/", "var/www/reminder-rs/static", "755"],
-    ["nginx/reminder-rs", "etc/nginx/sites-available/reminder-rs", "755"]
+#    ["web/static/", "var/www/reminder-rs/static", "755"],
+#    ["nginx/reminder-rs", "etc/nginx/sites-available/reminder-rs", "755"]
 ]
 
 [package.metadata.deb.systemd-units]
