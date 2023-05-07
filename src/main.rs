@@ -88,8 +88,8 @@ async fn main() -> Result<(), Box<dyn StdError + Send + Sync>> {
 async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
     env_logger::init();
 
-    if Path::new("/etc/soundfx-rs/default.env").exists() {
-        dotenv::from_path("/etc/soundfx-rs/default.env")?;
+    if Path::new("/etc/reminder-rs/default.env").exists() {
+        dotenv::from_path("/etc/reminder-rs/default.env")?;
     }
 
     let discord_token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment");

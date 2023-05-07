@@ -1,8 +1,10 @@
 [package]
-name = "reminder_rs"
+name = "reminder-rs"
 version = "1.6.10"
 authors = ["Jude Southworth <judesouthworth@pm.me>"]
 edition = "2021"
+license = "AGPL-3.0 only"
+description = "Reminder Bot for Discord, now in Rust"
 
 [dependencies]
 poise = "0.4"
@@ -33,12 +35,14 @@ path = "postman"
 path = "web"
 
 [package.metadata.deb]
-depends = "$auto, nginx, python3, python3-venv"
+depends = "$auto, nginx, python3-dateparser"
 suggests = "mysql-server-8.0"
 maintainer-scripts = "debian"
 assets = [
     ["target/release/reminder-rs", "usr/bin/reminder-rs", "755"],
-    ["conf/default.env", "etc/reminder-rs/default.env", "600"]
+    ["conf/default.env", "etc/reminder-rs/default.env", "600"],
+    ["web/static/", "var/www/reminder-rs/static", "755"],
+    ["nginx/reminder-rs", "etc/nginx/sites-available/reminder-rs", "755"]
 ]
 
 [package.metadata.deb.systemd-units]
