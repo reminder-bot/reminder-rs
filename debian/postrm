@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -e
+
+id -u reminder &>/dev/null || userdel reminder
+
+if [ -f /etc/reminder-rs/config.env ]; then
+  rm /etc/reminder-rs/config.env
+fi
+
+#DEBHELPER#

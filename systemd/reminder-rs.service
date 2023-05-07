@@ -2,6 +2,7 @@
 Description=Reminder Bot
 
 [Service]
+User=reminder
 Type=simple
 ExecStart=/usr/bin/reminder-rs
 Restart=always

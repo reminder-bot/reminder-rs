@@ -14,7 +14,7 @@ CREATE TABLE guilds (
     default_avatar VARCHAR(512) DEFAULT 'https://raw.githubusercontent.com/reminder-bot/logos/master/Remind_Me_Bot_Logo_PPic.jpg' NOT NULL,
 
     PRIMARY KEY (id),
-    FOREIGN KEY (default_channel_id) REFERENCES reminders.channels(id) ON DELETE SET NULL
+    FOREIGN KEY (default_channel_id) REFERENCES channels(id) ON DELETE SET NULL
 );
 
 CREATE TABLE channels (
@@ -35,7 +35,7 @@ CREATE TABLE channels (
     guild_id INT UNSIGNED,
 
     PRIMARY KEY (id),
-    FOREIGN KEY (guild_id) REFERENCES reminders.guilds(id) ON DELETE CASCADE
+    FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
 );
 
 CREATE TABLE users (
@@ -55,7 +55,7 @@ CREATE TABLE users (
     patreon BOOLEAN NOT NULL DEFAULT 0,
 
     PRIMARY KEY (id),
-    FOREIGN KEY (dm_channel) REFERENCES reminders.channels(id) ON DELETE RESTRICT
+    FOREIGN KEY (dm_channel) REFERENCES channels(id) ON DELETE RESTRICT
 );
 
 CREATE TABLE roles (
@@ -67,7 +67,7 @@ CREATE TABLE roles (
     guild_id INT UNSIGNED NOT NULL,
 
     PRIMARY KEY (id),
-    FOREIGN KEY (guild_id) REFERENCES reminders.guilds(id) ON DELETE CASCADE
+    FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
 );
 
 CREATE TABLE embeds (

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -e
+
+id -u reminder &>/dev/null || useradd -r -M reminder
+
+if [ ! -f /etc/reminder-rs/config.env ]; then
+  cp /etc/reminder-rs/default.env /etc/reminder-rs/config.env
+fi
+
+chown reminder /etc/reminder-rs/config.env
+
+#DEBHELPER#
