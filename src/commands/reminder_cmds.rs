@@ -5,8 +5,7 @@ use chrono_tz::Tz;
 use num_integer::Integer;
 use poise::{
     serenity_prelude::{
-        builder::CreateEmbed, component::ButtonStyle, model::channel::Channel, ChannelType,
-        ReactionType,
+        builder::CreateEmbed, component::ButtonStyle, model::channel::Channel, ReactionType,
     },
     CreateReply, Modal,
 };
@@ -665,18 +664,10 @@ async fn create_reminder(
                 let list = channels.map(|arg| parse_mention_list(&arg)).unwrap_or_default();
 
                 if list.is_empty() {
-                    let channel = ctx.channel_id().to_channel(&ctx.discord()).await?;
-
-                    match channel.guild() {
-                        Some(guild_channel) => {
-                            if guild_channel.kind == ChannelType::PublicThread {
-                                vec![ReminderScope::Thread(ctx.channel_id().0)]
-                            } else {
-                                vec![ReminderScope::Channel(ctx.channel_id().0)]
-                            }
-                        }
-
-                        None => vec![ReminderScope::User(ctx.author().id.0)],
+                    if ctx.guild_id().is_some() {
+                        vec![ReminderScope::Channel(ctx.channel_id().0)]
+                    } else {
+                        vec![ReminderScope::User(ctx.author().id.0)]
                     }
                 } else {
                     list
@@ -824,7 +815,6 @@ fn create_response(
     embed
 }
 
-// TODO process threads here
 fn parse_mention_list(mentions: &str) -> Vec<ReminderScope> {
     REGEX_CHANNEL_USER
         .captures_iter(mentions)
