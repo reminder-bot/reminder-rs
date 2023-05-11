@@ -90,6 +90,8 @@ async fn _main(tx: Sender<()>) -> Result<(), Box<dyn StdError + Send + Sync>> {
 
     if Path::new("/etc/reminder-rs/config.env").exists() {
         dotenv::from_path("/etc/reminder-rs/config.env")?;
+    } else {
+        dotenv::from_path(".env")?;
     }
 
     let discord_token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN from environment");
