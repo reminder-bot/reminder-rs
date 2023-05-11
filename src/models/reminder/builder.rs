@@ -36,6 +36,7 @@ async fn create_webhook(
 pub enum ReminderScope {
     User(u64),
     Channel(u64),
+    Thread(u64),
 }
 
 impl ReminderScope {
@@ -43,6 +44,7 @@ impl ReminderScope {
         match self {
             Self::User(id) => format!("<@{}>", id),
             Self::Channel(id) => format!("<#{}>", id),
+            Self::Thread(id) => format!("<#{}>", id),
         }
     }
 }
@@ -51,6 +53,7 @@ pub struct ReminderBuilder {
     pool: MySqlPool,
     uid: String,
     channel: u32,
+    thread_id: Option<u64>,
     utc_time: NaiveDateTime,
     timezone: String,
     interval_seconds: Option<i64>,
@@ -299,6 +302,66 @@ impl<'a> MultiReminderBuilder<'a> {
                             Err(ReminderError::InvalidTag)
                         }
                     }
+                    ReminderScope::Thread(thread_id) => {
+                        let thread =
+                            ChannelId(thread_id).to_channel(&self.ctx.discord()).await.unwrap();
+
+                        if let Some(guild_channel) = thread.guild() {
+                            if Some(guild_channel.guild_id) != self.guild_id {
+                                Err(ReminderError::InvalidTag)
+                            } else {
+                                match guild_channel.parent_id {
+                                    Some(parent_id) => {
+                                        let channel = parent_id
+                                            .to_channel(&self.ctx.discord())
+                                            .await
+                                            .unwrap();
+
+                                        let mut channel_data = ChannelData::from_channel(
+                                            &channel,
+                                            &self.ctx.data().database,
+                                        )
+                                        .await
+                                        .unwrap();
+
+                                        if channel_data.webhook_id.is_none()
+                                            || channel_data.webhook_token.is_none()
+                                        {
+                                            match create_webhook(
+                                                &self.ctx.discord(),
+                                                channel.guild().unwrap(),
+                                                "Reminder",
+                                            )
+                                            .await
+                                            {
+                                                Ok(webhook) => {
+                                                    channel_data.webhook_id =
+                                                        Some(webhook.id.as_u64().to_owned());
+                                                    channel_data.webhook_token = webhook.token;
+
+                                                    channel_data
+                                                        .commit_changes(&self.ctx.data().database)
+                                                        .await;
+
+                                                    Ok(channel_data.id)
+                                                }
+
+                                                Err(e) => {
+                                                    Err(ReminderError::DiscordError(e.to_string()))
+                                                }
+                                            }
+                                        } else {
+                                            Ok(channel_data.id)
+                                        }
+                                    }
+
+                                    None => Err(ReminderError::InvalidTag),
+                                }
+                            }
+                        } else {
+                            Err(ReminderError::InvalidTag)
+                        }
+                    }
                 };
 
                 match db_channel_id {
@@ -307,6 +370,7 @@ impl<'a> MultiReminderBuilder<'a> {
                             pool: self.ctx.data().database.clone(),
                             uid: generate_uid(),
                             channel: c,
+                            thread_id: None,
                             utc_time: self.utc_time,
                             timezone: self.timezone.to_string(),
                             interval_seconds: self.interval.map(|i| i.sec as i64),

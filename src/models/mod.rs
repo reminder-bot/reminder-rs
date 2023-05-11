@@ -5,7 +5,7 @@ pub mod timer;
 pub mod user_data;
 
 use chrono_tz::Tz;
-use poise::serenity_prelude::{async_trait, model::id::UserId};
+use poise::serenity_prelude::{async_trait, model::id::UserId, ChannelType};
 
 use crate::{
     models::{channel_data::ChannelData, user_data::UserData},
@@ -43,7 +43,20 @@ impl CtxData for Context<'_> {
     }
 
     async fn channel_data(&self) -> Result<ChannelData, Box<dyn std::error::Error + Sync + Send>> {
-        let channel = self.channel_id().to_channel_cached(&self.discord()).unwrap();
+        // If we're in a thread, get the parent channel.
+        let recv_channel = self.channel_id().to_channel(&self.discord()).await?;
+
+        let channel = match recv_channel.guild() {
+            Some(guild_channel) => {
+                if guild_channel.kind == ChannelType::PublicThread {
+                    guild_channel.parent_id.unwrap().to_channel_cached(&self.discord()).unwrap()
+                } else {
+                    self.channel_id().to_channel_cached(&self.discord()).unwrap()
+                }
+            }
+
+            None => self.channel_id().to_channel_cached(&self.discord()).unwrap(),
+        };
 
         ChannelData::from_channel(&channel, &self.data().database).await
     }

@@ -53,19 +53,22 @@ async fn check_self_permissions(ctx: Context<'_>) -> bool {
             .member_permissions(&ctx.discord(), user_id)
             .await
             .map_or(false, |p| p.manage_webhooks());
+
         let (view_channel, send_messages, embed_links) = ctx
             .channel_id()
-            .to_channel_cached(&ctx.discord())
+            .to_channel(&ctx.discord())
+            .await
+            .ok()
             .and_then(|c| {
                 if let Channel::Guild(channel) = c {
-                    channel.permissions_for_user(&ctx.discord(), user_id).ok()
+                    let perms = channel.permissions_for_user(&ctx.discord(), user_id).ok()?;
+
+                    Some((perms.view_channel(), perms.send_messages(), perms.embed_links()))
                 } else {
                     None
                 }
             })
-            .map_or((false, false, false), |p| {
-                (p.view_channel(), p.send_messages(), p.embed_links())
-            });
+            .unwrap_or((false, false, false));
 
         if manage_webhooks && send_messages && embed_links {
             true
@@ -81,8 +84,8 @@ async fn check_self_permissions(ctx: Context<'_>) -> bool {
 {}     **Manage Webhooks**",
                         if view_channel { "✅" } else { "❌" },
                         if send_messages { "✅" } else { "❌" },
-                        if manage_webhooks { "✅" } else { "❌" },
                         if embed_links { "✅" } else { "❌" },
+                        if manage_webhooks { "✅" } else { "❌" },
                     ))
                 })
                 .await;
